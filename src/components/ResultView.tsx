@@ -1,0 +1,151 @@
+import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  CircleX,
+  Info,
+  Package,
+  RotateCcw,
+  ShieldAlert,
+  TriangleAlert,
+} from "lucide-react";
+import { productsInCategory, type FoodProduct } from "@/lib/off";
+import { analyzeFood, VERDICT_LABEL, type Analysis, type Verdict } from "@/lib/verdict";
+import type { AllergenId } from "@/lib/allergens";
+import type { Profile } from "@/lib/store";
+
+const VERDICT_STYLE: Record<
+  Verdict,
+  { bg: string; fg: string; Icon: typeof CheckCircle2; subtitle: string }
+> = {
+  compatible: {
+    bg: "bg-safe",
+    fg: "text-safe-foreground",
+    Icon: CheckCircle2,
+    subtitle: "Non abbiamo trovato i tuoi allergeni in questo prodotto.",
+  },
+  warning: {
+    bg: "bg-caution",
+    fg: "text-caution-foreground",
+    Icon: TriangleAlert,
+    subtitle: "Ci sono dubbi o dati mancanti. Controlla bene l'etichetta.",
+  },
+  avoid: {
+    bg: "bg-danger",
+    fg: "text-danger-foreground",
+    Icon: CircleX,
+    subtitle: "Questo prodotto contiene qualcosa che devi evitare.",
+  },
+};
+
+const NUTRI_LABEL: Record<string, string> = { a: "A", b: "B", c: "C", d: "D", e: "E" };
+
+export function ResultView({
+  product,
+  analysis,
+  profile,
+}: {
+  product: FoodProduct;
+  analysis: Analysis;
+  profile: Profile | null;
+}) {
+  const style = VERDICT_STYLE[analysis.verdict];
+  return (
+    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col pb-10">
+      <div className={`${style.bg} ${style.fg} px-5 pb-8 pt-6`}>
+        <header className="flex items-center gap-3">
+          <Link to="/" aria-label="Torna alla home" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-current/10">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <p className="truncate text-sm font-bold opacity-90">Risultato analisi</p>
+        </header>
+        <div className="mt-6 flex flex-col items-center text-center">
+          <style.Icon className="h-20 w-20" strokeWidth={1.5} />
+          <h1 className="mt-3 text-3xl font-black uppercase tracking-wide">{VERDICT_LABEL[analysis.verdict]}</h1>
+          <p className="mt-2 max-w-[280px] text-sm font-semibold opacity-90">{style.subtitle}</p>
+        </div>
+      </div>
+
+      <div className="px-5">
+        <div className="-mt-4 flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm">
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={product.name} className="h-14 w-14 shrink-0 rounded-xl bg-secondary object-contain" />
+          ) : (
+            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-secondary"><Package className="h-6 w-6 text-primary" /></div>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-2 text-base font-extrabold text-foreground">{product.name}</p>
+            <p className="truncate text-xs text-muted-foreground">{[product.brand, product.code].filter(Boolean).join(" · ")}</p>
+          </div>
+          {product.nutritionGrade && (
+            <div className="shrink-0 text-center">
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">Nutri-Score</p>
+              <p className="text-xl font-black text-foreground">{NUTRI_LABEL[product.nutritionGrade]}</p>
+            </div>
+          )}
+        </div>
+
+        {analysis.reasons.length > 0 && (
+          <section className="mt-5">
+            <h2 className="text-base font-extrabold text-foreground">Perché?</h2>
+            <div className="mt-2 flex flex-col gap-2">
+              {analysis.reasons.map((r, i) => {
+                const cfg = r.level === "avoid" ? { cls: "bg-danger-soft text-danger", Icon: CircleX } : r.level === "warning" ? { cls: "bg-caution-soft text-caution-foreground", Icon: TriangleAlert } : { cls: "bg-muted text-foreground", Icon: Info };
+                return <div key={i} className={`flex items-start gap-3 rounded-2xl p-3.5 ${cfg.cls}`}><cfg.Icon className="mt-0.5 h-5 w-5 shrink-0" /><p className="text-sm font-bold">{r.text}</p></div>;
+              })}
+            </div>
+          </section>
+        )}
+
+        <section className="mt-5">
+          <h2 className="text-base font-extrabold text-foreground">Ingredienti</h2>
+          <p className="mt-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">{product.ingredientsText || "Lista ingredienti non disponibile."}</p>
+        </section>
+
+        {product.source === "off" && product.categoryTag && <Alternatives product={product} allergens={profile?.allergens ?? []} />}
+        {product.source === "off" && <p className="mt-4 text-center text-[11px] text-muted-foreground">Dati prodotto: Open Food Facts</p>}
+
+        <Link to="/scan" search={{ mode: "barcode" }} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground"><RotateCcw className="h-5 w-5" />Scansiona un altro prodotto</Link>
+        <Disclaimer severe={!!profile?.severe} />
+      </div>
+    </div>
+  );
+}
+
+function Alternatives({ product, allergens }: { product: FoodProduct; allergens: AllergenId[] }) {
+  const { data } = useQuery({
+    queryKey: ["alternatives", product.categoryTag, allergens.join(",")],
+    queryFn: async () => {
+      const list = await productsInCategory(product.categoryTag!);
+      return list.filter((p) => p.code !== product.code && p.ingredientsText).filter((p) => analyzeFood(p, allergens).verdict === "compatible").slice(0, 3);
+    },
+    staleTime: 1000 * 60 * 30,
+    retry: false,
+  });
+  if (!data || data.length === 0) return null;
+  return (
+    <section className="mt-5">
+      <h2 className="text-base font-extrabold text-foreground">Alternative compatibili per te</h2>
+      <div className="mt-2 flex flex-col gap-2">
+        {data.map((alt) => (
+          <Link key={alt.code} to="/product/$code" params={{ code: alt.code }} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors active:bg-secondary">
+            {alt.imageUrl ? <img src={alt.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain" /> : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-safe-soft"><CheckCircle2 className="h-5 w-5 text-safe" /></div>}
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-foreground">{alt.name}</p><p className="truncate text-xs text-muted-foreground">{alt.brand}</p></div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function Disclaimer({ severe }: { severe: boolean }) {
+  return (
+    <div className="mt-6 rounded-2xl border border-caution/40 bg-caution-soft p-4">
+      <div className="flex items-start gap-3">
+        <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-caution-foreground" />
+        <p className="text-sm leading-relaxed text-caution-foreground">SafeFood Scan è uno strumento informativo e <strong>non sostituisce il parere medico</strong>. I dati possono essere incompleti o non aggiornati: verifica sempre l'etichetta.{severe && <> <strong>Hai indicato allergie gravi: controlla l'etichetta e contatta il produttore.</strong></>}</p>
+      </div>
+    </div>
+  );
+}
