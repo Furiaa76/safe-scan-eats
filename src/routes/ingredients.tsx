@@ -20,6 +20,26 @@ export const Route = createFileRoute("/ingredients")({
 
 type Identity = { name: string; brand: string; category: string; recognized: boolean; claims: string[] };
 
+async function localOcr(image: string): Promise<string> {
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("ita+eng");
+  try {
+    const result = await worker.recognize(image);
+    return result.data.text.trim();
+  } finally {
+    await worker.terminate();
+  }
+}
+
+function claimsFromText(text: string): string[] {
+  const s = text.toLowerCase().replace(/\s+/g, " ");
+  const claims: string[] = [];
+  if (/senza\s+glutine|gluten[\s-]*free/.test(s)) claims.push("senza glutine");
+  if (/senza\s+lattosio|lactose[\s-]*free/.test(s)) claims.push("senza lattosio");
+  if (/senza\s+latte|milk[\s-]*free/.test(s)) claims.push("senza latte");
+  return claims;
+}
+
 function GuidedFlow() {
   const search = Route.useSearch();
   const navigate = useNavigate();
@@ -40,28 +60,43 @@ function GuidedFlow() {
   const onFront = async (file?: File) => {
     if (!file) return;
     setError(null); setBusy("front");
+    const dataUrl = await fileToDataUrl(file);
+    setFront(dataUrl);
+    saveFrontPhoto(await fileToDataUrl(file, 480, 0.7));
     try {
-      const dataUrl = await fileToDataUrl(file);
-      setFront(dataUrl);
-      saveFrontPhoto(await fileToDataUrl(file, 480, 0.7));
       const r = await identifyFn({ data: { image: dataUrl } });
       setIdentity(r);
       if (r.recognized) { if (!name) setName(r.name); if (!brand) setBrand(r.brand); }
-    } catch (e) { setError((e as Error).message || "Non sono riuscito a riconoscere il prodotto."); }
-    finally { setBusy(null); }
+    } catch {
+      try {
+        const ocr = await localOcr(dataUrl);
+        const claims = claimsFromText(ocr);
+        setIdentity({ name: "", brand: "", category: "", recognized: false, claims });
+        if (claims.length === 0) setError("Non ho trovato dichiarazioni leggibili sul fronte. Puoi continuare con l'etichetta ingredienti.");
+      } catch {
+        setError("Non sono riuscito a leggere il fronte. Puoi continuare con l'etichetta ingredienti.");
+      }
+    } finally { setBusy(null); }
   };
 
   const onLabel = async (file?: File) => {
     if (!file) return;
     setError(null); setBusy("label");
+    const dataUrl = await fileToDataUrl(file, 1600, 0.85);
+    setLabel(dataUrl);
     try {
-      const dataUrl = await fileToDataUrl(file, 1600, 0.85);
-      setLabel(dataUrl);
       const r = await readFn({ data: { image: dataUrl } });
-      if (!r.readable) setError("Non riesco a leggere gli ingredienti. Riprova con più luce oppure scrivili qui sotto.");
-      else setText([r.ingredients, r.traces].filter(Boolean).join(" "));
-    } catch (e) { setError((e as Error).message || "Lettura non riuscita. Scrivi gli ingredienti qui sotto."); }
-    finally { setBusy(null); }
+      if (!r.readable) throw new Error("not-readable");
+      setText([r.ingredients, r.traces].filter(Boolean).join(" "));
+    } catch {
+      try {
+        const ocr = await localOcr(dataUrl);
+        if (ocr.length < 4) throw new Error("ocr-empty");
+        setText(ocr);
+      } catch {
+        setError("Non riesco a leggere gli ingredienti. Riprova con più luce oppure scrivili qui sotto.");
+      }
+    } finally { setBusy(null); }
   };
 
   const analyze = () => navigate({
@@ -82,10 +117,10 @@ function GuidedFlow() {
     {search.code && <p className="mt-3 text-xs text-muted-foreground">Codice a barre: <span className="font-mono">{search.code}</span></p>}
     {step === 1 ? <>
       <p className="mt-4 text-base font-extrabold text-foreground">1. Fotografa la PARTE FRONTALE del prodotto</p><p className="mt-1 text-sm text-muted-foreground">Ci serve per capire di quale prodotto si tratta e leggere eventuali dichiarazioni esplicite come “senza glutine”.</p>
-      <PhotoBox photo={front} busy={busy === "front"} busyText="Riconosco il prodotto…" hint="Tocca per fotografare il fronte della confezione" icon={<ScanSearch className="h-14 w-14 text-primary-foreground/80" />} onFile={onFront} />
-      {identity && <div className="mt-4 rounded-2xl border border-border bg-card p-4"><p className="text-xs font-bold uppercase text-muted-foreground">{identity.recognized ? "Prodotto riconosciuto" : "Prodotto non riconosciuto"}</p>{identity.recognized && <p className="mt-1 text-base font-extrabold text-foreground">{identity.name}{identity.brand ? ` · ${identity.brand}` : ""}</p>}{identity.category && <p className="text-xs text-muted-foreground">{identity.category}</p>}{identity.claims.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{identity.claims.map((claim) => <span key={claim} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{claim}</span>)}</div>}</div>}
+      <PhotoBox photo={front} busy={busy === "front"} busyText="Leggo il prodotto…" hint="Tocca per fotografare il fronte della confezione" icon={<ScanSearch className="h-14 w-14 text-primary-foreground/80" />} onFile={onFront} />
+      {identity && <div className="mt-4 rounded-2xl border border-border bg-card p-4"><p className="text-xs font-bold uppercase text-muted-foreground">{identity.recognized ? "Prodotto riconosciuto" : identity.claims.length ? "Dichiarazioni rilevate" : "Prodotto non riconosciuto"}</p>{identity.recognized && <p className="mt-1 text-base font-extrabold text-foreground">{identity.name}{identity.brand ? ` · ${identity.brand}` : ""}</p>}{identity.category && <p className="text-xs text-muted-foreground">{identity.category}</p>}{identity.claims.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{identity.claims.map((claim) => <span key={claim} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{claim}</span>)}</div>}</div>}
       <div className="mt-4 grid grid-cols-1 gap-2"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome prodotto (correggi se serve)" className="rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-foreground outline-none focus:border-primary" /><input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Marca" className="rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-foreground outline-none focus:border-primary" /></div>
-      <Note>La foto frontale serve a riconoscere il prodotto e a leggere solo dichiarazioni esplicite visibili, come “senza glutine”. La compatibilità viene comunque verificata anche sugli ingredienti dell'etichetta.</Note>
+      <Note>Se il servizio AI non è disponibile, l'app usa automaticamente una lettura OCR locale sul dispositivo per cercare scritte come “senza glutine”.</Note>
       {error && <p className="mt-3 text-sm font-semibold text-danger">{error}</p>}
       <button type="button" disabled={busy !== null} onClick={() => { setError(null); setStep(2); }} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">{front ? "Avanti: etichetta ingredienti" : "Salta e fotografa l'etichetta"}</button>
     </> : <>
