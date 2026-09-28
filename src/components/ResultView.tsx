@@ -51,6 +51,9 @@ export function ResultView({
   profile: Profile | null;
 }) {
   const style = VERDICT_STYLE[analysis.verdict];
+  const allergens = profile?.allergens ?? [];
+  const shouldSuggestAlternatives = product.source === "off" && !!product.categoryTag && allergens.length > 0 && analysis.verdict !== "compatible";
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col pb-10">
       <div className={`${style.bg} ${style.fg} px-5 pb-8 pt-6`}>
@@ -103,7 +106,7 @@ export function ResultView({
           <p className="mt-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">{product.ingredientsText || "Lista ingredienti non disponibile."}</p>
         </section>
 
-        {product.source === "off" && product.categoryTag && <Alternatives product={product} allergens={profile?.allergens ?? []} />}
+        {shouldSuggestAlternatives && <Alternatives product={product} allergens={allergens} />}
         {product.source === "off" && <p className="mt-4 text-center text-[11px] text-muted-foreground">Dati prodotto: Open Food Facts</p>}
 
         <Link to="/scan" search={{ mode: "barcode" }} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground"><RotateCcw className="h-5 w-5" />Scansiona un altro prodotto</Link>
@@ -114,19 +117,30 @@ export function ResultView({
 }
 
 function Alternatives({ product, allergens }: { product: FoodProduct; allergens: AllergenId[] }) {
-  const { data } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: ["alternatives", product.categoryTag, allergens.join(",")],
     queryFn: async () => {
       const list = await productsInCategory(product.categoryTag!);
-      return list.filter((p) => p.code !== product.code && p.ingredientsText).filter((p) => analyzeFood(p, allergens).verdict === "compatible").slice(0, 3);
+      return list
+        .filter((p) => p.code !== product.code && p.ingredientsText.trim().length > 3)
+        .map((p) => ({ product: p, analysis: analyzeFood(p, allergens) }))
+        .filter(({ analysis }) => analysis.verdict === "compatible" && !analysis.incomplete)
+        .map(({ product }) => product)
+        .slice(0, 3);
     },
     staleTime: 1000 * 60 * 30,
     retry: false,
   });
+
+  if (isFetching && !data) {
+    return <section className="mt-5"><h2 className="text-base font-extrabold text-foreground">Cerco alternative compatibili…</h2></section>;
+  }
   if (!data || data.length === 0) return null;
+
   return (
     <section className="mt-5">
       <h2 className="text-base font-extrabold text-foreground">Alternative compatibili per te</h2>
+      <p className="mt-1 text-xs text-muted-foreground">Suggerimenti della stessa categoria con dati ingredienti completi. Verifica comunque sempre l'etichetta.</p>
       <div className="mt-2 flex flex-col gap-2">
         {data.map((alt) => (
           <Link key={alt.code} to="/product/$code" params={{ code: alt.code }} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors active:bg-secondary">
