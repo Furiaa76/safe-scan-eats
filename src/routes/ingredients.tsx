@@ -32,12 +32,70 @@ async function localOcr(image: string): Promise<string> {
 }
 
 function claimsFromText(text: string): string[] {
-  const s = text.toLowerCase().replace(/\s+/g, " ");
+  const normalized = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[|!]/g, "i")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const compact = normalized.replace(/\s+/g, "");
   const claims: string[] = [];
-  if (/senza\s+glutine|gluten[\s-]*free/.test(s)) claims.push("senza glutine");
-  if (/senza\s+lattosio|lactose[\s-]*free/.test(s)) claims.push("senza lattosio");
-  if (/senza\s+latte|milk[\s-]*free/.test(s)) claims.push("senza latte");
+  if (/senza\s*glutine|gluten\s*free/.test(normalized) || /senzaglutine|glutenfree/.test(compact)) claims.push("senza glutine");
+  if (/senza\s*lattosio|lactose\s*free/.test(normalized) || /senzalattosio|lactosefree/.test(compact)) claims.push("senza lattosio");
+  if (/senza\s*latte|milk\s*free/.test(normalized) || /senzalatte|milkfree/.test(compact)) claims.push("senza latte");
   return claims;
+}
+
+async function makeOcrVariant(image: string, invert: boolean): Promise<string> {
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = reject;
+    el.src = image;
+  });
+  const longest = Math.max(img.naturalWidth, img.naturalHeight);
+  const scale = Math.max(1, Math.min(2, 1900 / Math.max(1, longest)));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.naturalWidth * scale);
+  canvas.height = Math.round(img.naturalHeight * scale);
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx) throw new Error("canvas-unavailable");
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = pixels.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+    let value = gray >= 145 ? 255 : 0;
+    if (invert) value = 255 - value;
+    data[i] = value;
+    data[i + 1] = value;
+    data[i + 2] = value;
+  }
+  ctx.putImageData(pixels, 0, 0);
+  return canvas.toDataURL("image/png");
+}
+
+async function localFrontOcr(image: string): Promise<string[]> {
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("ita+eng");
+  const texts: string[] = [];
+  try {
+    const normal = await worker.recognize(image);
+    texts.push(normal.data.text.trim());
+    if (claimsFromText(texts.join("\n")).length) return texts;
+
+    for (const invert of [false, true]) {
+      const variant = await makeOcrVariant(image, invert);
+      const result = await worker.recognize(variant);
+      texts.push(result.data.text.trim());
+      if (claimsFromText(texts.join("\n")).length) break;
+    }
+    return texts;
+  } finally {
+    await worker.terminate();
+  }
 }
 
 function GuidedFlow() {
@@ -69,8 +127,8 @@ function GuidedFlow() {
       if (r.recognized) { if (!name) setName(r.name); if (!brand) setBrand(r.brand); }
     } catch {
       try {
-        const ocr = await localOcr(dataUrl);
-        const claims = claimsFromText(ocr);
+        const ocrTexts = await localFrontOcr(dataUrl);
+        const claims = claimsFromText(ocrTexts.join("\n"));
         setIdentity({ name: "", brand: "", category: "", recognized: false, claims });
         if (claims.length === 0) setError("Non ho trovato dichiarazioni leggibili sul fronte. Puoi continuare con l'etichetta ingredienti.");
       } catch {
