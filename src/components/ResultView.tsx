@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import { productsInCategory, type FoodProduct } from "@/lib/off";
 import { analyzeFood, VERDICT_LABEL, type Analysis, type Verdict } from "@/lib/verdict";
-import type { AllergenId } from "@/lib/allergens";
-import type { Profile } from "@/lib/store";
+import { ALLERGENS, type AllergenId } from "@/lib/allergens";
+import { useProfilesState, type Profile } from "@/lib/store";
 
 const VERDICT_STYLE: Record<
   Verdict,
@@ -41,6 +41,30 @@ const VERDICT_STYLE: Record<
 
 const NUTRI_LABEL: Record<string, string> = { a: "A", b: "B", c: "C", d: "D", e: "E" };
 
+const TAG_LABELS: Array<[RegExp, string]> = [
+  [/gluten/i, "Glutine"],
+  [/milk|lait|latte/i, "Latte"],
+  [/egg|oeuf|uov/i, "Uova"],
+  [/peanut|arachid/i, "Arachidi"],
+  [/tree[- ]?nut|nuts|frutta-a-guscio/i, "Frutta a guscio"],
+  [/soy|soia/i, "Soia"],
+  [/fish|pesce/i, "Pesce"],
+  [/crustacean|crostace/i, "Crostacei"],
+  [/sesame|sesamo/i, "Sesamo"],
+];
+
+function freeModeFindings(product: FoodProduct) {
+  const found = new Set<string>();
+  const tags = [...product.allergenTags, ...product.traceTags].join(" ");
+  for (const [pattern, label] of TAG_LABELS) if (pattern.test(tags)) found.add(label);
+
+  const ingredients = product.ingredientsText.toLocaleLowerCase("it");
+  for (const allergen of ALLERGENS) {
+    if (allergen.keywords.some((keyword) => ingredients.includes(keyword.toLocaleLowerCase("it")))) found.add(allergen.label);
+  }
+  return Array.from(found);
+}
+
 export function ResultView({
   product,
   analysis,
@@ -50,13 +74,15 @@ export function ResultView({
   analysis: Analysis;
   profile: Profile | null;
 }) {
+  const { freeMode } = useProfilesState();
   const style = VERDICT_STYLE[analysis.verdict];
   const allergens = profile?.allergens ?? [];
+  const findings = freeMode ? freeModeFindings(product) : [];
   const shouldSuggestAlternatives = product.source === "off" && !!product.categoryTag && allergens.length > 0 && analysis.verdict !== "compatible";
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col pb-10">
-      <div className={`${style.bg} ${style.fg} px-5 pb-8 pt-6`}>
+      <div className={`${freeMode ? "bg-secondary text-secondary-foreground" : `${style.bg} ${style.fg}`} px-5 pb-8 pt-6`}>
         <header className="flex items-center gap-3">
           <Link to="/" aria-label="Torna alla home" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-current/10">
             <ArrowLeft className="h-5 w-5" />
@@ -64,9 +90,9 @@ export function ResultView({
           <p className="truncate text-sm font-bold opacity-90">Risultato analisi</p>
         </header>
         <div className="mt-6 flex flex-col items-center text-center">
-          <style.Icon className="h-20 w-20" strokeWidth={1.5} />
-          <h1 className="mt-3 text-3xl font-black uppercase tracking-wide">{VERDICT_LABEL[analysis.verdict]}</h1>
-          <p className="mt-2 max-w-[280px] text-sm font-semibold opacity-90">{style.subtitle}</p>
+          {freeMode ? <Info className="h-20 w-20" strokeWidth={1.5} /> : <style.Icon className="h-20 w-20" strokeWidth={1.5} />}
+          <h1 className="mt-3 text-3xl font-black uppercase tracking-wide">{freeMode ? "Informazioni prodotto" : VERDICT_LABEL[analysis.verdict]}</h1>
+          <p className="mt-2 max-w-[300px] text-sm font-semibold opacity-90">{freeMode ? "Modalità libera: nessun profilo applicato. Ti mostro cosa è stato rilevato senza stabilire se il prodotto è adatto a una persona specifica." : style.subtitle}</p>
         </div>
       </div>
 
@@ -89,7 +115,15 @@ export function ResultView({
           )}
         </div>
 
-        {analysis.reasons.length > 0 && (
+        {freeMode && (
+          <section className="mt-5">
+            <h2 className="text-base font-extrabold text-foreground">Allergeni e intolleranze rilevati</h2>
+            {findings.length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{findings.map((label) => <span key={label} className="rounded-full bg-caution-soft px-3 py-2 text-sm font-bold text-caution-foreground">{label}</span>)}</div> : <p className="mt-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">Non risultano allergeni riconosciuti dai dati disponibili. Questo non garantisce l'assenza: controlla sempre l'etichetta.</p>}
+            {product.traceTags.length > 0 && <p className="mt-2 text-xs font-semibold text-muted-foreground">Sono presenti anche indicazioni di possibili tracce: verifica l'etichetta del prodotto.</p>}
+          </section>
+        )}
+
+        {!freeMode && analysis.reasons.length > 0 && (
           <section className="mt-5">
             <h2 className="text-base font-extrabold text-foreground">Perché?</h2>
             <div className="mt-2 flex flex-col gap-2">
