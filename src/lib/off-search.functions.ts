@@ -14,22 +14,90 @@ async function getJson(url: string): Promise<Raw | null> {
   }
 }
 
+const text = (v: unknown) => (typeof v === "string" ? v : "");
+const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+function queryVariants(query: string): string[] {
+  const q = query.trim();
+  const n = normalize(q);
+  const variants = new Set<string>([q]);
+
+  if (n.includes("schar")) {
+    variants.add("Schär");
+    variants.add("Schar");
+    variants.add("Dr. Schär");
+    variants.add("Dr Schar");
+  } else {
+    const ascii = q.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (ascii !== q) variants.add(ascii);
+  }
+
+  return [...variants].filter(Boolean);
+}
+
+function productKey(p: Raw): string {
+  return text(p["code"]) || `${text(p["product_name"])}|${text(p["brands"])}`;
+}
+
+function glutenFreeScore(p: Raw, query: string): number {
+  const q = normalize(query);
+  const brand = normalize(text(p["brands"]));
+  const name = normalize(`${text(p["product_name_it"])} ${text(p["product_name"])} ${text(p["generic_name_it"])}`);
+  const labels = strings(p["labels_tags"]).map(normalize);
+  let score = 0;
+
+  if (q && brand.includes(q)) score += 60;
+  if (q && name.includes(q)) score += 35;
+  if (q.includes("schar") && (brand.includes("schar") || name.includes("schar"))) score += 80;
+  if (labels.some((l) => l.includes("gluten-free") || l.includes("senza-glutine"))) score += 100;
+  if (text(p["image_front_small_url"]) || text(p["image_front_url"])) score += 5;
+  return score;
+}
+
+function mergeAndRank(groups: Raw[][], query: string): Raw[] {
+  const merged = new Map<string, Raw>();
+  for (const group of groups) {
+    for (const p of group) {
+      const key = productKey(p);
+      if (key && !merged.has(key)) merged.set(key, p);
+    }
+  }
+  return [...merged.values()]
+    .sort((a, b) => glutenFreeScore(b, query) - glutenFreeScore(a, query))
+    .slice(0, 30);
+}
+
+async function searchOne(query: string, fields: string): Promise<Raw[]> {
+  const base = "https://world.openfoodfacts.org/cgi/search.pl?action=process&json=1";
+  const url = `${base}&search_simple=1&search_terms=${encodeURIComponent(query)}&page_size=30&fields=${encodeURIComponent(fields)}`;
+  const primary = await getJson(url);
+  if (primary && Array.isArray(primary["products"])) return primary["products"] as Raw[];
+
+  const alt = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(query)}&page_size=30&fields=${encodeURIComponent(fields)}`);
+  if (alt && Array.isArray(alt["hits"])) {
+    return (alt["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] }));
+  }
+  return [];
+}
+
 export const offSearch = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ query: z.string().max(120).optional(), category: z.string().max(120).optional(), fields: z.string().max(600) }).parse(d))
   .handler(async ({ data }) => {
     const base = "https://world.openfoodfacts.org/cgi/search.pl?action=process&json=1";
     const f = `&fields=${encodeURIComponent(data.fields)}`;
-    const url = data.category
-      ? `${base}&tagtype_0=categories&tag_contains_0=contains&tag_0=${encodeURIComponent(data.category)}&sort_by=unique_scans_n&page_size=40${f}`
-      : `${base}&search_simple=1&search_terms=${encodeURIComponent(data.query ?? "")}&page_size=24${f}`;
-    const primary = await getJson(url);
-    if (primary && Array.isArray(primary["products"])) return { ok: true, json: JSON.stringify(primary["products"]) };
-    if (data.query) {
-      const alt = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(data.query)}&page_size=24&fields=${encodeURIComponent(data.fields)}`);
-      if (alt && Array.isArray(alt["hits"])) {
-        const products = (alt["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] }));
-        return { ok: true, json: JSON.stringify(products) };
-      }
+
+    if (data.category) {
+      const url = `${base}&tagtype_0=categories&tag_contains_0=contains&tag_0=${encodeURIComponent(data.category)}&sort_by=unique_scans_n&page_size=40${f}`;
+      const primary = await getJson(url);
+      if (primary && Array.isArray(primary["products"])) return { ok: true, json: JSON.stringify(primary["products"]) };
+      return { ok: false, json: "[]" };
     }
-    return { ok: false, json: "[]" };
+
+    const query = data.query?.trim() ?? "";
+    if (!query) return { ok: true, json: "[]" };
+
+    const groups = await Promise.all(queryVariants(query).map((q) => searchOne(q, data.fields)));
+    const products = mergeAndRank(groups, query);
+    return { ok: true, json: JSON.stringify(products) };
   });
