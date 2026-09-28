@@ -12,6 +12,7 @@ type AnalysisSearch = {
   name?: string | undefined;
   brand?: string | undefined;
   image?: string | undefined;
+  claims?: string | undefined;
 };
 
 export const Route = createFileRoute("/analysis")({
@@ -21,17 +22,30 @@ export const Route = createFileRoute("/analysis")({
     name: typeof s["name"] === "string" ? (s["name"] as string) : undefined,
     brand: typeof s["brand"] === "string" ? (s["brand"] as string) : undefined,
     image: typeof s["image"] === "string" ? (s["image"] as string) : undefined,
+    claims: typeof s["claims"] === "string" ? (s["claims"] as string) : undefined,
   }),
   head: () => ({ meta: [{ title: "Analisi ingredienti — SafeFood Scan" }, { name: "description", content: "Risultato dell'analisi degli ingredienti fotografati." }] }),
   component: AnalysisPage,
 });
 
+function claimsToLabelTags(claims?: string): string[] {
+  if (!claims) return [];
+  const values = claims.split("|").map((x) => x.trim().toLowerCase()).filter(Boolean);
+  const tags = new Set<string>();
+  for (const claim of values) {
+    if (/senza\s+glutine|gluten[\s-]*free|no\s+gluten/.test(claim)) tags.add("en:gluten-free");
+    if (/senza\s+lattosio|lactose[\s-]*free|no\s+lactose/.test(claim)) tags.add("en:lactose-free");
+  }
+  return Array.from(tags);
+}
+
 function AnalysisPage() {
-  const { text, code, name, brand, image } = Route.useSearch();
+  const { text, code, name, brand, image, claims } = Route.useSearch();
   const profile = useProfile();
   const [photo, setPhoto] = useState<string | undefined>(image);
   useEffect(() => { if (!image) setPhoto(loadFrontPhoto() ?? undefined); }, [image]);
 
+  const labelTags = useMemo(() => claimsToLabelTags(claims), [claims]);
   const product: FoodProduct = useMemo(() => ({
     code: code ?? "",
     name: name || "Prodotto fotografato",
@@ -40,12 +54,15 @@ function AnalysisPage() {
     ingredientsText: text,
     allergenTags: [],
     traceTags: [],
-    labelTags: [],
+    labelTags,
     source: "manual",
-  }), [text, code, name, brand, photo]);
+  }), [text, code, name, brand, photo, labelTags]);
 
   const base = analyzeFood(product, profile?.allergens ?? []);
-  const analysis = { ...base, reasons: [...base.reasons, { level: "info" as const, text: "Valutazione basata sugli ingredienti letti dall'etichetta, non sulla foto frontale" }] };
+  const sourceText = labelTags.length > 0
+    ? "Valutazione basata sugli ingredienti letti dall'etichetta e sulle dichiarazioni esplicite rilevate sul fronte"
+    : "Valutazione basata sugli ingredienti letti dall'etichetta";
+  const analysis = { ...base, reasons: [...base.reasons, { level: "info" as const, text: sourceText }] };
 
   useEffect(() => {
     if (!text) return;
