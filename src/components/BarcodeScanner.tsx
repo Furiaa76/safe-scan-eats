@@ -11,14 +11,14 @@ type Props = {
 function errorMessage(err: unknown): string {
   const name = (err as { name?: string })?.name ?? "";
   if (name === "NotAllowedError" || name === "SecurityError")
-    return "Accesso alla fotocamera negato. Consenti l'uso della fotocamera nelle impostazioni di Safari (aA → Impostazioni sito web → Fotocamera) e riprova.";
+    return "Accesso alla fotocamera negato. Consenti l'uso della fotocamera nelle impostazioni del browser o del dispositivo e riprova.";
   if (name === "NotFoundError" || name === "OverconstrainedError" || name === "DevicesNotFoundError")
-    return "Nessuna fotocamera trovata su questo dispositivo.";
+    return "Nessuna fotocamera compatibile trovata su questo dispositivo.";
   if (name === "NotReadableError" || name === "TrackStartError" || name === "AbortError")
     return "La fotocamera è già in uso da un'altra app o scheda. Chiudila e riprova.";
   if (name === "Unsupported")
-    return "Questo browser non supporta la fotocamera dal vivo. Usa Safari o Chrome aggiornati, oppure scatta una foto del codice.";
-  return "Impossibile avviare la fotocamera. Puoi scattare una foto del codice.";
+    return "Questo browser non supporta la fotocamera dal vivo. Usa un browser aggiornato oppure scatta una foto del codice.";
+  return "Impossibile avviare la fotocamera. Puoi comunque scattare una foto del codice.";
 }
 
 async function makeReader() {
@@ -43,6 +43,7 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
   const doneRef = useRef(false);
   const [status, setStatus] = useState<"starting" | "live" | "error" | "decoding">("starting");
   const [error, setError] = useState<string | null>(null);
+  const [restartKey, setRestartKey] = useState(0);
 
   const stopCamera = () => {
     controlsRef.current?.stop();
@@ -60,8 +61,10 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
         if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) {
           throw Object.assign(new Error("unsupported"), { name: "Unsupported" });
         }
+        setStatus("starting");
+        setError(null);
         const reader = await makeReader();
-        if (cancelled || !videoRef.current) return;
+        if (cancelled || !videoRef.current || document.visibilityState === "hidden") return;
         const controls = await reader.decodeFromConstraints(
           {
             audio: false,
@@ -94,16 +97,27 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
       }
     })();
 
-    const onHide = () => {
-      if (document.visibilityState === "hidden") stopCamera();
-    };
-    document.addEventListener("visibilitychange", onHide);
-    window.addEventListener("pagehide", stopCamera);
     return () => {
       cancelled = true;
-      document.removeEventListener("visibilitychange", onHide);
-      window.removeEventListener("pagehide", stopCamera);
       stopCamera();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restartKey]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stopCamera();
+        return;
+      }
+      if (!doneRef.current) setRestartKey((k) => k + 1);
+    };
+    const onPageHide = () => stopCamera();
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
