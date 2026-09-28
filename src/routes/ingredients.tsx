@@ -19,6 +19,7 @@ export const Route = createFileRoute("/ingredients")({
 });
 
 type Identity = { name: string; brand: string; category: string; recognized: boolean; claims: string[] };
+type Crop = { x: number; y: number; w: number; h: number };
 
 async function localOcr(image: string): Promise<string> {
   const { createWorker } = await import("tesseract.js");
@@ -29,6 +30,32 @@ async function localOcr(image: string): Promise<string> {
   } finally {
     await worker.terminate();
   }
+}
+
+function levenshtein(a: string, b: string): number {
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let diagonal = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const old = prev[j];
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diagonal = old;
+    }
+  }
+  return prev[b.length];
+}
+
+function fuzzyContains(text: string, target: string, maxDistance = 2): boolean {
+  if (text.includes(target)) return true;
+  const minLen = Math.max(1, target.length - maxDistance);
+  const maxLen = target.length + maxDistance;
+  for (let len = minLen; len <= maxLen; len++) {
+    for (let i = 0; i + len <= text.length; i++) {
+      if (levenshtein(text.slice(i, i + len), target) <= maxDistance) return true;
+    }
+  }
+  return false;
 }
 
 function claimsFromText(text: string): string[] {
@@ -42,56 +69,89 @@ function claimsFromText(text: string): string[] {
     .trim();
   const compact = normalized.replace(/\s+/g, "");
   const claims: string[] = [];
-  if (/senza\s*glutine|gluten\s*free/.test(normalized) || /senzaglutine|glutenfree/.test(compact)) claims.push("senza glutine");
-  if (/senza\s*lattosio|lactose\s*free/.test(normalized) || /senzalattosio|lactosefree/.test(compact)) claims.push("senza lattosio");
-  if (/senza\s*latte|milk\s*free/.test(normalized) || /senzalatte|milkfree/.test(compact)) claims.push("senza latte");
+  if (/senza\s*glutine|gluten\s*free/.test(normalized) || fuzzyContains(compact, "senzaglutine", 2) || fuzzyContains(compact, "glutenfree", 2)) claims.push("senza glutine");
+  if (/senza\s*lattosio|lactose\s*free/.test(normalized) || fuzzyContains(compact, "senzalattosio", 2) || fuzzyContains(compact, "lactosefree", 2)) claims.push("senza lattosio");
+  if (/senza\s*latte|milk\s*free/.test(normalized) || fuzzyContains(compact, "senzalatte", 1) || fuzzyContains(compact, "milkfree", 1)) claims.push("senza latte");
   return claims;
 }
 
-async function makeOcrVariant(image: string, invert: boolean): Promise<string> {
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+async function loadImage(image: string): Promise<HTMLImageElement> {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
     const el = new Image();
     el.onload = () => resolve(el);
     el.onerror = reject;
     el.src = image;
   });
-  const longest = Math.max(img.naturalWidth, img.naturalHeight);
-  const scale = Math.max(1, Math.min(2, 1900 / Math.max(1, longest)));
+}
+
+function makeOcrVariant(img: HTMLImageElement, crop: Crop, threshold?: number, invert = false): string {
+  const sx = Math.round(img.naturalWidth * crop.x);
+  const sy = Math.round(img.naturalHeight * crop.y);
+  const sw = Math.max(1, Math.round(img.naturalWidth * crop.w));
+  const sh = Math.max(1, Math.round(img.naturalHeight * crop.h));
+  const longest = Math.max(sw, sh);
+  const scale = Math.max(1, Math.min(4, 2200 / Math.max(1, longest)));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(img.naturalWidth * scale);
-  canvas.height = Math.round(img.naturalHeight * scale);
+  canvas.width = Math.round(sw * scale);
+  canvas.height = Math.round(sh * scale);
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   if (!ctx) throw new Error("canvas-unavailable");
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = pixels.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-    let value = gray >= 145 ? 255 : 0;
-    if (invert) value = 255 - value;
-    data[i] = value;
-    data[i + 1] = value;
-    data[i + 2] = value;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+  if (threshold !== undefined) {
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = pixels.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const gray = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+      let value = gray >= threshold ? 255 : 0;
+      if (invert) value = 255 - value;
+      data[i] = value;
+      data[i + 1] = value;
+      data[i + 2] = value;
+    }
+    ctx.putImageData(pixels, 0, 0);
   }
-  ctx.putImageData(pixels, 0, 0);
   return canvas.toDataURL("image/png");
 }
 
 async function localFrontOcr(image: string): Promise<string[]> {
   const { createWorker } = await import("tesseract.js");
   const worker = await createWorker("ita+eng");
+  const img = await loadImage(image);
   const texts: string[] = [];
-  try {
-    const normal = await worker.recognize(image);
-    texts.push(normal.data.text.trim());
-    if (claimsFromText(texts.join("\n")).length) return texts;
+  const crops: Crop[] = [
+    { x: 0, y: 0, w: 1, h: 1 },
+    { x: 0.35, y: 0.12, w: 0.65, h: 0.76 },
+    { x: 0, y: 0.12, w: 0.65, h: 0.76 },
+    { x: 0.08, y: 0.28, w: 0.84, h: 0.58 },
+    { x: 0, y: 0.45, w: 1, h: 0.55 },
+  ];
 
-    for (const invert of [false, true]) {
-      const variant = await makeOcrVariant(image, invert);
+  try {
+    await worker.setParameters({ tessedit_pageseg_mode: "11" });
+
+    for (const crop of crops) {
+      const variant = makeOcrVariant(img, crop);
       const result = await worker.recognize(variant);
       texts.push(result.data.text.trim());
-      if (claimsFromText(texts.join("\n")).length) break;
+      if (claimsFromText(texts.join("\n")).length) return texts;
     }
+
+    const highContrastCrops = [crops[0], crops[1], crops[3], crops[4]];
+    for (const crop of highContrastCrops) {
+      for (const threshold of [125, 155]) {
+        const variant = makeOcrVariant(img, crop, threshold, false);
+        const result = await worker.recognize(variant);
+        texts.push(result.data.text.trim());
+        if (claimsFromText(texts.join("\n")).length) return texts;
+      }
+    }
+
+    const inverted = makeOcrVariant(img, crops[1], 145, true);
+    const invertedResult = await worker.recognize(inverted);
+    texts.push(invertedResult.data.text.trim());
     return texts;
   } finally {
     await worker.terminate();
@@ -123,8 +183,19 @@ function GuidedFlow() {
     saveFrontPhoto(await fileToDataUrl(file, 480, 0.7));
     try {
       const r = await identifyFn({ data: { image: dataUrl } });
-      setIdentity(r);
+      let claims = r.claims;
+      if (claims.length === 0) {
+        try {
+          const ocrTexts = await localFrontOcr(dataUrl);
+          claims = claimsFromText(ocrTexts.join("\n"));
+        } catch {
+          // The product identity from AI is still useful even if local OCR fails.
+        }
+      }
+      const merged = { ...r, claims: Array.from(new Set([...r.claims, ...claims])) };
+      setIdentity(merged);
       if (r.recognized) { if (!name) setName(r.name); if (!brand) setBrand(r.brand); }
+      if (merged.claims.length === 0) setError("Non ho trovato dichiarazioni leggibili sul fronte. Puoi continuare con l'etichetta ingredienti.");
     } catch {
       try {
         const ocrTexts = await localFrontOcr(dataUrl);
@@ -178,7 +249,7 @@ function GuidedFlow() {
       <PhotoBox photo={front} busy={busy === "front"} busyText="Leggo il prodotto…" hint="Tocca per fotografare il fronte della confezione" icon={<ScanSearch className="h-14 w-14 text-primary-foreground/80" />} onFile={onFront} />
       {identity && <div className="mt-4 rounded-2xl border border-border bg-card p-4"><p className="text-xs font-bold uppercase text-muted-foreground">{identity.recognized ? "Prodotto riconosciuto" : identity.claims.length ? "Dichiarazioni rilevate" : "Prodotto non riconosciuto"}</p>{identity.recognized && <p className="mt-1 text-base font-extrabold text-foreground">{identity.name}{identity.brand ? ` · ${identity.brand}` : ""}</p>}{identity.category && <p className="text-xs text-muted-foreground">{identity.category}</p>}{identity.claims.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{identity.claims.map((claim) => <span key={claim} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{claim}</span>)}</div>}</div>}
       <div className="mt-4 grid grid-cols-1 gap-2"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome prodotto (correggi se serve)" className="rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-foreground outline-none focus:border-primary" /><input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Marca" className="rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-foreground outline-none focus:border-primary" /></div>
-      <Note>Se il servizio AI non è disponibile, l'app usa automaticamente una lettura OCR locale sul dispositivo per cercare scritte come “senza glutine”.</Note>
+      <Note>Se il servizio AI non è disponibile o non trova dichiarazioni sul fronte, l'app usa automaticamente una lettura OCR locale sul dispositivo per cercare scritte come “senza glutine”.</Note>
       {error && <p className="mt-3 text-sm font-semibold text-danger">{error}</p>}
       <button type="button" disabled={busy !== null} onClick={() => { setError(null); setStep(2); }} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">{front ? "Avanti: etichetta ingredienti" : "Salta e fotografa l'etichetta"}</button>
     </> : <>
