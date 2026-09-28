@@ -79,6 +79,7 @@ export function ResultView({
   const allergens = profile?.allergens ?? [];
   const findings = freeMode ? freeModeFindings(product) : [];
   const shouldSuggestAlternatives = product.source === "off" && !!product.categoryTag && allergens.length > 0 && analysis.verdict !== "compatible";
+  const shouldAskForFrontPhoto = !freeMode && analysis.verdict === "warning" && analysis.incomplete;
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col pb-10">
@@ -132,6 +133,20 @@ export function ResultView({
                 return <div key={i} className={`flex items-start gap-3 rounded-2xl p-3.5 ${cfg.cls}`}><cfg.Icon className="mt-0.5 h-5 w-5 shrink-0" /><p className="text-sm font-bold">{r.text}</p></div>;
               })}
             </div>
+          </section>
+        )}
+
+        {shouldAskForFrontPhoto && (
+          <section className="mt-5 rounded-2xl border border-caution/40 bg-caution-soft p-4">
+            <h2 className="text-base font-extrabold text-caution-foreground">Dati non sufficienti</h2>
+            <p className="mt-1 text-sm leading-relaxed text-caution-foreground">Per ridurre i dubbi, fotografa il fronte della confezione. L'app proverà a riconoscere dichiarazioni visibili come “senza glutine” o “senza lattosio”.</p>
+            <Link
+              to="/ingredients"
+              search={{ code: product.code || undefined, name: product.name || undefined, brand: product.brand || undefined, image: product.imageUrl }}
+              className="mt-3 flex w-full items-center justify-center rounded-2xl bg-primary px-4 py-3.5 text-base font-extrabold text-primary-foreground"
+            >
+              Fai una foto del fronte
+            </Link>
           </section>
         )}
 
