@@ -1,8 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Barcode, Camera, Check, ChevronRight, History, Plus, Salad, ShieldAlert, TriangleAlert, User, Users } from "lucide-react";
+import { Barcode, Camera, Check, ChevronRight, History, Plus, Salad, ShieldAlert, Trash2, TriangleAlert, User, Users } from "lucide-react";
 import { ALLERGENS, type AllergenId } from "@/lib/allergens";
-import { addProfile, enableFreeMode, saveProfile, setActiveProfile, useProfile, useProfilesState } from "@/lib/store";
+import { addProfile, enableFreeMode, removeProfile, saveProfile, setActiveProfile, useProfile, useProfilesState } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({ meta: [
@@ -51,6 +51,12 @@ function Home({ onAddProfile }: { onAddProfile: () => void }) {
   const state = useProfilesState();
   const freeMode = state.freeMode;
 
+  const deleteActiveProfile = () => {
+    if (!profile) return;
+    const ok = window.confirm(`Vuoi eliminare il profilo “${profile.name}”? Questa operazione non può essere annullata.`);
+    if (ok) removeProfile(profile.id);
+  };
+
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-8">
     <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3"><div className="flex min-w-0 items-center gap-3"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"><Salad className="h-5 w-5" /></div><div className="min-w-0"><p className="text-xs font-semibold text-muted-foreground">{freeMode ? "Modalità" : "Ciao,"}</p><h1 className="truncate text-xl font-black text-foreground">{freeMode ? "Libera" : profile?.name ?? "Profilo"}</h1></div></div><Link to="/history" className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary px-3.5 py-2 text-sm font-bold text-secondary-foreground"><History className="h-4 w-4" />Cronologia</Link></header>
 
@@ -60,7 +66,10 @@ function Home({ onAddProfile }: { onAddProfile: () => void }) {
         {state.profiles.map((p) => <button key={p.id} type="button" onClick={() => setActiveProfile(p.id)} className={`rounded-full px-3 py-2 text-xs font-extrabold ${!freeMode && p.id === state.activeProfileId ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>{p.name}</button>)}
         <button type="button" onClick={enableFreeMode} className={`rounded-full px-3 py-2 text-xs font-extrabold ${freeMode ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>Modalità libera</button>
       </div>
-      {freeMode ? <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Nessun filtro personale: l'app mostra le informazioni del prodotto e gli allergeni rilevati senza giudicarli rispetto a un profilo.</p> : <div className="mt-3 flex flex-wrap items-center gap-2"><span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><User className="h-3.5 w-3.5" />Evita:</span>{profile?.allergens.map((id) => { const a = ALLERGENS.find((x) => x.id === id); return a ? <span key={id} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{a.label}</span> : null; })}</div>}
+      {freeMode ? <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Nessun filtro personale: l'app mostra le informazioni del prodotto e gli allergeni rilevati senza giudicarli rispetto a un profilo.</p> : <>
+        <div className="mt-3 flex flex-wrap items-center gap-2"><span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><User className="h-3.5 w-3.5" />Evita:</span>{profile?.allergens.map((id) => { const a = ALLERGENS.find((x) => x.id === id); return a ? <span key={id} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{a.label}</span> : null; })}</div>
+        {profile && <button type="button" onClick={deleteActiveProfile} className="mt-4 flex items-center gap-1.5 text-xs font-extrabold text-danger"><Trash2 className="h-4 w-4" />Elimina profilo “{profile.name}”</button>}
+      </>}
     </section>
 
     <p className="mt-8 text-center text-lg font-bold text-foreground">Cosa vuoi controllare?</p>
