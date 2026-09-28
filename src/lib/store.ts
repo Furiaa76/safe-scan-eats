@@ -1,13 +1,21 @@
 import { useSyncExternalStore } from "react";
 import type { AllergenId } from "./allergens";
 
-const PROFILE_KEY = "safefood-profile";
+const LEGACY_PROFILE_KEY = "safefood-profile";
+const PROFILES_KEY = "safefood-profiles-v2";
 const HISTORY_KEY = "safefood-history";
 
 export interface Profile {
+  id: string;
   name: string;
   allergens: AllergenId[];
   severe: boolean;
+}
+
+export interface ProfilesState {
+  profiles: Profile[];
+  activeProfileId: string | null;
+  freeMode: boolean;
 }
 
 export interface HistoryEntry {
@@ -30,7 +38,7 @@ function emit() {
 }
 
 // Cache: useSyncExternalStore richiede snapshot stabili tra i render
-let profileCache: Profile | null | undefined;
+let profilesCache: ProfilesState | undefined;
 let historyCache: HistoryEntry[] | undefined;
 
 function read<T>(key: string): T | null {
@@ -43,15 +51,94 @@ function read<T>(key: string): T | null {
   }
 }
 
-export function getProfile(): Profile | null {
-  if (profileCache === undefined) profileCache = read<Profile>(PROFILE_KEY);
-  return profileCache;
+function makeProfileId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `profile-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function saveProfile(p: Profile) {
-  window.localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
-  profileCache = p;
+function normalizeState(state: ProfilesState): ProfilesState {
+  const profiles = Array.isArray(state.profiles) ? state.profiles : [];
+  const activeExists = profiles.some((p) => p.id === state.activeProfileId);
+  return {
+    profiles,
+    activeProfileId: state.freeMode ? null : activeExists ? state.activeProfileId : profiles[0]?.id ?? null,
+    freeMode: !!state.freeMode,
+  };
+}
+
+function loadProfilesState(): ProfilesState {
+  const current = read<ProfilesState>(PROFILES_KEY);
+  if (current) return normalizeState(current);
+
+  // Migrazione trasparente dal vecchio profilo singolo.
+  const legacy = read<Omit<Profile, "id"> & { id?: string }>(LEGACY_PROFILE_KEY);
+  if (legacy) {
+    const migrated: Profile = {
+      id: legacy.id || makeProfileId(),
+      name: legacy.name || "Profilo",
+      allergens: Array.isArray(legacy.allergens) ? legacy.allergens : [],
+      severe: !!legacy.severe,
+    };
+    const state: ProfilesState = { profiles: [migrated], activeProfileId: migrated.id, freeMode: false };
+    if (typeof window !== "undefined") window.localStorage.setItem(PROFILES_KEY, JSON.stringify(state));
+    return state;
+  }
+
+  return { profiles: [], activeProfileId: null, freeMode: false };
+}
+
+export function getProfilesState(): ProfilesState {
+  if (profilesCache === undefined) profilesCache = loadProfilesState();
+  return profilesCache;
+}
+
+function saveProfilesState(state: ProfilesState) {
+  profilesCache = normalizeState(state);
+  window.localStorage.setItem(PROFILES_KEY, JSON.stringify(profilesCache));
   emit();
+}
+
+export function getProfile(): Profile | null {
+  const state = getProfilesState();
+  if (state.freeMode || !state.activeProfileId) return null;
+  return state.profiles.find((p) => p.id === state.activeProfileId) ?? null;
+}
+
+/** Mantiene compatibilità con il vecchio salvataggio e aggiorna/crea il profilo attivo. */
+export function saveProfile(p: Omit<Profile, "id"> & { id?: string }) {
+  const state = getProfilesState();
+  const id = p.id || state.activeProfileId || makeProfileId();
+  const nextProfile: Profile = { id, name: p.name, allergens: p.allergens, severe: p.severe };
+  const exists = state.profiles.some((profile) => profile.id === id);
+  const profiles = exists
+    ? state.profiles.map((profile) => (profile.id === id ? nextProfile : profile))
+    : [...state.profiles, nextProfile];
+  saveProfilesState({ profiles, activeProfileId: id, freeMode: false });
+}
+
+export function addProfile(p: Omit<Profile, "id">): Profile {
+  const profile: Profile = { ...p, id: makeProfileId() };
+  const state = getProfilesState();
+  saveProfilesState({ profiles: [...state.profiles, profile], activeProfileId: profile.id, freeMode: false });
+  return profile;
+}
+
+export function setActiveProfile(id: string) {
+  const state = getProfilesState();
+  if (!state.profiles.some((p) => p.id === id)) return;
+  saveProfilesState({ ...state, activeProfileId: id, freeMode: false });
+}
+
+export function enableFreeMode() {
+  const state = getProfilesState();
+  saveProfilesState({ ...state, activeProfileId: null, freeMode: true });
+}
+
+export function removeProfile(id: string) {
+  const state = getProfilesState();
+  const profiles = state.profiles.filter((p) => p.id !== id);
+  const activeProfileId = state.activeProfileId === id ? profiles[0]?.id ?? null : state.activeProfileId;
+  saveProfilesState({ profiles, activeProfileId, freeMode: profiles.length === 0 ? true : state.freeMode });
 }
 
 export function getHistory(): HistoryEntry[] {
@@ -89,6 +176,10 @@ function subscribe(cb: () => void) {
 
 export function useProfile(): Profile | null {
   return useSyncExternalStore(subscribe, getProfile, () => null);
+}
+
+export function useProfilesState(): ProfilesState {
+  return useSyncExternalStore(subscribe, getProfilesState, () => ({ profiles: [], activeProfileId: null, freeMode: false }));
 }
 
 export function useHistory(): HistoryEntry[] {
