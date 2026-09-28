@@ -39,7 +39,9 @@ export const ALLERGENS: Allergen[] = [
     id: "lattosio",
     label: "Lattosio",
     icon: Milk,
-    keywords: ["latte", "lattosio", "siero", "burro", "panna", "caseina", "latticello", "whey"],
+    // Per il lattosio usiamo solo termini specifici. Gli ingredienti lattiero-caseari
+    // vengono gestiti separatamente nel verdetto come possibile presenza di lattosio.
+    keywords: ["lattosio", "lactose", "siero di latte", "siero di latte in polvere", "latte in polvere", "latticello", "whey powder", "milk powder", "buttermilk"],
   },
   {
     id: "arachidi",
