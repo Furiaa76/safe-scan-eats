@@ -17,7 +17,9 @@ export interface Analysis {
 
 const OFF_TAGS: Record<AllergenId, string[]> = {
   glutine: ["en:gluten"],
-  lattosio: ["en:milk"],
+  // Open Food Facts espone soprattutto l'allergene latte, non il lattosio:
+  // per il lattosio usiamo una logica dedicata più sotto.
+  lattosio: [],
   arachidi: ["en:peanuts"],
   "frutta-guscio": ["en:nuts"],
   uova: ["en:eggs"],
@@ -47,7 +49,7 @@ const FALSE_FRIENDS = [
 
 const EN_KEYWORDS: Record<AllergenId, string[]> = {
   glutine: ["gluten", "wheat", "barley", "rye", "oats", "spelt"],
-  lattosio: ["milk", "lactose", "butter", "cream", "whey", "cheese"],
+  lattosio: ["lactose", "whey powder", "milk powder", "buttermilk"],
   arachidi: ["peanut"],
   "frutta-guscio": ["almond", "hazelnut", "walnut", "cashew", "pistachio", "pecan"],
   uova: ["egg"],
@@ -56,6 +58,23 @@ const EN_KEYWORDS: Record<AllergenId, string[]> = {
   crostacei: ["shrimp", "prawn", "crab", "lobster", "crustacean"],
   sesamo: ["sesame"],
 };
+
+const DAIRY_WORDS = [
+  "latte",
+  "burro",
+  "panna",
+  "formaggio",
+  "yogurt",
+  "mascarpone",
+  "ricotta",
+  "mozzarella",
+  "cream",
+  "butter",
+  "cheese",
+  "milk",
+  "yoghurt",
+  "yogurt",
+];
 
 function cleanText(t: string) {
   let s = t.toLowerCase();
@@ -78,6 +97,14 @@ function keywordHit(text: string, a: AllergenId): string | null {
   return null;
 }
 
+function dairyHit(text: string): string | null {
+  for (const kw of DAIRY_WORDS) {
+    const re = new RegExp(`(^|[^a-zàèéìòù])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i");
+    if (re.test(text)) return kw;
+  }
+  return null;
+}
+
 const lower = (a: AllergenId) => allergenById(a).label.toLowerCase();
 
 export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[]): Analysis {
@@ -92,6 +119,35 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[]): Analys
 
   for (const a of userAllergens) {
     const freeLabel = (FREE_LABELS[a] ?? []).some((l) => p.labelTags.includes(l));
+
+    if (a === "lattosio") {
+      const lactoseKw = keywordHit(main, a);
+      const dairyKw = dairyHit(main);
+      const milkDeclared = p.allergenTags.includes("en:milk");
+      const milkTrace = p.traceTags.includes("en:milk") || !!dairyHit(traces) || !!keywordHit(traces, a);
+
+      if (freeLabel) {
+        reasons.push({ level: "info", text: "Etichetta \"senza lattosio\" dichiarata dal produttore" });
+        if (milkTrace) {
+          warn = true;
+          reasons.push({ level: "warning", text: "Può contenere tracce di latte: verifica l'etichetta se sei molto sensibile" });
+        }
+        continue;
+      }
+
+      if (lactoseKw) {
+        avoid = true;
+        reasons.push({ level: "avoid", text: `Contiene ${lactoseKw} (lattosio)` });
+      } else if (dairyKw || milkDeclared) {
+        warn = true;
+        reasons.push({ level: "warning", text: dairyKw ? `Contiene ${dairyKw}: può contenere lattosio` : "Contiene latte: la presenza di lattosio va verificata sull'etichetta" });
+      } else if (milkTrace) {
+        warn = true;
+        reasons.push({ level: "warning", text: "Può contenere tracce di latte/lattosio" });
+      }
+      continue;
+    }
+
     const tagHit = OFF_TAGS[a].some((t) => p.allergenTags.includes(t));
     const kw = keywordHit(main, a);
     const traceHit = OFF_TAGS[a].some((t) => p.traceTags.includes(t)) || !!keywordHit(traces, a);
