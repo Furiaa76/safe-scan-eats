@@ -34,12 +34,20 @@ async function askVision(image: string, instructions: string): Promise<Record<st
 }
 
 const s = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+const stringArray = (v: unknown) => Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").map((x) => x.trim()).filter(Boolean) : [];
 
 export const identifyFront = createServerFn({ method: "POST" })
   .inputValidator((d) => ImageInput.parse(d))
   .handler(async ({ data }) => {
-    const out = await askVision(data.image, `Sei un assistente che riconosce prodotti alimentari confezionati dalla foto del fronte.\nRispondi SOLO con JSON: {"recognized": boolean, "name": string, "brand": string, "category": string, "variant": string}.\nUsa l'italiano. Se non è un prodotto alimentare o non si legge, recognized=false e stringhe vuote.\nNon dedurre MAI ingredienti o allergeni.`);
-    return { recognized: out?.["recognized"] === true && !!s(out?.["name"]), name: s(out?.["name"]), brand: s(out?.["brand"]), category: s(out?.["category"]), variant: s(out?.["variant"]) };
+    const out = await askVision(data.image, `Sei un assistente che legge il fronte di prodotti alimentari confezionati.\nRispondi SOLO con JSON: {"recognized": boolean, "name": string, "brand": string, "category": string, "variant": string, "claims": string[]}.\nUsa l'italiano. Se non è un prodotto alimentare o non si legge, recognized=false e stringhe vuote.\nNel campo claims trascrivi SOLO dichiarazioni esplicite realmente visibili sul fronte, per esempio \"senza glutine\", \"gluten free\", \"senza lattosio\", \"senza latte\", oppure certificazioni/simboli chiaramente leggibili. Non dedurre MAI ingredienti, allergeni o assenze non scritte. Se non vedi dichiarazioni esplicite, claims=[].`);
+    return {
+      recognized: out?.["recognized"] === true && !!s(out?.["name"]),
+      name: s(out?.["name"]),
+      brand: s(out?.["brand"]),
+      category: s(out?.["category"]),
+      variant: s(out?.["variant"]),
+      claims: stringArray(out?.["claims"]),
+    };
   });
 
 export const readLabel = createServerFn({ method: "POST" })
