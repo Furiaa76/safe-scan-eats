@@ -6,23 +6,51 @@ const ImageInput = z.object({
 });
 
 async function askVision(image: string, instructions: string): Promise<Record<string, unknown> | null> {
-  const key = process.env["LOVABLE_API_KEY"];
-  if (!key) throw new Error("Servizio foto non configurato");
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  // Prefer Vercel AI Gateway: on Vercel deployments VERCEL_OIDC_TOKEN is
+  // provided automatically when Secure Backend Access / OIDC is enabled,
+  // so the photo reader does not need a Lovable-specific secret.
+  const gatewayKey = process.env["AI_GATEWAY_API_KEY"] || process.env["VERCEL_OIDC_TOKEN"];
+  const lovableKey = process.env["LOVABLE_API_KEY"];
+  const key = gatewayKey || lovableKey;
+
+  if (!key) {
+    throw new Error("Servizio foto non configurato: abilita OIDC su Vercel o configura AI_GATEWAY_API_KEY");
+  }
+
+  const useVercelGateway = !!gatewayKey;
+  const endpoint = useVercelGateway
+    ? "https://ai-gateway.vercel.sh/v1/chat/completions"
+    : "https://ai.gateway.lovable.dev/v1/chat/completions";
+  const model = useVercelGateway
+    ? "google/gemini-3-flash"
+    : "google/gemini-3-flash-preview";
+
+  const res = await fetch(endpoint, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
+      model,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: instructions },
-        { role: "user", content: [{ type: "text", text: "Analizza questa foto e rispondi solo con JSON." }, { type: "image_url", image_url: { url: image } }] },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Analizza questa foto e rispondi solo con JSON." },
+            { type: "image_url", image_url: { url: image } },
+          ],
+        },
       ],
     }),
   });
+
   if (res.status === 429) throw new Error("Troppe richieste, riprova tra poco");
   if (res.status === 402) throw new Error("Servizio foto temporaneamente non disponibile");
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("Servizio foto non autorizzato: verifica OIDC/AI Gateway su Vercel");
+  }
   if (!res.ok) throw new Error("Analisi della foto non riuscita");
+
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   const content = json.choices?.[0]?.message?.content ?? "";
   try {
