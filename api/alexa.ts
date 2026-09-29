@@ -49,7 +49,7 @@ export default async function handler(req: any, res: any) {
     const intent = body.request?.intent?.name;
 
     if (intent === "CreateShoppingListIntent") {
-      const dish = body.request?.intent?.slots?.["dish"]?.value?.trim();
+      const dish = (body.request?.intent?.slots?.["piatto"]?.value ?? body.request?.intent?.slots?.["dish"]?.value)?.trim();
 
       if (!dish) {
         return res.status(200).json(
