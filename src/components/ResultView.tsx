@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -15,6 +16,7 @@ import { analyzeFood, VERDICT_LABEL, type Analysis, type Verdict } from "@/lib/v
 import { ALLERGENS, type AllergenId } from "@/lib/allergens";
 import { useProfilesState, type Profile } from "@/lib/store";
 import { assessSsnCeliac } from "@/lib/ssn";
+import { checkSsnRegistry } from "@/lib/ssn.functions";
 
 const VERDICT_STYLE: Record<
   Verdict,
@@ -82,6 +84,15 @@ export function ResultView({
   const shouldSuggestAlternatives = product.source === "off" && !!product.categoryTag && allergens.length > 0 && analysis.verdict !== "compatible";
   const shouldAskForFrontPhoto = !freeMode && analysis.verdict === "warning" && analysis.incomplete;
   const ssn = assessSsnCeliac(product);
+  const checkSsnRegistryFn = useServerFn(checkSsnRegistry);
+  const { data: registryCheck, isFetching: registryChecking } = useQuery({
+    queryKey: ["ssn-registry", product.name, product.brand],
+    queryFn: () => checkSsnRegistryFn({ data: { name: product.name, brand: product.brand } }),
+    staleTime: 1000 * 60 * 60 * 12,
+    retry: false,
+    enabled: !!product.name,
+  });
+  const ssnConfirmed = ssn.status === "yes" || registryCheck?.status === "yes";
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col pb-10">
@@ -156,13 +167,25 @@ export function ResultView({
 
         <section className="mt-5 rounded-2xl border border-border bg-card p-4">
           <div className="flex items-start gap-3">
-            {ssn.status === "yes" ? <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-safe" /> : <Info className="mt-0.5 h-6 w-6 shrink-0 text-primary" />}
+            {ssnConfirmed ? <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-safe" /> : <Info className="mt-0.5 h-6 w-6 shrink-0 text-primary" />}
             <div className="min-w-0 flex-1">
               <h2 className="text-base font-extrabold text-foreground">Celiachia · Servizio Sanitario Nazionale</h2>
-              <p className={`mt-1 text-sm font-extrabold ${ssn.status === "yes" ? "text-safe" : "text-foreground"}`}>{ssn.status === "yes" ? "EROGABILE SSN: SÌ" : "STATO SSN: DA VERIFICARE"}</p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{ssn.detail}</p>
+              <p className={`mt-1 text-sm font-extrabold ${ssnConfirmed ? "text-safe" : "text-foreground"}`}>
+                {ssnConfirmed ? "EROGABILE SSN: SÌ" : registryChecking ? "CONTROLLO REGISTRO SSN…" : "STATO SSN: DA VERIFICARE"}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                {ssnConfirmed
+                  ? registryCheck?.status === "yes"
+                    ? "Prodotto trovato automaticamente nel Registro nazionale del Ministero della Salute."
+                    : ssn.detail
+                  : registryCheck?.status === "not-found"
+                    ? "Non l'ho trovato automaticamente nel Registro ufficiale. Non significa necessariamente che non sia erogabile: verifica il nome/formato nel Registro."
+                    : registryCheck?.status === "unavailable"
+                      ? "Il Registro ufficiale non è raggiungibile in questo momento. Riprova più tardi o aprilo manualmente."
+                      : ssn.detail}
+              </p>
               <a
-                href="https://www.salute.gov.it/new/it/tema/alimenti-fini-medici-speciali-ed-integratori/registro-nazionale-alimenti-fini-medici-speciali/"
+                href={registryCheck?.registryUrl || "https://www.salute.gov.it/new/sites/default/files/SG_ORD_PROD_2.pdf"}
                 target="_blank"
                 rel="noreferrer"
                 className="mt-3 inline-flex rounded-xl bg-secondary px-3 py-2 text-xs font-extrabold text-secondary-foreground"
