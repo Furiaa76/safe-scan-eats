@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, ChefHat, Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, ChefHat, Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 import { useProfile, addShoppingItems, clearShoppingList, removeShoppingItem, toggleShoppingItem, useShoppingList } from "@/lib/store";
 import { ALLERGENS, type AllergenId } from "@/lib/allergens";
 import { generateRecipe } from "@/lib/recipe.functions";
@@ -375,16 +375,19 @@ function RecipesPage() {
     <section className="mt-5 rounded-3xl border border-border bg-card p-4">
       <div className="flex items-center gap-2"><ChefHat className="h-5 w-5 text-primary" /><p className="font-extrabold">Cosa vuoi cucinare?</p></div>
       <div className="mt-3 flex gap-2">
-        <input
-          type="text"
-          inputMode="text"
-          autoComplete="off"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void findRecipe(); } }}
-          placeholder="Es. tiramisù"
-          className="min-w-0 flex-1 rounded-2xl border border-border bg-background px-4 py-3.5 text-base outline-none focus:border-primary"
-        />
+        <div className="relative min-w-0 flex-1">
+          <input
+            type="text"
+            inputMode="text"
+            autoComplete="off"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void findRecipe(); } }}
+            placeholder="Es. tiramisù"
+            className="w-full rounded-2xl border border-border bg-background px-4 py-3.5 pr-11 text-base outline-none focus:border-primary"
+          />
+          {query && <button type="button" onClick={() => { setQuery(""); setSearchMessage(""); }} aria-label="Cancella ricerca" className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-secondary text-muted-foreground"><X className="h-4 w-4" /></button>}
+        </div>
         <button type="button" disabled={searching} onClick={() => void findRecipe()} className="rounded-2xl bg-primary px-4 text-sm font-extrabold text-primary-foreground disabled:opacity-50">{searching ? "Cerco…" : "Cerca"}</button>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
