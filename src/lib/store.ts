@@ -4,6 +4,7 @@ import type { AllergenId } from "./allergens";
 const LEGACY_PROFILE_KEY = "safefood-profile";
 const PROFILES_KEY = "safefood-profiles-v2";
 const HISTORY_KEY = "safefood-history";
+const SHOPPING_KEY = "safefood-shopping-list";
 
 export interface Profile {
   id: string;
@@ -16,6 +17,14 @@ export interface ProfilesState {
   profiles: Profile[];
   activeProfileId: string | null;
   freeMode: boolean;
+}
+
+export interface ShoppingItem {
+  id: string;
+  name: string;
+  quantity: string;
+  recipe?: string | undefined;
+  checked: boolean;
 }
 
 export interface HistoryEntry {
@@ -40,6 +49,7 @@ function emit() {
 // Cache: useSyncExternalStore richiede snapshot stabili tra i render
 let profilesCache: ProfilesState | undefined;
 let historyCache: HistoryEntry[] | undefined;
+let shoppingCache: ShoppingItem[] | undefined;
 
 function read<T>(key: string): T | null {
   if (typeof window === "undefined") return null;
@@ -49,6 +59,11 @@ function read<T>(key: string): T | null {
   } catch {
     return null;
   }
+}
+
+function makeItemId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function makeProfileId() {
@@ -167,6 +182,42 @@ export function clearHistory() {
   emit();
 }
 
+export function getShoppingList(): ShoppingItem[] {
+  if (shoppingCache === undefined) shoppingCache = read<ShoppingItem[]>(SHOPPING_KEY) ?? [];
+  return shoppingCache;
+}
+
+function saveShoppingList(items: ShoppingItem[]) {
+  shoppingCache = items;
+  window.localStorage.setItem(SHOPPING_KEY, JSON.stringify(items));
+  emit();
+}
+
+export function addShoppingItems(items: Array<{ name: string; quantity: string; recipe?: string | undefined }>) {
+  const existing = getShoppingList();
+  const next = [...existing];
+  for (const item of items) {
+    const match = next.find((x) => !x.checked && x.name.toLowerCase() === item.name.toLowerCase() && x.quantity === item.quantity);
+    if (match) continue;
+    next.push({ id: makeItemId(), name: item.name, quantity: item.quantity, recipe: item.recipe, checked: false });
+  }
+  saveShoppingList(next);
+}
+
+export function toggleShoppingItem(id: string) {
+  saveShoppingList(getShoppingList().map((item) => item.id === id ? { ...item, checked: !item.checked } : item));
+}
+
+export function removeShoppingItem(id: string) {
+  saveShoppingList(getShoppingList().filter((item) => item.id !== id));
+}
+
+export function clearShoppingList() {
+  shoppingCache = [];
+  window.localStorage.removeItem(SHOPPING_KEY);
+  emit();
+}
+
 function subscribe(cb: () => void) {
   listeners.push(cb);
   return () => {
@@ -184,4 +235,8 @@ export function useProfilesState(): ProfilesState {
 
 export function useHistory(): HistoryEntry[] {
   return useSyncExternalStore(subscribe, getHistory, () => []);
+}
+
+export function useShoppingList(): ShoppingItem[] {
+  return useSyncExternalStore(subscribe, getShoppingList, () => []);
 }
