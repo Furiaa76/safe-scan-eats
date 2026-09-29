@@ -2,9 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check, ChefHat, Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { useProfile, addShoppingItems, clearShoppingList, removeShoppingItem, toggleShoppingItem, useShoppingList } from "@/lib/store";
+import { ALLERGENS, type AllergenId } from "@/lib/allergens";
 
 type Ingredient = { name: string; quantity: string; glutenSwap?: string; lactoseSwap?: string };
-type Recipe = { id: string; title: string; aliases: string[]; servings: number; ingredients: Ingredient[] };
+type Recipe = { id: string; title: string; aliases: string[]; servings: number; ingredients: Ingredient[]; online?: boolean };
+type OnlineMeal = Record<string, string | null>;
 
 const RECIPES: Recipe[] = [
   {
@@ -69,6 +71,138 @@ const RECIPES: Recipe[] = [
   },
 ];
 
+
+
+const INGREDIENT_TRANSLATIONS: Record<string, string> = {
+  rice: "Riso",
+  mozzarella: "Mozzarella",
+  parmesan: "Parmigiano",
+  "parmesan cheese": "Parmigiano",
+  egg: "Uovo",
+  eggs: "Uova",
+  breadcrumbs: "Pangrattato",
+  "bread crumbs": "Pangrattato",
+  flour: "Farina",
+  milk: "Latte",
+  butter: "Burro",
+  cream: "Panna",
+  mascarpone: "Mascarpone",
+  sugar: "Zucchero",
+  coffee: "Caffè",
+  cocoa: "Cacao",
+  onion: "Cipolla",
+  carrot: "Carota",
+  celery: "Sedano",
+  tomato: "Pomodoro",
+  "tomato sauce": "Passata di pomodoro",
+  "olive oil": "Olio extravergine d'oliva",
+  salt: "Sale",
+  pepper: "Pepe",
+  "black pepper": "Pepe nero",
+  beef: "Manzo",
+  pork: "Maiale",
+  chicken: "Pollo",
+  peas: "Piselli",
+};
+
+function italianIngredient(name: string) {
+  const key = name.trim().toLowerCase();
+  return INGREDIENT_TRANSLATIONS[key] ?? name.trim();
+}
+
+function cleanDishQuery(input: string) {
+  return input
+    .toLowerCase()
+    .replace(/[!?.,]/g, " ")
+    .replace(/\b(stasera|oggi|domani|per cena|per pranzo)\b/g, " ")
+    .replace(/\b(voglio|vorrei|mi piacerebbe|devo)\b/g, " ")
+    .replace(/\b(fare|preparare|cucinare|mangiare)\b/g, " ")
+    .replace(/\b(gli|le|i|la|il|lo|un|una|dei|delle|del)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function mealToRecipe(meal: OnlineMeal): Recipe {
+  const ingredients: Ingredient[] = [];
+  for (let i = 1; i <= 20; i++) {
+    const ingredient = meal[`strIngredient${i}`]?.trim();
+    if (!ingredient) continue;
+    const measure = meal[`strMeasure${i}`]?.trim() || "q.b.";
+    ingredients.push({ name: italianIngredient(ingredient), quantity: measure });
+  }
+  return {
+    id: `online-${meal["idMeal"] || meal["strMeal"] || Date.now()}`,
+    title: meal["strMeal"] || "Ricetta trovata",
+    aliases: [],
+    servings: 4,
+    ingredients,
+    online: true,
+  };
+}
+
+async function searchOnlineRecipe(query: string): Promise<Recipe | null> {
+  const term = cleanDishQuery(query);
+  if (!term) return null;
+  const url = `https://www.themealdb.com/api/json/v1/1/search.php?s=${encodeURIComponent(term)}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("recipe-search-failed");
+  const data = (await response.json()) as { meals?: OnlineMeal[] | null };
+  const meal = data.meals?.[0];
+  return meal ? mealToRecipe(meal) : null;
+}
+
+const ENGLISH_ALLERGEN_WORDS: Record<AllergenId, string[]> = {
+  glutine: ["wheat", "flour", "breadcrumbs", "bread crumbs", "bread", "pasta", "couscous", "barley", "rye"],
+  lattosio: ["milk", "butter", "cream", "mascarpone", "mozzarella", "cheese", "ricotta"],
+  arachidi: ["peanut", "peanuts", "peanut butter"],
+  "frutta-guscio": ["almond", "almonds", "hazelnut", "hazelnuts", "walnut", "walnuts", "cashew", "cashews", "pistachio", "pistachios"],
+  uova: ["egg", "eggs"],
+  soia: ["soy", "soya", "tofu"],
+  pesce: ["fish", "tuna", "salmon", "anchovy", "anchovies", "sardine", "sardines"],
+  crostacei: ["shrimp", "prawn", "prawns", "crab", "lobster"],
+  sesamo: ["sesame", "tahini"],
+};
+
+function containsAllergen(name: string, allergen: AllergenId) {
+  const lower = name.toLowerCase();
+  const it = ALLERGENS.find((a) => a.id === allergen)?.keywords ?? [];
+  return [...it, ...ENGLISH_ALLERGEN_WORDS[allergen]].some((word) => lower.includes(word.toLowerCase()));
+}
+
+function safeIngredientName(item: Ingredient, allergens: AllergenId[]) {
+  let name = item.name;
+  if (allergens.includes("glutine")) {
+    if (item.glutenSwap) name = item.glutenSwap;
+    else {
+      name = name
+        .replace(/pangrattato/gi, "Pangrattato senza glutine")
+        .replace(/breadcrumbs?/gi, "Pangrattato senza glutine")
+        .replace(/\bfarina\b/gi, "Farina senza glutine")
+        .replace(/\bflour\b/gi, "Farina senza glutine")
+        .replace(/\bpasta\b/gi, "Pasta senza glutine");
+    }
+  }
+  if (allergens.includes("lattosio")) {
+    if (item.lactoseSwap) name = item.lactoseSwap;
+    else {
+      name = name
+        .replace(/mascarpone/gi, "Mascarpone senza lattosio")
+        .replace(/mozzarella/gi, "Mozzarella senza lattosio")
+        .replace(/\blatte\b/gi, "Latte senza lattosio")
+        .replace(/\bmilk\b/gi, "Latte senza lattosio")
+        .replace(/\bburro\b/gi, "Burro senza lattosio")
+        .replace(/\bbutter\b/gi, "Burro senza lattosio")
+        .replace(/\bpanna\b/gi, "Panna senza lattosio")
+        .replace(/\bcream\b/gi, "Panna senza lattosio");
+    }
+  }
+  const unresolved = allergens.filter((a) => a !== "glutine" && a !== "lattosio" && containsAllergen(name, a));
+  return {
+    name,
+    warning: unresolved.length ? `Da sostituire: ${unresolved.map((a) => ALLERGENS.find((x) => x.id === a)?.label ?? a).join(", ")}` : undefined,
+  };
+}
+
 export const Route = createFileRoute("/recipes")({
   head: () => ({ meta: [{ title: "Ricette e lista della spesa — SafeFood Scan" }] }),
   component: RecipesPage,
@@ -89,8 +223,11 @@ function RecipesPage() {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("lasagne");
   const [servings, setServings] = useState(4);
+  const [onlineRecipe, setOnlineRecipe] = useState<Recipe | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchMessage, setSearchMessage] = useState("");
 
-  const selected = RECIPES.find((r) => r.id === selectedId) ?? RECIPES[0];
+  const selected = onlineRecipe ?? RECIPES.find((r) => r.id === selectedId) ?? RECIPES[0];
   const glutenFree = profile?.allergens.includes("glutine") ?? false;
   const lactoseFree = profile?.allergens.includes("lattosio") ?? false;
 
@@ -100,32 +237,55 @@ function RecipesPage() {
     return RECIPES.filter((r) => r.title.toLowerCase().includes(q) || r.aliases.some((a) => a.includes(q)));
   }, [query]);
 
+  const activeAllergens = profile?.allergens ?? [];
   const adapted = selected.ingredients.map((item) => {
-    let name = item.name;
-    if (glutenFree && item.glutenSwap) name = item.glutenSwap;
-    if (lactoseFree && item.lactoseSwap) name = item.lactoseSwap;
+    const safe = safeIngredientName(item, activeAllergens);
     return {
-      name,
+      name: safe.name,
       quantity: scaleQuantity(item.quantity, servings / selected.servings),
       recipe: selected.title,
+      warning: safe.warning,
     };
   });
 
   const choose = (recipe: Recipe) => {
+    setOnlineRecipe(null);
     setSelectedId(recipe.id);
     setQuery(recipe.title);
     setServings(recipe.servings);
+    setSearchMessage("");
   };
 
-  const findRecipe = () => {
-    const q = query.trim().toLowerCase();
-    if (!q) return;
-    const exact = RECIPES.find((r) =>
-      r.title.toLowerCase() === q || r.aliases.some((a) => a === q)
-    );
-    const partial = suggestions[0];
-    if (exact) choose(exact);
-    else if (partial) choose(partial);
+  const findRecipe = async () => {
+    const cleaned = cleanDishQuery(query);
+    if (!cleaned) return;
+    setSearching(true);
+    setSearchMessage("");
+    try {
+      const exact = RECIPES.find((r) =>
+        r.title.toLowerCase() === cleaned || r.aliases.some((a) => a === cleaned)
+      );
+      const partial = RECIPES.find((r) =>
+        r.title.toLowerCase().includes(cleaned) || r.aliases.some((a) => a.includes(cleaned))
+      );
+      if (exact || partial) {
+        choose(exact ?? partial!);
+        return;
+      }
+      const found = await searchOnlineRecipe(cleaned);
+      if (found) {
+        setOnlineRecipe(found);
+        setQuery(found.title);
+        setServings(found.servings);
+        setSearchMessage("Ricetta trovata online e adattata al profilo attivo.");
+      } else {
+        setSearchMessage("Non ho trovato questa ricetta. Prova a scrivere solo il nome del piatto, per esempio “arancini”.");
+      }
+    } catch {
+      setSearchMessage("La ricerca online non è disponibile in questo momento. Riprova tra poco.");
+    } finally {
+      setSearching(false);
+    }
   };
 
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
@@ -143,16 +303,16 @@ function RecipesPage() {
           autoComplete="off"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); findRecipe(); } }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void findRecipe(); } }}
           placeholder="Es. tiramisù"
           className="min-w-0 flex-1 rounded-2xl border border-border bg-background px-4 py-3.5 text-base outline-none focus:border-primary"
         />
-        <button type="button" onClick={findRecipe} className="rounded-2xl bg-primary px-4 text-sm font-extrabold text-primary-foreground">Cerca</button>
+        <button type="button" disabled={searching} onClick={() => void findRecipe()} className="rounded-2xl bg-primary px-4 text-sm font-extrabold text-primary-foreground disabled:opacity-50">{searching ? "Cerco…" : "Cerca"}</button>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         {(query.trim() ? suggestions : RECIPES).map((recipe) => <button key={recipe.id} type="button" onClick={() => choose(recipe)} className={`rounded-full px-3 py-2 text-xs font-extrabold ${recipe.id === selected.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>{recipe.title}</button>)}
       </div>
-      {query.trim() && suggestions.length === 0 && <p className="mt-3 text-sm text-muted-foreground">Questa ricetta non è ancora presente. Per ora prova lasagne, tiramisù, carbonara o pizza.</p>}
+      {searchMessage && <p className="mt-3 text-sm font-semibold text-muted-foreground">{searchMessage}</p>}
     </section>
 
     <section className="mt-4 rounded-3xl border border-border bg-card p-4">
@@ -165,8 +325,8 @@ function RecipesPage() {
         </div>
       </div>
       {(glutenFree || lactoseFree) && <p className="mt-3 rounded-2xl bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Adattata al profilo attivo{glutenFree ? " · senza glutine" : ""}{lactoseFree ? " · senza lattosio" : ""}</p>}
-      <div className="mt-4 space-y-2">{adapted.map((item) => <div key={item.name} className="flex items-center justify-between gap-3 rounded-2xl bg-muted px-3 py-3"><span className="text-sm font-bold text-foreground">{item.name}</span><span className="shrink-0 text-xs font-semibold text-muted-foreground">{item.quantity}</span></div>)}</div>
-      <button type="button" onClick={() => addShoppingItems(adapted)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-extrabold text-primary-foreground"><ShoppingCart className="h-5 w-5" />Aggiungi alla lista della spesa</button>
+      <div className="mt-4 space-y-2">{adapted.map((item) => <div key={item.name} className="rounded-2xl bg-muted px-3 py-3"><div className="flex items-center justify-between gap-3"><span className="text-sm font-bold text-foreground">{item.name}</span><span className="shrink-0 text-xs font-semibold text-muted-foreground">{item.quantity}</span></div>{item.warning && <p className="mt-1 text-xs font-bold text-danger">⚠ {item.warning}</p>}</div>)}</div>
+      <button type="button" onClick={() => addShoppingItems(adapted.filter((item) => !item.warning))} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-extrabold text-primary-foreground"><ShoppingCart className="h-5 w-5" />Aggiungi alla lista della spesa</button>
     </section>
 
     <section className="mt-4 rounded-3xl border border-border bg-card p-4">
