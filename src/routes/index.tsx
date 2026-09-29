@@ -4,7 +4,77 @@ import { Barcode, Camera, Check, ChefHat, ChevronRight, History, Plus, Salad, Sh
 import { ALLERGENS, type AllergenId } from "@/lib/allergens";
 import { addProfile, enableFreeMode, removeProfile, saveProfile, setActiveProfile, useProfile, useProfilesState } from "@/lib/store";
 
+
+type AlexaRequest = {
+  request?: {
+    type?: string;
+    intent?: {
+      name?: string;
+      slots?: Record<string, { value?: string }>;
+    };
+  };
+};
+
+function alexaResponse(text: string, shouldEndSession = true) {
+  return Response.json({
+    version: "1.0",
+    response: {
+      outputSpeech: { type: "PlainText", text },
+      shouldEndSession,
+    },
+  }, {
+    headers: { "Cache-Control": "no-store" },
+  });
+}
+
+async function handleAlexaRequest(request: Request) {
+  let body: AlexaRequest;
+  try {
+    body = (await request.json()) as AlexaRequest;
+  } catch {
+    return alexaResponse("Richiesta non valida.");
+  }
+
+  const type = body.request?.type;
+
+  if (type === "LaunchRequest") {
+    return alexaResponse(
+      "Benvenuto in Safe Scan. Dimmi quale piatto vuoi preparare, per esempio: voglio fare la carbonara.",
+      false,
+    );
+  }
+
+  if (type === "IntentRequest") {
+    const intent = body.request?.intent?.name;
+
+    if (intent === "CreateShoppingListIntent") {
+      const dish = body.request?.intent?.slots?.["dish"]?.value?.trim();
+      if (!dish) return alexaResponse("Quale piatto vuoi preparare?", false);
+      return alexaResponse(
+        `Perfetto. Ho capito che vuoi preparare ${dish}. Il collegamento con Safe Scan Eats funziona.`,
+      );
+    }
+
+    if (intent === "AMAZON.HelpIntent") {
+      return alexaResponse(
+        "Puoi dirmi: voglio fare la carbonara, oppure: preparami la lista per il tiramisù.",
+        false,
+      );
+    }
+
+    if (intent === "AMAZON.CancelIntent" || intent === "AMAZON.StopIntent") {
+      return alexaResponse("Va bene, a presto.");
+    }
+  }
+
+  return alexaResponse(
+    "Non ho capito. Prova a dirmi quale piatto vuoi preparare.",
+    false,
+  );
+}
+
 export const Route = createFileRoute("/")({
+  server: { handlers: { POST: async ({ request }) => handleAlexaRequest(request) } },
   head: () => ({ meta: [
     { title: "SafeFood Scan — Controlla allergeni e intolleranze" },
     { name: "description", content: "Scansiona i prodotti e scopri subito se sono compatibili con le tue intolleranze e allergie alimentari." },
