@@ -35,6 +35,7 @@ function claimsToLabelTags(claims?: string): string[] {
   for (const claim of values) {
     if (/senza\s+glutine|gluten[\s-]*free|no\s+gluten/.test(claim)) tags.add("en:gluten-free");
     if (/senza\s+lattosio|lactose[\s-]*free|no\s+lactose/.test(claim)) tags.add("en:lactose-free");
+    if (/specificamente\s+formulat[oa]\s+per\s+celiac|erogabile\s+ssn|registro\s+nazionale|bollino\s+verde\s+ssn/.test(claim)) tags.add("it:ssn-erogabile-celiachia");
   }
   return Array.from(tags);
 }
