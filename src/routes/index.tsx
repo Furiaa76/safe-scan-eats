@@ -48,7 +48,7 @@ async function handleAlexaRequest(request: Request) {
     const intent = body.request?.intent?.name;
 
     if (intent === "CreateShoppingListIntent") {
-      const dish = body.request?.intent?.slots?.["dish"]?.value?.trim();
+      const dish = (body.request?.intent?.slots?.["piatto"]?.value ?? body.request?.intent?.slots?.["dish"]?.value)?.trim();
       if (!dish) return alexaResponse("Quale piatto vuoi preparare?", false);
       return alexaResponse(
         `Perfetto. Ho capito che vuoi preparare ${dish}. Il collegamento con Safe Scan Eats funziona.`,
