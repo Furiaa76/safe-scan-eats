@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check, ChefHat, Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { useProfile, addShoppingItems, clearShoppingList, removeShoppingItem, toggleShoppingItem, useShoppingList } from "@/lib/store";
@@ -269,6 +270,7 @@ function scaleQuantity(quantity: string, factor: number) {
 function RecipesPage() {
   const profile = useProfile();
   const shopping = useShoppingList();
+  const generateRecipeFn = useServerFn(generateRecipe);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("lasagne");
   const [servings, setServings] = useState(4);
@@ -330,7 +332,7 @@ function RecipesPage() {
         return;
       }
 
-      const generated = await generateRecipe({ data: {
+      const generated = await generateRecipeFn({ data: {
         dish: cleaned,
         allergens: activeAllergens.map((id) => ALLERGENS.find((a) => a.id === id)?.label ?? id),
       }});
