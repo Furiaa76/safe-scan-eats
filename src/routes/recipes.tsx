@@ -59,7 +59,7 @@ const RECIPES: Recipe[] = [
   {
     id: "torta-mele",
     title: "Torta di mele",
-    aliases: ["torta di mele", "torta mele", "apple cake", "apple pie"],
+    aliases: ["torta di mele", "torta alle mele", "torta mele", "apple cake", "apple pie"],
     servings: 8,
     ingredients: [
       { name: "Mele", quantity: "3" },
@@ -232,6 +232,13 @@ function cleanDishQuery(input: string) {
     .trim();
 }
 
+function dishKey(input: string) {
+  return cleanDishQuery(input)
+    .replace(/\b(alla|alle|allo|agli|al|ai|a|della|delle|dello|degli|del|dei|di)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function mealToRecipe(meal: OnlineMeal): Recipe {
   const ingredients: Ingredient[] = [];
   for (let i = 1; i <= 20; i++) {
@@ -359,9 +366,11 @@ function RecipesPage() {
   const lactoseFree = profile?.allergens.includes("lattosio") ?? false;
 
   const suggestions = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = dishKey(query);
     if (!q) return RECIPES;
-    return RECIPES.filter((r) => r.title.toLowerCase().includes(q) || r.aliases.some((a) => a.includes(q)));
+    return RECIPES.filter((r) =>
+      dishKey(r.title).includes(q) || r.aliases.some((a) => dishKey(a).includes(q))
+    );
   }, [query]);
 
   const activeAllergens = profile?.allergens ?? [];
@@ -391,11 +400,12 @@ function RecipesPage() {
     setOnlineRecipe(null);
     setSelectedId("");
     try {
+      const key = dishKey(cleaned);
       const exact = RECIPES.find((r) =>
-        r.title.toLowerCase() === cleaned || r.aliases.some((a) => a === cleaned)
+        dishKey(r.title) === key || r.aliases.some((a) => dishKey(a) === key)
       );
       const partial = RECIPES.find((r) =>
-        r.title.toLowerCase().includes(cleaned) || r.aliases.some((a) => a.includes(cleaned))
+        dishKey(r.title).includes(key) || r.aliases.some((a) => dishKey(a).includes(key))
       );
       if (exact || partial) {
         choose(exact ?? partial!);
