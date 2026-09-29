@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Barcode, Camera, Check, ChevronRight, History, Plus, Salad, ShieldAlert, Trash2, TriangleAlert, User, Users } from "lucide-react";
+import { Barcode, Camera, Check, ChefHat, ChevronRight, History, Plus, Salad, ShieldAlert, ShoppingCart, Trash2, TriangleAlert, User, Users } from "lucide-react";
 import { ALLERGENS, type AllergenId } from "@/lib/allergens";
 import { addProfile, enableFreeMode, removeProfile, saveProfile, setActiveProfile, useProfile, useProfilesState } from "@/lib/store";
 
@@ -74,7 +74,8 @@ function Home({ onAddProfile }: { onAddProfile: () => void }) {
 
     <p className="mt-8 text-center text-lg font-bold text-foreground">Cosa vuoi controllare?</p>
     <div className="mt-4 flex flex-col gap-4"><Link to="/scan" search={{ mode: "barcode" }} className="flex items-center gap-4 rounded-3xl bg-primary p-6 text-primary-foreground shadow-lg transition-transform active:scale-[0.98]"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-primary-foreground/20"><Barcode className="h-9 w-9" /></div><div className="min-w-0"><p className="text-xl font-extrabold leading-tight">Scansiona codice a barre</p><p className="mt-1 text-sm opacity-90">Inquadra il codice sul prodotto</p></div></Link>
-    <Link to="/ingredients" search={{}} className="flex items-center gap-4 rounded-3xl border-2 border-primary bg-card p-6 text-foreground transition-transform active:scale-[0.98]"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-secondary"><Camera className="h-9 w-9 text-primary" /></div><div className="min-w-0"><p className="text-xl font-extrabold leading-tight">Fotografa ingredienti</p><p className="mt-1 text-sm text-muted-foreground">Scatta una foto alla lista ingredienti</p></div></Link></div>
+    <Link to="/ingredients" search={{}} className="flex items-center gap-4 rounded-3xl border-2 border-primary bg-card p-6 text-foreground transition-transform active:scale-[0.98]"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-secondary"><Camera className="h-9 w-9 text-primary" /></div><div className="min-w-0"><p className="text-xl font-extrabold leading-tight">Fotografa ingredienti</p><p className="mt-1 text-sm text-muted-foreground">Scatta una foto alla lista ingredienti</p></div></Link>
+    <Link to="/recipes" className="flex items-center gap-4 rounded-3xl border-2 border-border bg-card p-6 text-foreground transition-transform active:scale-[0.98]"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-secondary"><ChefHat className="h-9 w-9 text-primary" /></div><div className="min-w-0 flex-1"><p className="text-xl font-extrabold leading-tight">Ricette e lista della spesa</p><p className="mt-1 text-sm text-muted-foreground">Scegli cosa cucinare e crea la lista</p></div><ShoppingCart className="h-5 w-5 text-muted-foreground" /></Link></div>
     <div className="mt-auto pt-8"><Disclaimer /></div>
   </div>;
 }
