@@ -39,6 +39,20 @@ const RECIPES: Recipe[] = [
     ],
   },
   {
+    id: "tiramisu",
+    title: "Tiramisù",
+    aliases: ["tiramisu", "tiramisù"],
+    servings: 6,
+    ingredients: [
+      { name: "Savoiardi", quantity: "300 g", glutenSwap: "Savoiardi senza glutine" },
+      { name: "Mascarpone", quantity: "500 g", lactoseSwap: "Mascarpone senza lattosio" },
+      { name: "Uova", quantity: "4" },
+      { name: "Zucchero", quantity: "100 g" },
+      { name: "Caffè", quantity: "300 ml" },
+      { name: "Cacao amaro", quantity: "30 g" },
+    ],
+  },
+  {
     id: "pizza",
     title: "Pizza margherita",
     aliases: ["pizza", "margherita", "pizza margherita"],
@@ -72,7 +86,7 @@ function scaleQuantity(quantity: string, factor: number) {
 function RecipesPage() {
   const profile = useProfile();
   const shopping = useShoppingList();
-  const [query, setQuery] = useState("lasagne");
+  const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("lasagne");
   const [servings, setServings] = useState(4);
 
@@ -103,6 +117,17 @@ function RecipesPage() {
     setServings(recipe.servings);
   };
 
+  const findRecipe = () => {
+    const q = query.trim().toLowerCase();
+    if (!q) return;
+    const exact = RECIPES.find((r) =>
+      r.title.toLowerCase() === q || r.aliases.some((a) => a === q)
+    );
+    const partial = suggestions[0];
+    if (exact) choose(exact);
+    else if (partial) choose(partial);
+  };
+
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
     <header className="flex items-center gap-3">
       <Link to="/" aria-label="Torna alla home" className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-secondary-foreground"><ArrowLeft className="h-5 w-5" /></Link>
@@ -111,10 +136,23 @@ function RecipesPage() {
 
     <section className="mt-5 rounded-3xl border border-border bg-card p-4">
       <div className="flex items-center gap-2"><ChefHat className="h-5 w-5 text-primary" /><p className="font-extrabold">Cosa vuoi cucinare?</p></div>
-      <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Es. lasagne" className="mt-3 w-full rounded-2xl border border-border bg-background px-4 py-3.5 text-base outline-none focus:border-primary" />
-      <div className="mt-3 flex flex-wrap gap-2">
-        {(suggestions.length ? suggestions : RECIPES).map((recipe) => <button key={recipe.id} type="button" onClick={() => choose(recipe)} className={`rounded-full px-3 py-2 text-xs font-extrabold ${recipe.id === selected.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>{recipe.title}</button>)}
+      <div className="mt-3 flex gap-2">
+        <input
+          type="text"
+          inputMode="text"
+          autoComplete="off"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); findRecipe(); } }}
+          placeholder="Es. tiramisù"
+          className="min-w-0 flex-1 rounded-2xl border border-border bg-background px-4 py-3.5 text-base outline-none focus:border-primary"
+        />
+        <button type="button" onClick={findRecipe} className="rounded-2xl bg-primary px-4 text-sm font-extrabold text-primary-foreground">Cerca</button>
       </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {(query.trim() ? suggestions : RECIPES).map((recipe) => <button key={recipe.id} type="button" onClick={() => choose(recipe)} className={`rounded-full px-3 py-2 text-xs font-extrabold ${recipe.id === selected.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>{recipe.title}</button>)}
+      </div>
+      {query.trim() && suggestions.length === 0 && <p className="mt-3 text-sm text-muted-foreground">Questa ricetta non è ancora presente. Per ora prova lasagne, tiramisù, carbonara o pizza.</p>}
     </section>
 
     <section className="mt-4 rounded-3xl border border-border bg-card p-4">
