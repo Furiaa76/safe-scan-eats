@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, Check, ChefHat, Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
 import { useProfile, addShoppingItems, clearShoppingList, removeShoppingItem, toggleShoppingItem, useShoppingList } from "@/lib/store";
 import { ALLERGENS, type AllergenId } from "@/lib/allergens";
+import { generateRecipe } from "@/lib/recipe.functions";
 
 type Ingredient = { name: string; quantity: string; glutenSwap?: string; lactoseSwap?: string };
 type Recipe = { id: string; title: string; aliases: string[]; servings: number; ingredients: Ingredient[]; online?: boolean };
@@ -326,9 +327,25 @@ function RecipesPage() {
         setQuery(found.title);
         setServings(found.servings);
         setSearchMessage("Ricetta trovata online e adattata al profilo attivo.");
-      } else {
-        setSearchMessage("Non ho trovato questa ricetta. Prova a scrivere solo il nome del piatto, per esempio “arancini”.");
+        return;
       }
+
+      const generated = await generateRecipe({ data: {
+        dish: cleaned,
+        allergens: activeAllergens.map((id) => ALLERGENS.find((a) => a.id === id)?.label ?? id),
+      }});
+      const aiRecipe: Recipe = {
+        id: `ai-${Date.now()}`,
+        title: generated.title,
+        aliases: [],
+        servings: generated.servings,
+        ingredients: generated.ingredients,
+        online: true,
+      };
+      setOnlineRecipe(aiRecipe);
+      setQuery(aiRecipe.title);
+      setServings(aiRecipe.servings);
+      setSearchMessage(generated.notes || "Ricetta creata e adattata al profilo attivo.");
     } catch {
       setSearchMessage("La ricerca online non è disponibile in questo momento. Riprova tra poco.");
     } finally {
