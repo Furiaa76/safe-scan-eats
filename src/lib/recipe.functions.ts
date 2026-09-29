@@ -9,17 +9,27 @@ const RecipeInput = z.object({
 export const generateRecipe = createServerFn({ method: "POST" })
   .inputValidator((d) => RecipeInput.parse(d))
   .handler(async ({ data }) => {
-    const key = process.env["AI_GATEWAY_API_KEY"] || process.env["VERCEL_OIDC_TOKEN"];
+    const gatewayKey = process.env["AI_GATEWAY_API_KEY"] || process.env["VERCEL_OIDC_TOKEN"];
+    const lovableKey = process.env["LOVABLE_API_KEY"];
+    const key = gatewayKey || lovableKey;
     if (!key) throw new Error("AI_RECIPE_NOT_CONFIGURED");
 
-    const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
+    const useVercelGateway = !!gatewayKey;
+    const endpoint = useVercelGateway
+      ? "https://ai-gateway.vercel.sh/v1/chat/completions"
+      : "https://ai.gateway.lovable.dev/v1/chat/completions";
+    const model = useVercelGateway
+      ? "google/gemini-3-flash"
+      : "google/gemini-3-flash-preview";
+
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash",
+        model,
         response_format: { type: "json_object" },
         messages: [
           {
@@ -35,6 +45,8 @@ export const generateRecipe = createServerFn({ method: "POST" })
       }),
     });
 
+    if (res.status === 429) throw new Error("AI_RECIPE_RATE_LIMIT");
+    if (res.status === 401 || res.status === 403) throw new Error("AI_RECIPE_NOT_AUTHORIZED");
     if (!res.ok) throw new Error("AI_RECIPE_FAILED");
     const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     const raw = json.choices?.[0]?.message?.content ?? "";
