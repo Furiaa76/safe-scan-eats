@@ -55,6 +55,40 @@ const RECIPES: Recipe[] = [
     ],
   },
   {
+    id: "torta-mele",
+    title: "Torta di mele",
+    aliases: ["torta di mele", "torta mele", "apple cake", "apple pie"],
+    servings: 8,
+    ingredients: [
+      { name: "Mele", quantity: "3" },
+      { name: "Farina", quantity: "250 g", glutenSwap: "Farina senza glutine per dolci" },
+      { name: "Zucchero", quantity: "150 g" },
+      { name: "Uova", quantity: "3" },
+      { name: "Latte", quantity: "100 ml", lactoseSwap: "Latte senza lattosio" },
+      { name: "Burro", quantity: "80 g", lactoseSwap: "Burro senza lattosio" },
+      { name: "Lievito per dolci", quantity: "16 g" },
+      { name: "Limone", quantity: "1" },
+    ],
+  },
+  {
+    id: "arancini",
+    title: "Arancini",
+    aliases: ["arancini", "arancino", "arancine"],
+    servings: 6,
+    ingredients: [
+      { name: "Riso per risotti", quantity: "500 g" },
+      { name: "Passata di pomodoro", quantity: "300 g" },
+      { name: "Carne macinata", quantity: "250 g" },
+      { name: "Piselli", quantity: "100 g" },
+      { name: "Mozzarella", quantity: "200 g", lactoseSwap: "Mozzarella senza lattosio" },
+      { name: "Parmigiano grattugiato", quantity: "80 g", lactoseSwap: "Parmigiano stagionato o alternativa senza lattosio" },
+      { name: "Uova", quantity: "3" },
+      { name: "Pangrattato", quantity: "200 g", glutenSwap: "Pangrattato senza glutine" },
+      { name: "Farina", quantity: "100 g", glutenSwap: "Farina senza glutine" },
+      { name: "Olio per friggere", quantity: "q.b." },
+    ],
+  },
+  {
     id: "pizza",
     title: "Pizza margherita",
     aliases: ["pizza", "margherita", "pizza margherita"],
@@ -140,15 +174,29 @@ function mealToRecipe(meal: OnlineMeal): Recipe {
   };
 }
 
+const DISH_SEARCH_ALIASES: Record<string, string[]> = {
+  "torta di mele": ["apple", "apple pie", "apple tart"],
+  "torta mele": ["apple", "apple pie", "apple tart"],
+  "polpette": ["meatballs"],
+  "pollo al curry": ["chicken curry"],
+  "zuppa di pesce": ["fish soup"],
+  "torta al cioccolato": ["chocolate cake"],
+  "cheesecake": ["cheesecake"],
+};
+
 async function searchOnlineRecipe(query: string): Promise<Recipe | null> {
   const term = cleanDishQuery(query);
   if (!term) return null;
-  const url = `https://www.themealdb.com/api/json/v1/1/search.php?s=${encodeURIComponent(term)}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("recipe-search-failed");
-  const data = (await response.json()) as { meals?: OnlineMeal[] | null };
-  const meal = data.meals?.[0];
-  return meal ? mealToRecipe(meal) : null;
+  const candidates = [term, ...(DISH_SEARCH_ALIASES[term] ?? [])];
+  for (const candidate of candidates) {
+    const url = `https://www.themealdb.com/api/json/v1/1/search.php?s=${encodeURIComponent(candidate)}`;
+    const response = await fetch(url);
+    if (!response.ok) continue;
+    const data = (await response.json()) as { meals?: OnlineMeal[] | null };
+    const meal = data.meals?.[0];
+    if (meal) return mealToRecipe(meal);
+  }
+  return null;
 }
 
 const ENGLISH_ALLERGEN_WORDS: Record<AllergenId, string[]> = {
