@@ -323,31 +323,42 @@ function RecipesPage() {
         choose(exact ?? partial!);
         return;
       }
-      const found = await searchOnlineRecipe(cleaned);
-      if (found) {
-        setOnlineRecipe(found);
-        setQuery(found.title);
-        setServings(found.servings);
-        setSearchMessage("Ricetta trovata online e adattata al profilo attivo.");
+      try {
+        const generated = await generateRecipeFn({ data: {
+          dish: cleaned,
+          allergens: activeAllergens.map((id) => ALLERGENS.find((a) => a.id === id)?.label ?? id),
+        }});
+        const aiRecipe: Recipe = {
+          id: `ai-${Date.now()}`,
+          title: generated.title,
+          aliases: [],
+          servings: generated.servings,
+          ingredients: generated.ingredients,
+          online: true,
+        };
+        setOnlineRecipe(aiRecipe);
+        setQuery(aiRecipe.title);
+        setServings(aiRecipe.servings);
+        setSearchMessage(generated.notes || "Ricetta creata e adattata al profilo attivo.");
         return;
+      } catch {
+        // Se l'AI non risponde, proviamo la banca dati pubblica come ripiego.
       }
 
-      const generated = await generateRecipeFn({ data: {
-        dish: cleaned,
-        allergens: activeAllergens.map((id) => ALLERGENS.find((a) => a.id === id)?.label ?? id),
-      }});
-      const aiRecipe: Recipe = {
-        id: `ai-${Date.now()}`,
-        title: generated.title,
-        aliases: [],
-        servings: generated.servings,
-        ingredients: generated.ingredients,
-        online: true,
-      };
-      setOnlineRecipe(aiRecipe);
-      setQuery(aiRecipe.title);
-      setServings(aiRecipe.servings);
-      setSearchMessage(generated.notes || "Ricetta creata e adattata al profilo attivo.");
+      try {
+        const found = await searchOnlineRecipe(cleaned);
+        if (found) {
+          setOnlineRecipe(found);
+          setQuery(found.title);
+          setServings(found.servings);
+          setSearchMessage("Ricetta trovata online e adattata al profilo attivo.");
+          return;
+        }
+      } catch {
+        // Ignora il problema della ricerca esterna: mostriamo un messaggio chiaro sotto.
+      }
+
+      setSearchMessage("Non riesco a generare questa ricetta in questo momento. Riprova tra poco.");
     } catch {
       setSearchMessage("La ricerca online non è disponibile in questo momento. Riprova tra poco.");
     } finally {
