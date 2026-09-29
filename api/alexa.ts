@@ -1,3 +1,8 @@
+import {
+  SkillRequestSignatureVerifier,
+  TimestampVerifier,
+} from "ask-sdk-express-adapter";
+
 type AlexaRequest = {
   request?: {
     type?: string;
@@ -21,24 +26,57 @@ function buildAlexaResponse(text: string, shouldEndSession = true) {
   };
 }
 
-export default async function handler(req: any, res: any) {
-  console.log("[Alexa] incoming", { method: req.method, url: req.url, hasSignature: Boolean(req.headers?.["signature"] || req.headers?.["signature-256"]), hasCertUrl: Boolean(req.headers?.["signaturecertchainurl"]) });
-  if (req.method === "GET") {
-    return res.status(200).json({
-      ok: true,
-      service: "Safe Scan Eats Alexa endpoint",
-    });
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store",
+    },
+  });
+}
+
+export async function GET() {
+  return json({
+    ok: true,
+    service: "Safe Scan Eats Alexa endpoint",
+    verification: "signature-and-timestamp-enabled",
+  });
+}
+
+export async function POST(request: Request) {
+  const rawBody = await request.text();
+  const headers = Object.fromEntries(request.headers.entries());
+
+  console.log("[Alexa] incoming", {
+    method: request.method,
+    url: request.url,
+    hasSignature: Boolean(
+      request.headers.get("signature") ||
+        request.headers.get("signature-256"),
+    ),
+    hasCertUrl: Boolean(request.headers.get("signaturecertchainurl")),
+  });
+
+  try {
+    await new SkillRequestSignatureVerifier().verify(rawBody, headers);
+    await new TimestampVerifier().verify(rawBody);
+  } catch (error) {
+    console.error("[Alexa] verification failed", error);
+    return json({ error: "Alexa request verification failed" }, 400);
   }
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  let body: AlexaRequest;
+  try {
+    body = JSON.parse(rawBody) as AlexaRequest;
+  } catch {
+    return json({ error: "Invalid JSON" }, 400);
   }
 
-  const body = (req.body || {}) as AlexaRequest;
   const type = body.request?.type;
 
   if (type === "LaunchRequest") {
-    return res.status(200).json(
+    return json(
       buildAlexaResponse(
         "Benvenuto in Safe Scan. Dimmi quale piatto vuoi preparare, per esempio: voglio fare la carbonara.",
         false,
@@ -50,15 +88,16 @@ export default async function handler(req: any, res: any) {
     const intent = body.request?.intent?.name;
 
     if (intent === "CreateShoppingListIntent") {
-      const dish = (body.request?.intent?.slots?.["piatto"]?.value ?? body.request?.intent?.slots?.["dish"]?.value)?.trim();
+      const dish = (
+        body.request?.intent?.slots?.["dish"]?.value ??
+        body.request?.intent?.slots?.["piatto"]?.value
+      )?.trim();
 
       if (!dish) {
-        return res.status(200).json(
-          buildAlexaResponse("Quale piatto vuoi preparare?", false),
-        );
+        return json(buildAlexaResponse("Quale piatto vuoi preparare?", false));
       }
 
-      return res.status(200).json(
+      return json(
         buildAlexaResponse(
           `Perfetto. Ho capito che vuoi preparare ${dish}. Il collegamento con Safe Scan Eats funziona.`,
         ),
@@ -66,7 +105,7 @@ export default async function handler(req: any, res: any) {
     }
 
     if (intent === "AMAZON.HelpIntent") {
-      return res.status(200).json(
+      return json(
         buildAlexaResponse(
           "Puoi dirmi: voglio fare la carbonara, oppure: preparami la lista per il tiramisù.",
           false,
@@ -74,12 +113,15 @@ export default async function handler(req: any, res: any) {
       );
     }
 
-    if (intent === "AMAZON.CancelIntent" || intent === "AMAZON.StopIntent") {
-      return res.status(200).json(buildAlexaResponse("Va bene, a presto."));
+    if (
+      intent === "AMAZON.CancelIntent" ||
+      intent === "AMAZON.StopIntent"
+    ) {
+      return json(buildAlexaResponse("Va bene, a presto."));
     }
   }
 
-  return res.status(200).json(
+  return json(
     buildAlexaResponse(
       "Non ho capito. Prova a dirmi quale piatto vuoi preparare.",
       false,
