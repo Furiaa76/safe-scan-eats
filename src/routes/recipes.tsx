@@ -149,6 +149,22 @@ const RECIPES: Recipe[] = [
     ],
   },
   {
+    id: "pasta-norma",
+    title: "Pasta alla Norma",
+    aliases: ["pasta alla norma", "pasta norma", "norma"],
+    servings: 4,
+    ingredients: [
+      { name: "Pasta", quantity: "320 g", glutenSwap: "Pasta senza glutine" },
+      { name: "Melanzane", quantity: "2" },
+      { name: "Passata di pomodoro", quantity: "500 g" },
+      { name: "Ricotta salata", quantity: "120 g", lactoseSwap: "Alternativa senza lattosio o formaggio stagionato ben tollerato" },
+      { name: "Basilico", quantity: "q.b." },
+      { name: "Aglio", quantity: "1 spicchio" },
+      { name: "Olio extravergine d'oliva", quantity: "q.b." },
+      { name: "Sale", quantity: "q.b." },
+    ],
+  },
+  {
     id: "pizza",
     title: "Pizza margherita",
     aliases: ["pizza", "margherita", "pizza margherita"],
@@ -235,6 +251,8 @@ function mealToRecipe(meal: OnlineMeal): Recipe {
 }
 
 const DISH_SEARCH_ALIASES: Record<string, string[]> = {
+  "pasta alla norma": ["pasta alla norma", "pasta norma", "norma pasta"],
+  "pasta norma": ["pasta alla norma", "pasta norma"],
   "torta di mele": ["apple", "apple pie", "apple tart"],
   "torta mele": ["apple", "apple pie", "apple tart"],
   "polpette": ["meatballs"],
