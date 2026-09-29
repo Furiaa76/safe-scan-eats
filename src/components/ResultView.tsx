@@ -14,6 +14,7 @@ import { productsInCategory, type FoodProduct } from "@/lib/off";
 import { analyzeFood, VERDICT_LABEL, type Analysis, type Verdict } from "@/lib/verdict";
 import { ALLERGENS, type AllergenId } from "@/lib/allergens";
 import { useProfilesState, type Profile } from "@/lib/store";
+import { assessSsnCeliac } from "@/lib/ssn";
 
 const VERDICT_STYLE: Record<
   Verdict,
@@ -80,6 +81,7 @@ export function ResultView({
   const findings = freeMode ? freeModeFindings(product) : [];
   const shouldSuggestAlternatives = product.source === "off" && !!product.categoryTag && allergens.length > 0 && analysis.verdict !== "compatible";
   const shouldAskForFrontPhoto = !freeMode && analysis.verdict === "warning" && analysis.incomplete;
+  const ssn = assessSsnCeliac(product);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col pb-10">
@@ -149,6 +151,27 @@ export function ResultView({
             </Link>
           </section>
         )}
+
+
+
+        <section className="mt-5 rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-start gap-3">
+            {ssn.status === "yes" ? <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-safe" /> : <Info className="mt-0.5 h-6 w-6 shrink-0 text-primary" />}
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-extrabold text-foreground">Celiachia · Servizio Sanitario Nazionale</h2>
+              <p className={`mt-1 text-sm font-extrabold ${ssn.status === "yes" ? "text-safe" : "text-foreground"}`}>{ssn.status === "yes" ? "EROGABILE SSN: SÌ" : "STATO SSN: DA VERIFICARE"}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{ssn.detail}</p>
+              <a
+                href="https://www.salute.gov.it/new/it/tema/alimenti-fini-medici-speciali-ed-integratori/registro-nazionale-alimenti-fini-medici-speciali/"
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 inline-flex rounded-xl bg-secondary px-3 py-2 text-xs font-extrabold text-secondary-foreground"
+              >
+                Apri Registro ufficiale
+              </a>
+            </div>
+          </div>
+        </section>
 
         <section className="mt-5">
           <h2 className="text-base font-extrabold text-foreground">Ingredienti</h2>
