@@ -22,6 +22,7 @@ function buildAlexaResponse(text: string, shouldEndSession = true) {
 }
 
 export default async function handler(req: any, res: any) {
+  console.log("[Alexa] incoming", { method: req.method, url: req.url, hasSignature: Boolean(req.headers?.["signature"] || req.headers?.["signature-256"]), hasCertUrl: Boolean(req.headers?.["signaturecertchainurl"]) });
   if (req.method === "GET") {
     return res.status(200).json({
       ok: true,
