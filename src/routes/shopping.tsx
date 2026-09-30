@@ -100,6 +100,16 @@ function ShoppingPage() {
     return groups;
   }, [pending]);
 
+  const recipeTitles = useMemo(() => {
+    const titles = pending
+      .flatMap((item) => (item.recipe ?? "").split("·"))
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => value.replace(/^(la|il|lo|gli|le|i)\s+/i, ""))
+      .map((value) => value.charAt(0).toUpperCase() + value.slice(1));
+    return Array.from(new Set(titles));
+  }, [pending]);
+
   const addManual = () => {
     const clean = name.trim();
     if (!clean) return;
@@ -248,7 +258,22 @@ function ShoppingPage() {
             {pending.length === 0 ? (
               <p className="mt-3 text-sm text-muted-foreground">Hai già spuntato tutto.</p>
             ) : (
-              <div className="mt-4 space-y-5">
+              <>
+                {recipeTitles.length > 0 && (
+                  <div className="mt-4 rounded-2xl bg-secondary px-3 py-3">
+                    <p className="text-[11px] font-extrabold uppercase tracking-wide text-muted-foreground">
+                      {recipeTitles.length === 1 ? "Lista per" : "Ricette in lista"}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {recipeTitles.map((title) => (
+                        <span key={title} className="rounded-full bg-card px-3 py-1.5 text-sm font-extrabold text-foreground">
+                          🍽️ {title}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="mt-4 space-y-5">
                 {groupedPending.map(({ category, items: categoryItems }) => (
                   <div key={category.id}>
                     <div className="mb-2 flex items-center gap-2">
@@ -307,7 +332,8 @@ function ShoppingPage() {
                     </div>
                   </div>
                 ))}
-              </div>
+                </div>
+              </>
             )}
           </section>
 
