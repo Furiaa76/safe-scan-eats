@@ -317,6 +317,53 @@ function spokenShoppingList(items: ShoppingItem[]) {
     : `Hai ${pending.length} prodotti da comprare: ${spoken}.`;
 }
 
+
+function cleanRequestedItemName(input: string) {
+  return normalizeName(
+    input
+      .replace(/[!?.,;:]+$/g, "")
+      .replace(/\b(dalla|dalla mia|dalla lista|della spesa|dalla lista della spesa)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+}
+
+function findShoppingItem(items: ShoppingItem[], rawItem: string) {
+  const wanted = cleanRequestedItemName(rawItem);
+  if (!wanted) return null;
+
+  const exact = items.find((item) => normalizeName(item.name) === wanted);
+  if (exact) return exact;
+
+  return (
+    items.find((item) => normalizeName(item.name).includes(wanted)) ??
+    items.find((item) => wanted.includes(normalizeName(item.name))) ??
+    null
+  );
+}
+
+async function removeSingleItemFromCloud(householdKey: string, rawItem: string) {
+  const items = await loadShoppingFromCloud(householdKey);
+  const found = findShoppingItem(items, rawItem);
+  if (!found) return { ok: false as const, name: rawItem.trim() };
+
+  const next = items.filter((item) => item.id !== found.id);
+  await saveShoppingToCloud(householdKey, next);
+  return { ok: true as const, name: found.name };
+}
+
+async function markSingleItemPurchased(householdKey: string, rawItem: string) {
+  const items = await loadShoppingFromCloud(householdKey);
+  const found = findShoppingItem(items.filter((item) => !item.checked), rawItem);
+  if (!found) return { ok: false as const, name: rawItem.trim() };
+
+  const next = items.map((item) =>
+    item.id === found.id ? { ...item, checked: true } : item,
+  );
+  await saveShoppingToCloud(householdKey, next);
+  return { ok: true as const, name: found.name };
+}
+
 export async function GET() {
   return json({
     ok: true,
@@ -475,10 +522,76 @@ export async function POST(request: Request) {
       }
     }
 
+    if (intent === "RemoveShoppingItemIntent") {
+      const rawItem = (
+        body.request?.intent?.slots?.["item"]?.value ??
+        body.request?.intent?.slots?.["prodotto"]?.value
+      )?.trim();
+
+      if (!rawItem) {
+        return json(buildAlexaResponse("Quale prodotto vuoi togliere dalla lista?", false));
+      }
+
+      try {
+        const household = await getHouseholdKey(alexaUserId);
+        if (!household) {
+          const code = await makePairingCode(alexaUserId);
+          return json(
+            buildAlexaResponse(
+              `Prima devo collegarmi alla tua lista. Apri Safe Scan Eats e inserisci il codice ${code.split("").join(" ")} nella sezione Collega Alexa.`,
+            ),
+          );
+        }
+
+        const result = await removeSingleItemFromCloud(household, rawItem);
+        if (!result.ok) {
+          return json(buildAlexaResponse(`Non trovo ${rawItem} nella lista della spesa.`));
+        }
+
+        return json(buildAlexaResponse(`Fatto. Ho tolto ${result.name} dalla lista della spesa.`));
+      } catch (error) {
+        console.error("[Alexa] shopping remove failed", error);
+        return json(buildAlexaResponse("Ho avuto un problema nel modificare la lista della spesa. Riprova tra poco."));
+      }
+    }
+
+    if (intent === "MarkShoppingItemPurchasedIntent") {
+      const rawItem = (
+        body.request?.intent?.slots?.["item"]?.value ??
+        body.request?.intent?.slots?.["prodotto"]?.value
+      )?.trim();
+
+      if (!rawItem) {
+        return json(buildAlexaResponse("Quale prodotto devo segnare come comprato?", false));
+      }
+
+      try {
+        const household = await getHouseholdKey(alexaUserId);
+        if (!household) {
+          const code = await makePairingCode(alexaUserId);
+          return json(
+            buildAlexaResponse(
+              `Prima devo collegarmi alla tua lista. Apri Safe Scan Eats e inserisci il codice ${code.split("").join(" ")} nella sezione Collega Alexa.`,
+            ),
+          );
+        }
+
+        const result = await markSingleItemPurchased(household, rawItem);
+        if (!result.ok) {
+          return json(buildAlexaResponse(`Non trovo ${rawItem} tra i prodotti da comprare.`));
+        }
+
+        return json(buildAlexaResponse(`Fatto. Ho segnato ${result.name} come comprato.`));
+      } catch (error) {
+        console.error("[Alexa] shopping purchased failed", error);
+        return json(buildAlexaResponse("Ho avuto un problema nel modificare la lista della spesa. Riprova tra poco."));
+      }
+    }
+
     if (intent === "AMAZON.HelpIntent") {
       return json(
         buildAlexaResponse(
-          "Puoi dirmi: voglio fare la carbonara, aggiungi latte alla lista, oppure: cosa devo comprare.",
+          "Puoi dirmi: voglio fare la carbonara, aggiungi latte alla lista, cosa devo comprare, togli il latte dalla lista, oppure segna il latte come comprato.",
           false,
         ),
       );
