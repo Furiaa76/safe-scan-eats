@@ -28,6 +28,90 @@ export interface ShoppingItem {
   createdAt?: string | undefined;
 }
 
+export type ShoppingCategoryId =
+  | "produce"
+  | "meat"
+  | "fish"
+  | "dairy"
+  | "bakery"
+  | "pantry"
+  | "frozen"
+  | "drinks"
+  | "household"
+  | "other";
+
+export interface ShoppingCategory {
+  id: ShoppingCategoryId;
+  label: string;
+  emoji: string;
+  order: number;
+}
+
+export const SHOPPING_CATEGORIES: ShoppingCategory[] = [
+  { id: "produce", label: "Frutta e verdura", emoji: "🥬", order: 10 },
+  { id: "meat", label: "Carne e salumi", emoji: "🥩", order: 20 },
+  { id: "fish", label: "Pesce", emoji: "🐟", order: 30 },
+  { id: "dairy", label: "Latticini e uova", emoji: "🥛", order: 40 },
+  { id: "bakery", label: "Pane e forno", emoji: "🥖", order: 50 },
+  { id: "pantry", label: "Dispensa", emoji: "🛒", order: 60 },
+  { id: "frozen", label: "Surgelati", emoji: "❄️", order: 70 },
+  { id: "drinks", label: "Bevande", emoji: "🥤", order: 80 },
+  { id: "household", label: "Casa e igiene", emoji: "🧻", order: 90 },
+  { id: "other", label: "Altro", emoji: "📦", order: 100 },
+];
+
+function includesAny(value: string, words: string[]) {
+  return words.some((word) => value.includes(word));
+}
+
+export function getShoppingCategory(name: string): ShoppingCategory {
+  const value = name
+    .trim()
+    .toLocaleLowerCase("it-IT")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  let id: ShoppingCategoryId = "other";
+
+  if (includesAny(value, [
+    "mela", "mele", "pera", "pere", "banana", "arancia", "limone", "fragol", "frutta",
+    "pomodor", "patat", "cipoll", "carot", "sedano", "insalat", "lattuga", "zucchin",
+    "melanzan", "peperon", "aglio", "prezzemol", "basilic", "rosmarin", "verdura",
+    "pisell", "fagiolin", "broccol", "cavolfior", "spinac", "fungh"
+  ])) id = "produce";
+  else if (includesAny(value, [
+    "carne", "macinat", "manzo", "vitello", "maiale", "pollo", "tacchino", "cinghiale",
+    "hamburger", "salsic", "prosciutt", "salame", "pancetta", "guanciale", "speck", "bresaola"
+  ])) id = "meat";
+  else if (includesAny(value, [
+    "pesce", "salmone", "tonno", "merluzzo", "orata", "branzino", "gamber", "cozz", "vongol", "calamar"
+  ])) id = "fish";
+  else if (includesAny(value, [
+    "latte", "burro", "yogurt", "formaggio", "mozzarella", "parmigiano", "pecorino",
+    "ricotta", "mascarpone", "panna", "uovo", "uova", "besciamella"
+  ])) id = "dairy";
+  else if (includesAny(value, [
+    "pane", "panino", "piadina", "focaccia", "pizza", "savoiard", "biscott", "croissant"
+  ])) id = "bakery";
+  else if (includesAny(value, [
+    "surgel", "gelato", "ghiacciol"
+  ])) id = "frozen";
+  else if (includesAny(value, [
+    "acqua", "vino", "birra", "succo", "cola", "bibita", "caffe", "te ", "tisana"
+  ])) id = "drinks";
+  else if (includesAny(value, [
+    "detersiv", "candeggina", "sapone", "shampoo", "carta igienica", "scottex", "tovagliol",
+    "dentifricio", "spugna", "sacchi", "pellicola", "alluminio"
+  ])) id = "household";
+  else if (includesAny(value, [
+    "pasta", "spaghetti", "riso", "farina", "zucchero", "sale", "pepe", "olio", "aceto",
+    "passata", "pomodoro pelato", "pangrattato", "lievito", "cacao", "cioccolato", "miele",
+    "legumi", "fagioli", "ceci", "lenticch", "mais", "cereali"
+  ])) id = "pantry";
+
+  return SHOPPING_CATEGORIES.find((category) => category.id === id) ?? SHOPPING_CATEGORIES[SHOPPING_CATEGORIES.length - 1];
+}
+
 export interface HistoryEntry {
   /** Codice a barre (se disponibile) */
   code?: string | undefined;
