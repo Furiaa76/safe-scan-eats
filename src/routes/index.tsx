@@ -2,76 +2,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Barcode, Camera, Check, ChefHat, ChevronRight, History, Plus, Salad, ShieldAlert, ShoppingCart, Trash2, TriangleAlert, User, Users } from "lucide-react";
 import { ALLERGENS, type AllergenId } from "@/lib/allergens";
-import { addProfile, enableFreeMode, removeProfile, saveProfile, setActiveProfile, useProfile, useProfilesState } from "@/lib/store";
+import { addProfile, enableFreeMode, removeProfile, saveProfile, setActiveProfile, useProfile, useProfilesState, useShoppingList } from "@/lib/store";
 
 
-type AlexaRequest = {
-  request?: {
-    type?: string;
-    intent?: {
-      name?: string;
-      slots?: Record<string, { value?: string }>;
-    };
-  };
-};
-
-function alexaResponse(text: string, shouldEndSession = true) {
-  return Response.json({
-    version: "1.0",
-    response: {
-      outputSpeech: { type: "PlainText", text },
-      shouldEndSession,
-    },
-  }, {
-    headers: { "Cache-Control": "no-store" },
-  });
-}
-
-async function handleAlexaRequest(request: Request) {
-  let body: AlexaRequest;
-  try {
-    body = (await request.json()) as AlexaRequest;
-  } catch {
-    return alexaResponse("Richiesta non valida.");
-  }
-
-  const type = body.request?.type;
-
-  if (type === "LaunchRequest") {
-    return alexaResponse(
-      "Benvenuto in Safe Scan. Dimmi quale piatto vuoi preparare, per esempio: voglio fare la carbonara.",
-      false,
-    );
-  }
-
-  if (type === "IntentRequest") {
-    const intent = body.request?.intent?.name;
-
-    if (intent === "CreateShoppingListIntent") {
-      const dish = (body.request?.intent?.slots?.["piatto"]?.value ?? body.request?.intent?.slots?.["dish"]?.value)?.trim();
-      if (!dish) return alexaResponse("Quale piatto vuoi preparare?", false);
-      return alexaResponse(
-        `Perfetto. Ho capito che vuoi preparare ${dish}. Il collegamento con Safe Scan Eats funziona.`,
-      );
-    }
-
-    if (intent === "AMAZON.HelpIntent") {
-      return alexaResponse(
-        "Puoi dirmi: voglio fare la carbonara, oppure: preparami la lista per il tiramisù.",
-        false,
-      );
-    }
-
-    if (intent === "AMAZON.CancelIntent" || intent === "AMAZON.StopIntent") {
-      return alexaResponse("Va bene, a presto.");
-    }
-  }
-
-  return alexaResponse(
-    "Non ho capito. Prova a dirmi quale piatto vuoi preparare.",
-    false,
-  );
-}
 
 export const Route = createFileRoute("/")({
   server: { handlers: { POST: async ({ request }) => handleAlexaRequest(request) } },
@@ -119,6 +52,7 @@ function ProfileForm({ adding = false, onCancel }: { adding?: boolean; onCancel?
 function Home({ onAddProfile }: { onAddProfile: () => void }) {
   const profile = useProfile();
   const state = useProfilesState();
+  const shopping = useShoppingList();
   const freeMode = state.freeMode;
 
   const deleteActiveProfile = () => {
@@ -145,7 +79,7 @@ function Home({ onAddProfile }: { onAddProfile: () => void }) {
     <p className="mt-8 text-center text-lg font-bold text-foreground">Cosa vuoi controllare?</p>
     <div className="mt-4 flex flex-col gap-4"><Link to="/scan" search={{ mode: "barcode" }} className="flex items-center gap-4 rounded-3xl bg-primary p-6 text-primary-foreground shadow-lg transition-transform active:scale-[0.98]"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-primary-foreground/20"><Barcode className="h-9 w-9" /></div><div className="min-w-0"><p className="text-xl font-extrabold leading-tight">Scansiona codice a barre</p><p className="mt-1 text-sm opacity-90">Inquadra il codice sul prodotto</p></div></Link>
     <Link to="/ingredients" search={{}} className="flex items-center gap-4 rounded-3xl border-2 border-primary bg-card p-6 text-foreground transition-transform active:scale-[0.98]"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-secondary"><Camera className="h-9 w-9 text-primary" /></div><div className="min-w-0"><p className="text-xl font-extrabold leading-tight">Fotografa ingredienti</p><p className="mt-1 text-sm text-muted-foreground">Scatta una foto alla lista ingredienti</p></div></Link>
-    <Link to="/recipes" className="flex items-center gap-4 rounded-3xl border-2 border-border bg-card p-6 text-foreground transition-transform active:scale-[0.98]"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-secondary"><ChefHat className="h-9 w-9 text-primary" /></div><div className="min-w-0 flex-1"><p className="text-xl font-extrabold leading-tight">Ricette e lista della spesa</p><p className="mt-1 text-sm text-muted-foreground">Scegli cosa cucinare e crea la lista</p></div><ShoppingCart className="h-5 w-5 text-muted-foreground" /></Link></div>
+    <Link to="/recipes" className="flex items-center gap-4 rounded-3xl border-2 border-border bg-card p-6 text-foreground transition-transform active:scale-[0.98]"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-secondary"><ChefHat className="h-9 w-9 text-primary" /></div><div className="min-w-0 flex-1"><p className="text-xl font-extrabold leading-tight">Ricette</p><p className="mt-1 text-sm text-muted-foreground">Scegli cosa cucinare e aggiungi gli ingredienti</p></div><ChefHat className="h-5 w-5 text-muted-foreground" /></Link><Link to="/shopping" className="flex items-center gap-4 rounded-3xl border-2 border-border bg-card p-6 text-foreground transition-transform active:scale-[0.98]"><div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-secondary"><ShoppingCart className="h-9 w-9 text-primary" /></div><div className="min-w-0 flex-1"><p className="text-xl font-extrabold leading-tight">Lista della spesa</p><p className="mt-1 text-sm text-muted-foreground">{shopping.filter((item) => !item.checked).length} prodotti da comprare · aggiungi e modifica a mano</p></div><ShoppingCart className="h-5 w-5 text-muted-foreground" /></Link></div>
     <div className="mt-auto pt-8"><Disclaimer /></div>
   </div>;
 }
