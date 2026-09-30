@@ -1,0 +1,46 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "safe scan",
+      "intents": [
+        {
+          "name": "CreateShoppingListIntent",
+          "slots": [
+            {
+              "name": "dish",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "preparare la lista per {dish}",
+            "preparami la lista per {dish}",
+            "prepara la lista per {dish}",
+            "preparami la lista della spesa per {dish}",
+            "prepara la lista della spesa per {dish}",
+            "fammi la lista per {dish}",
+            "fammi la lista della spesa per {dish}",
+            "voglio fare {dish}",
+            "vorrei fare {dish}",
+            "stasera voglio fare {dish}",
+            "voglio preparare {dish}",
+            "vorrei preparare {dish}",
+            "aggiungi alla lista gli ingredienti per {dish}"
+          ]
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        }
+      ],
+      "types": []
+    }
+  }
+}
