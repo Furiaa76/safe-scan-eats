@@ -18,11 +18,17 @@ export function getHouseholdKey() {
   return key;
 }
 
+const DEFAULT_SUPABASE_URL = "https://mqrmdynpcextvjgkkyfj.supabase.co";
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_umpU64DAPwgRiT56fEzvtw_pIo2Wh20";
+
 function getClient() {
-  const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
-  if (!url || !anonKey) return null;
-  return createClient(url, anonKey, {
+  const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || DEFAULT_SUPABASE_URL;
+  const publishableKey =
+    (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined) ||
+    (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ||
+    DEFAULT_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !publishableKey) return null;
+  return createClient(url, publishableKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
