@@ -98,10 +98,10 @@ function ShoppingPage() {
       items: pending.filter((item) => getShoppingCategory(item.name).id === category.id),
     })).filter((group) => group.items.length > 0);
     return groups;
-  }, [pending]);
+  }, [items]);
 
   const recipeTitles = useMemo(() => {
-    const titles = pending
+    const titles = items
       .flatMap((item) => (item.recipe ?? "").split("·"))
       .map((value) => value.trim())
       .filter(Boolean)
@@ -167,6 +167,21 @@ function ShoppingPage() {
         </div>
         <ShoppingCart className="h-6 w-6 text-primary" />
       </header>
+
+      {recipeTitles.length > 0 && (
+        <section className="mt-4 rounded-3xl border border-border bg-card p-4">
+          <p className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
+            {recipeTitles.length === 1 ? "Ricetta della lista" : "Ricette della lista"}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {recipeTitles.map((title) => (
+              <span key={title} className="rounded-full bg-primary px-4 py-2 text-base font-black text-primary-foreground">
+                🍽️ {title}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mt-5 rounded-3xl border border-border bg-card p-4">
         <p className="font-extrabold text-foreground">Collega Alexa</p>
@@ -259,20 +274,6 @@ function ShoppingPage() {
               <p className="mt-3 text-sm text-muted-foreground">Hai già spuntato tutto.</p>
             ) : (
               <>
-                {recipeTitles.length > 0 && (
-                  <div className="mt-4 rounded-2xl bg-secondary px-3 py-3">
-                    <p className="text-[11px] font-extrabold uppercase tracking-wide text-muted-foreground">
-                      {recipeTitles.length === 1 ? "Lista per" : "Ricette in lista"}
-                    </p>
-                    <div className="mt-1 flex flex-wrap gap-2">
-                      {recipeTitles.map((title) => (
-                        <span key={title} className="rounded-full bg-card px-3 py-1.5 text-sm font-extrabold text-foreground">
-                          🍽️ {title}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 <div className="mt-4 space-y-5">
                 {groupedPending.map(({ category, items: categoryItems }) => (
                   <div key={category.id}>
