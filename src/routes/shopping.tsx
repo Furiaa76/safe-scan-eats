@@ -1,17 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Pencil, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 import {
   addShoppingItem,
   clearCheckedShoppingItems,
   clearShoppingList,
   removeShoppingItem,
+  replaceShoppingList,
   toggleShoppingItem,
   updateShoppingItem,
   useShoppingList,
   getShoppingCategory,
   SHOPPING_CATEGORIES,
 } from "@/lib/store";
+import {
+  isCloudShoppingConfigured,
+  loadCloudShopping,
+  saveCloudShopping,
+} from "@/lib/cloud-shopping";
 
 export const Route = createFileRoute("/shopping")({
   component: ShoppingPage,
@@ -24,6 +30,61 @@ function ShoppingPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editQuantity, setEditQuantity] = useState("");
+  const [cloudReady, setCloudReady] = useState(false);
+  const [cloudState, setCloudState] = useState<"local" | "syncing" | "synced" | "error">(
+    isCloudShoppingConfigured() ? "syncing" : "local",
+  );
+  const hydrating = useRef(false);
+
+  useEffect(() => {
+    if (!isCloudShoppingConfigured()) {
+      setCloudState("local");
+      return;
+    }
+
+    let cancelled = false;
+    hydrating.current = true;
+    setCloudState("syncing");
+
+    void (async () => {
+      try {
+        const remote = await loadCloudShopping();
+        if (cancelled) return;
+
+        if (remote && remote.length > 0) {
+          replaceShoppingList(remote);
+        } else if (items.length > 0) {
+          await saveCloudShopping(items);
+        }
+
+        if (!cancelled) {
+          setCloudReady(true);
+          setCloudState("synced");
+        }
+      } catch {
+        if (!cancelled) setCloudState("error");
+      } finally {
+        hydrating.current = false;
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Prima sincronizzazione: deve partire una sola volta all'apertura della pagina.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!cloudReady || hydrating.current || !isCloudShoppingConfigured()) return;
+    const timer = window.setTimeout(() => {
+      setCloudState("syncing");
+      void saveCloudShopping(items)
+        .then(() => setCloudState("synced"))
+        .catch(() => setCloudState("error"));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [items, cloudReady]);
 
   const pending = useMemo(() => items.filter((item) => !item.checked), [items]);
   const checked = useMemo(() => items.filter((item) => item.checked), [items]);
@@ -66,7 +127,10 @@ function ShoppingPage() {
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="text-lg font-extrabold text-foreground">Lista della spesa</h1>
-          <p className="text-xs text-muted-foreground">{pending.length} da comprare · {checked.length} acquistati</p>
+          <p className="text-xs text-muted-foreground">
+            {pending.length} da comprare · {checked.length} acquistati
+            {cloudState === "synced" ? " · ☁️ sincronizzata" : cloudState === "syncing" ? " · sincronizzo…" : cloudState === "error" ? " · sync non disponibile" : ""}
+          </p>
         </div>
         <ShoppingCart className="h-6 w-6 text-primary" />
       </header>
