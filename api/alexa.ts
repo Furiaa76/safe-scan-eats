@@ -393,6 +393,19 @@ async function markSingleItemPurchased(householdKey: string, rawItem: string) {
   return { ok: true as const, name: found.name };
 }
 
+
+async function restoreSingleItemToBuy(householdKey: string, rawItem: string) {
+  const items = await loadShoppingFromCloud(householdKey);
+  const found = findShoppingItem(items.filter((item) => item.checked), rawItem);
+  if (!found) return { ok: false as const, name: rawItem.trim() };
+
+  const next = items.map((item) =>
+    item.id === found.id ? { ...item, checked: false } : item,
+  );
+  await saveShoppingToCloud(householdKey, next);
+  return { ok: true as const, name: found.name };
+}
+
 export async function GET() {
   return json({
     ok: true,
@@ -629,10 +642,43 @@ export async function POST(request: Request) {
       }
     }
 
+    if (intent === "RestoreShoppingItemIntent") {
+      const rawItem = (
+        body.request?.intent?.slots?.["item"]?.value ??
+        body.request?.intent?.slots?.["prodotto"]?.value
+      )?.trim();
+
+      if (!rawItem) {
+        return json(buildAlexaResponse("Quale prodotto devo rimettere tra quelli da comprare?", false));
+      }
+
+      try {
+        const household = await getHouseholdKey(alexaUserId);
+        if (!household) {
+          const code = await makePairingCode(alexaUserId);
+          return json(
+            buildAlexaResponse(
+              `Prima devo collegarmi alla tua lista. Apri Safe Scan Eats e inserisci il codice ${code.split("").join(" ")} nella sezione Collega Alexa.`,
+            ),
+          );
+        }
+
+        const result = await restoreSingleItemToBuy(household, rawItem);
+        if (!result.ok) {
+          return json(buildAlexaResponse(`Non trovo ${rawItem} tra i prodotti acquistati.`, false));
+        }
+
+        return json(buildAlexaResponse(`Fatto. Ho rimesso ${result.name} tra i prodotti da comprare.`, false));
+      } catch (error) {
+        console.error("[Alexa] shopping restore failed", error);
+        return json(buildAlexaResponse("Ho avuto un problema nel modificare la lista della spesa. Riprova tra poco."));
+      }
+    }
+
     if (intent === "AMAZON.HelpIntent") {
       return json(
         buildAlexaResponse(
-          "Puoi dirmi: voglio fare la carbonara per due persone, aggiungi latte alla lista, cosa devo comprare, togli il latte dalla lista, oppure segna il latte come comprato.",
+          "Puoi dirmi: voglio fare la carbonara per due persone, aggiungi latte alla lista, cosa devo comprare, togli il latte dalla lista, segna il latte come comprato, oppure rimetti il latte da comprare.",
           false,
         ),
       );
