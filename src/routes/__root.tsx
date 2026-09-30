@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, Link, createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
@@ -33,5 +33,42 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    const isStandalone =
+      window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
+
+    if (!isStandalone) return;
+
+    const resetToHome = () => {
+      if (window.location.pathname !== "/") {
+        window.location.replace("/");
+      }
+    };
+
+    // Se l'app viene avviata da zero dalla Home di iPhone, parte sempre dalla home dell'app.
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (nav?.type === "navigate" && window.location.pathname !== "/") {
+      resetToHome();
+      return;
+    }
+
+    // Su iOS l'app può essere sospesa e poi riaperta sulla vecchia schermata.
+    let hiddenAt = 0;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (document.visibilityState === "visible" && hiddenAt && Date.now() - hiddenAt > 1500) {
+        resetToHome();
+      }
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, []);
+
   return <QueryClientProvider client={queryClient}><Outlet /></QueryClientProvider>;
 }
