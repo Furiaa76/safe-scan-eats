@@ -455,6 +455,10 @@ export function clearCheckedShoppingItems() {
   saveShoppingList(getShoppingList().filter((item) => !item.checked));
 }
 
+export function replaceShoppingList(items: ShoppingItem[]) {
+  saveShoppingList(items);
+}
+
 export function clearShoppingList() {
   shoppingCache = [];
   window.localStorage.removeItem(SHOPPING_KEY);
