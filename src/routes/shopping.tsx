@@ -9,6 +9,8 @@ import {
   toggleShoppingItem,
   updateShoppingItem,
   useShoppingList,
+  getShoppingCategory,
+  SHOPPING_CATEGORIES,
 } from "@/lib/store";
 
 export const Route = createFileRoute("/shopping")({
@@ -25,6 +27,13 @@ function ShoppingPage() {
 
   const pending = useMemo(() => items.filter((item) => !item.checked), [items]);
   const checked = useMemo(() => items.filter((item) => item.checked), [items]);
+  const groupedPending = useMemo(() => {
+    const groups = SHOPPING_CATEGORIES.map((category) => ({
+      category,
+      items: pending.filter((item) => getShoppingCategory(item.name).id === category.id),
+    })).filter((group) => group.items.length > 0);
+    return groups;
+  }, [pending]);
 
   const addManual = () => {
     const clean = name.trim();
@@ -129,52 +138,63 @@ function ShoppingPage() {
             {pending.length === 0 ? (
               <p className="mt-3 text-sm text-muted-foreground">Hai già spuntato tutto.</p>
             ) : (
-              <div className="mt-3 space-y-2">
-                {pending.map((item) => (
-                  <div key={item.id} className="rounded-2xl bg-muted px-3 py-3">
-                    {editingId === item.id ? (
-                      <div>
-                        <div className="grid grid-cols-[minmax(0,1fr)_90px] gap-2">
-                          <input
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            className="min-w-0 rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
-                          />
-                          <input
-                            value={editQuantity}
-                            onChange={(e) => setEditQuantity(e.target.value)}
-                            className="rounded-xl border border-border bg-card px-2 py-2 text-center text-sm outline-none focus:border-primary"
-                          />
+              <div className="mt-4 space-y-5">
+                {groupedPending.map(({ category, items: categoryItems }) => (
+                  <div key={category.id}>
+                    <div className="mb-2 flex items-center gap-2">
+                      <span className="text-lg">{category.emoji}</span>
+                      <h3 className="text-sm font-extrabold text-foreground">{category.label}</h3>
+                      <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold text-secondary-foreground">{categoryItems.length}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {categoryItems.map((item) => (
+                        <div key={item.id} className="rounded-2xl bg-muted px-3 py-3">
+                          {editingId === item.id ? (
+                            <div>
+                              <div className="grid grid-cols-[minmax(0,1fr)_90px] gap-2">
+                                <input
+                                  value={editName}
+                                  onChange={(e) => setEditName(e.target.value)}
+                                  className="min-w-0 rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
+                                />
+                                <input
+                                  value={editQuantity}
+                                  onChange={(e) => setEditQuantity(e.target.value)}
+                                  className="rounded-xl border border-border bg-card px-2 py-2 text-center text-sm outline-none focus:border-primary"
+                                />
+                              </div>
+                              <div className="mt-2 flex justify-end gap-2">
+                                <button type="button" onClick={() => setEditingId(null)} className="grid h-8 w-8 place-items-center rounded-full bg-card text-muted-foreground">
+                                  <X className="h-4 w-4" />
+                                </button>
+                                <button type="button" onClick={saveEdit} className="rounded-full bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground">
+                                  Salva
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={() => toggleShoppingItem(item.id)}
+                                className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-border bg-card"
+                                aria-label="Segna come acquistato"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-extrabold text-foreground">{item.name}</p>
+                                <p className="text-xs text-muted-foreground">{item.quantity}{item.recipe ? ` · ${item.recipe}` : ""}</p>
+                              </div>
+                              <button type="button" onClick={() => beginEdit(item.id, item.name, item.quantity)} className="text-muted-foreground" aria-label="Modifica">
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button type="button" onClick={() => removeShoppingItem(item.id)} className="text-muted-foreground" aria-label="Elimina">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <div className="mt-2 flex justify-end gap-2">
-                          <button type="button" onClick={() => setEditingId(null)} className="grid h-8 w-8 place-items-center rounded-full bg-card text-muted-foreground">
-                            <X className="h-4 w-4" />
-                          </button>
-                          <button type="button" onClick={saveEdit} className="rounded-full bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground">
-                            Salva
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => toggleShoppingItem(item.id)}
-                          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-border bg-card"
-                          aria-label="Segna come acquistato"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-extrabold text-foreground">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">{item.quantity}{item.recipe ? ` · ${item.recipe}` : ""}</p>
-                        </div>
-                        <button type="button" onClick={() => beginEdit(item.id, item.name, item.quantity)} className="text-muted-foreground" aria-label="Modifica">
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button type="button" onClick={() => removeShoppingItem(item.id)} className="text-muted-foreground" aria-label="Elimina">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )}
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>
