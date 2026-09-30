@@ -364,8 +364,26 @@ export function addShoppingItems(items: Array<{ name: string; quantity: string; 
   saveShoppingList(next);
 }
 
+function splitNameAndQuantity(name: string, quantity: string) {
+  const cleanName = name.trim();
+  const cleanQuantity = quantity.trim();
+  const defaultQuantity = !cleanQuantity || /^1(?:[.,]0+)?(?:\s*pz)?$/i.test(cleanQuantity);
+
+  if (defaultQuantity) {
+    const match = cleanName.match(/^(.*?)[\s-]*(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml|pz|pezzi|pezzo)\.?$/i);
+    if (match) {
+      const parsedName = match[1]?.trim();
+      const parsedQuantity = `${match[2]} ${match[3]}`;
+      if (parsedName) return { name: parsedName, quantity: parsedQuantity };
+    }
+  }
+
+  return { name: cleanName, quantity: cleanQuantity || "1" };
+}
+
 export function addShoppingItem(name: string, quantity = "1") {
-  addShoppingItems([{ name, quantity: normalizeShoppingQuantity(quantity) }]);
+  const parsed = splitNameAndQuantity(name, quantity);
+  addShoppingItems([{ name: parsed.name, quantity: normalizeShoppingQuantity(parsed.quantity) }]);
 }
 
 export function updateShoppingItem(id: string, patch: Partial<Pick<ShoppingItem, "name" | "quantity" | "recipe" | "checked">>) {
