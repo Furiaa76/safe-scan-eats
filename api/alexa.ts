@@ -130,12 +130,27 @@ function cleanDish(input: string) {
     .trim();
 }
 
-async function generateIngredients(dish: string) {
+function scaleRecipeQuantity(quantity: string, servings: number) {
+  if (servings === 4 || /q\.b\./i.test(quantity)) return quantity;
+  const match = quantity.trim().match(/^(\d+(?:[.,]\d+)?)(.*)$/);
+  if (!match) return quantity;
+  const base = Number(match[1].replace(",", "."));
+  if (!Number.isFinite(base)) return quantity;
+  const scaled = Math.round(base * (servings / 4) * 10) / 10;
+  return `${String(scaled).replace(".", ",")}${match[2]}`.trim();
+}
+
+async function generateIngredients(dish: string, servings = 4) {
   const cleaned = cleanDish(dish);
   const builtIn =
     BUILTIN_RECIPES[cleaned] ??
     Object.entries(BUILTIN_RECIPES).find(([key]) => cleaned.includes(key))?.[1];
-  if (builtIn) return builtIn;
+  if (builtIn) {
+    return builtIn.map((item) => ({
+      ...item,
+      quantity: scaleRecipeQuantity(item.quantity, servings),
+    }));
+  }
 
   const gatewayKey = process.env["AI_GATEWAY_API_KEY"] || process.env["VERCEL_OIDC_TOKEN"];
   if (!gatewayKey) return null;
@@ -153,9 +168,9 @@ async function generateIngredients(dish: string) {
         {
           role: "system",
           content:
-            'Crea una lista della spesa italiana essenziale per 4 persone. Rispondi SOLO JSON nel formato {"ingredients":[{"name":string,"quantity":string}]}. Usa nomi e quantità in italiano.',
+            'Crea una lista della spesa italiana essenziale per il numero di persone richiesto. Rispondi SOLO JSON nel formato {"ingredients":[{"name":string,"quantity":string}]}. Usa nomi e quantità in italiano.',
         },
-        { role: "user", content: `Piatto: ${dish}` },
+        { role: "user", content: `Piatto: ${dish}\nPersone: ${servings}` },
       ],
     }),
   });
@@ -226,8 +241,8 @@ function mergeItems(existing: ShoppingItem[], additions: Array<{ name: string; q
   return next;
 }
 
-async function addDishToCloud(householdKey: string, dish: string) {
-  const ingredients = await generateIngredients(dish);
+async function addDishToCloud(householdKey: string, dish: string, servings = 4) {
+  const ingredients = await generateIngredients(dish, servings);
   if (!ingredients) return { ok: false as const, count: 0 };
 
   const rows = await rpc<Array<Record<string, unknown>>>("safe_scan_get_shopping", {
@@ -242,7 +257,8 @@ async function addDishToCloud(householdKey: string, dish: string) {
     createdAt: typeof row.created_at === "string" ? row.created_at : undefined,
   }));
 
-  const merged = mergeItems(existing, ingredients, dish);
+  const recipeLabel = servings === 4 ? dish : `${dish} (${servings} persone)`;
+  const merged = mergeItems(existing, ingredients, recipeLabel);
   await rpc<null>("safe_scan_replace_shopping", {
     p_household_key: householdKey,
     p_items: merged,
@@ -434,6 +450,16 @@ export async function POST(request: Request) {
         body.request?.intent?.slots?.["piatto"]?.value
       )?.trim();
 
+      const servingsRaw = (
+        body.request?.intent?.slots?.["servings"]?.value ??
+        body.request?.intent?.slots?.["persone"]?.value
+      )?.trim();
+      const parsedServings = servingsRaw ? Number(servingsRaw.replace(",", ".")) : 4;
+      const servings =
+        Number.isFinite(parsedServings) && parsedServings >= 1 && parsedServings <= 20
+          ? Math.round(parsedServings)
+          : 4;
+
       if (!dish) {
         return json(buildAlexaResponse("Quale piatto vuoi preparare?", false));
       }
@@ -449,14 +475,14 @@ export async function POST(request: Request) {
           );
         }
 
-        const result = await addDishToCloud(household, dish);
+        const result = await addDishToCloud(household, dish, servings);
         if (!result.ok) {
           return json(buildAlexaResponse(`Ho capito ${dish}, ma non riesco a creare la lista ingredienti in questo momento.`));
         }
 
         return json(
           buildAlexaResponse(
-            `Fatto. Ho aggiunto ${result.count} ingredienti per ${dish} alla lista della spesa di Safe Scan Eats.`,
+            `Fatto. Ho aggiunto ${result.count} ingredienti per ${dish} per ${servings} ${servings === 1 ? "persona" : "persone"} alla lista della spesa di Safe Scan Eats.`,
             false,
           ),
         );
@@ -593,7 +619,7 @@ export async function POST(request: Request) {
     if (intent === "AMAZON.HelpIntent") {
       return json(
         buildAlexaResponse(
-          "Puoi dirmi: voglio fare la carbonara, aggiungi latte alla lista, cosa devo comprare, togli il latte dalla lista, oppure segna il latte come comprato.",
+          "Puoi dirmi: voglio fare la carbonara per due persone, aggiungi latte alla lista, cosa devo comprare, togli il latte dalla lista, oppure segna il latte come comprato.",
           false,
         ),
       );
