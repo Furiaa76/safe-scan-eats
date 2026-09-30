@@ -25,6 +25,7 @@ export interface ShoppingItem {
   quantity: string;
   recipe?: string | undefined;
   checked: boolean;
+  createdAt?: string | undefined;
 }
 
 export interface HistoryEntry {
@@ -193,14 +194,97 @@ function saveShoppingList(items: ShoppingItem[]) {
   emit();
 }
 
+function shoppingNameKey(name: string) {
+  return name.trim().toLocaleLowerCase("it-IT").replace(/\s+/g, " ");
+}
+
+type ParsedQuantity = { value: number; unit: "g" | "ml" | "pz" };
+
+function parseShoppingQuantity(quantity: string): ParsedQuantity | null {
+  const match = quantity.trim().toLowerCase().replace(",", ".").match(/^(\d+(?:\.\d+)?)\s*(kg|g|l|ml|pz|pezzi|pezzo)?$/);
+  if (!match) return null;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value)) return null;
+  const rawUnit = match[2] || "pz";
+  if (rawUnit === "kg") return { value: value * 1000, unit: "g" };
+  if (rawUnit === "l") return { value: value * 1000, unit: "ml" };
+  if (rawUnit === "pezzi" || rawUnit === "pezzo" || rawUnit === "pz") return { value, unit: "pz" };
+  return { value, unit: rawUnit as "g" | "ml" };
+}
+
+function formatShoppingQuantity(parsed: ParsedQuantity) {
+  const value = Math.round(parsed.value * 100) / 100;
+  if (parsed.unit === "g" && value >= 1000 && value % 1000 === 0) return `${value / 1000} kg`;
+  if (parsed.unit === "ml" && value >= 1000 && value % 1000 === 0) return `${value / 1000} l`;
+  if (parsed.unit === "pz") return String(value);
+  return `${value} ${parsed.unit}`;
+}
+
+function mergeShoppingQuantities(a: string, b: string): string | null {
+  if (a.trim().toLowerCase() === b.trim().toLowerCase()) return a.trim();
+  const first = parseShoppingQuantity(a);
+  const second = parseShoppingQuantity(b);
+  if (!first || !second || first.unit !== second.unit) return null;
+  return formatShoppingQuantity({ value: first.value + second.value, unit: first.unit });
+}
+
+function mergeRecipeLabels(a?: string, b?: string) {
+  const labels = [a, b]
+    .flatMap((value) => value?.split(" · ") ?? [])
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const unique = Array.from(new Set(labels));
+  return unique.length ? unique.join(" · ") : undefined;
+}
+
 export function addShoppingItems(items: Array<{ name: string; quantity: string; recipe?: string | undefined }>) {
-  const existing = getShoppingList();
-  const next = [...existing];
-  for (const item of items) {
-    const match = next.find((x) => !x.checked && x.name.toLowerCase() === item.name.toLowerCase() && x.quantity === item.quantity);
-    if (match) continue;
-    next.push({ id: makeItemId(), name: item.name, quantity: item.quantity, recipe: item.recipe, checked: false });
+  const next = [...getShoppingList()];
+  for (const raw of items) {
+    const name = raw.name.trim();
+    const quantity = raw.quantity.trim() || "1";
+    if (!name) continue;
+
+    const index = next.findIndex((item) => !item.checked && shoppingNameKey(item.name) === shoppingNameKey(name));
+    if (index >= 0) {
+      const current = next[index];
+      const mergedQuantity = mergeShoppingQuantities(current.quantity, quantity);
+      if (mergedQuantity) {
+        next[index] = {
+          ...current,
+          quantity: mergedQuantity,
+          recipe: mergeRecipeLabels(current.recipe, raw.recipe),
+        };
+        continue;
+      }
+      if (current.quantity.trim().toLowerCase() === quantity.toLowerCase()) {
+        next[index] = { ...current, recipe: mergeRecipeLabels(current.recipe, raw.recipe) };
+        continue;
+      }
+    }
+
+    next.push({
+      id: makeItemId(),
+      name,
+      quantity,
+      recipe: raw.recipe,
+      checked: false,
+      createdAt: new Date().toISOString(),
+    });
   }
+  saveShoppingList(next);
+}
+
+export function addShoppingItem(name: string, quantity = "1") {
+  addShoppingItems([{ name, quantity }]);
+}
+
+export function updateShoppingItem(id: string, patch: Partial<Pick<ShoppingItem, "name" | "quantity" | "recipe" | "checked">>) {
+  const next = getShoppingList().map((item) => {
+    if (item.id !== id) return item;
+    const name = patch.name !== undefined ? patch.name.trim() : item.name;
+    const quantity = patch.quantity !== undefined ? patch.quantity.trim() || "1" : item.quantity;
+    return { ...item, ...patch, name: name || item.name, quantity };
+  });
   saveShoppingList(next);
 }
 
@@ -210,6 +294,10 @@ export function toggleShoppingItem(id: string) {
 
 export function removeShoppingItem(id: string) {
   saveShoppingList(getShoppingList().filter((item) => item.id !== id));
+}
+
+export function clearCheckedShoppingItems() {
+  saveShoppingList(getShoppingList().filter((item) => !item.checked));
 }
 
 export function clearShoppingList() {
