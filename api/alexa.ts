@@ -216,6 +216,19 @@ function mergeItems(existing: ShoppingItem[], additions: Array<{ name: string; q
   for (const add of additions) {
     const idx = next.findIndex((item) => !item.checked && normalizeName(item.name) === normalizeName(add.name));
     if (idx >= 0) {
+      const currentQuantity = next[idx].quantity.trim().toLowerCase();
+      const incomingQuantity = add.quantity.trim().toLowerCase();
+
+      if (currentQuantity === incomingQuantity && currentQuantity === "q.b.") {
+        next[idx] = {
+          ...next[idx],
+          recipe: recipe
+            ? (next[idx].recipe ? `${next[idx].recipe} · ${recipe}` : recipe)
+            : next[idx].recipe,
+        };
+        continue;
+      }
+
       const a = parseQuantity(next[idx].quantity);
       const b = parseQuantity(add.quantity);
       if (a && b && a.unit === b.unit) {
