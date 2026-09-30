@@ -196,7 +196,7 @@ function formatQuantity(value: number, unit: string) {
   return `${value} ${unit}`;
 }
 
-function mergeItems(existing: ShoppingItem[], additions: Array<{ name: string; quantity: string }>, recipe: string) {
+function mergeItems(existing: ShoppingItem[], additions: Array<{ name: string; quantity: string }>, recipe = "") {
   const next = existing.map((item) => ({ ...item }));
   for (const add of additions) {
     const idx = next.findIndex((item) => !item.checked && normalizeName(item.name) === normalizeName(add.name));
@@ -207,7 +207,9 @@ function mergeItems(existing: ShoppingItem[], additions: Array<{ name: string; q
         next[idx] = {
           ...next[idx],
           quantity: formatQuantity(a.value + b.value, a.unit),
-          recipe: next[idx].recipe ? `${next[idx].recipe} · ${recipe}` : recipe,
+          recipe: recipe
+            ? (next[idx].recipe ? `${next[idx].recipe} · ${recipe}` : recipe)
+            : next[idx].recipe,
         };
         continue;
       }
@@ -216,7 +218,7 @@ function mergeItems(existing: ShoppingItem[], additions: Array<{ name: string; q
       id: crypto.randomUUID(),
       name: add.name,
       quantity: add.quantity,
-      recipe,
+      recipe: recipe || undefined,
       checked: false,
       createdAt: new Date().toISOString(),
     });
@@ -247,6 +249,72 @@ async function addDishToCloud(householdKey: string, dish: string) {
   });
 
   return { ok: true as const, count: ingredients.length };
+}
+
+
+async function loadShoppingFromCloud(householdKey: string) {
+  const rows = await rpc<Array<Record<string, unknown>>>("safe_scan_get_shopping", {
+    p_household_key: householdKey,
+  });
+  return (rows ?? []).map((row) => ({
+    id: String(row.id),
+    name: String(row.name ?? ""),
+    quantity: String(row.quantity ?? "1 pz"),
+    recipe: typeof row.recipe === "string" ? row.recipe : undefined,
+    checked: Boolean(row.checked),
+    createdAt: typeof row.created_at === "string" ? row.created_at : undefined,
+  })) satisfies ShoppingItem[];
+}
+
+async function saveShoppingToCloud(householdKey: string, items: ShoppingItem[]) {
+  await rpc<null>("safe_scan_replace_shopping", {
+    p_household_key: householdKey,
+    p_items: items,
+  });
+}
+
+function splitItemAndQuantity(input: string) {
+  const cleaned = input.trim().replace(/[.,;!?]+$/, "");
+  const match = cleaned.match(/^(.*?)(?:\s+)(\d+(?:[.,]\d+)?\s*(?:kg|g|l|ml|pz|pezzi?|confezioni?)?)$/i);
+  if (!match) return { name: cleaned, quantity: "1 pz" };
+
+  const name = match[1].trim();
+  let quantity = match[2].trim().toLowerCase().replace(",", ".");
+  quantity = quantity
+    .replace(/\bpezzi?\b/i, "pz")
+    .replace(/\bconfezioni?\b/i, "pz");
+
+  return {
+    name: name || cleaned,
+    quantity: quantity || "1 pz",
+  };
+}
+
+async function addSingleItemToCloud(householdKey: string, rawItem: string) {
+  const { name, quantity } = splitItemAndQuantity(rawItem);
+  if (!name) return { ok: false as const, name: "", quantity: "" };
+
+  const existing = await loadShoppingFromCloud(householdKey);
+  const merged = mergeItems(existing, [{ name, quantity }]);
+  await saveShoppingToCloud(householdKey, merged);
+  return { ok: true as const, name, quantity };
+}
+
+function spokenShoppingList(items: ShoppingItem[]) {
+  const pending = items.filter((item) => !item.checked);
+  if (pending.length === 0) {
+    return "La lista della spesa è vuota.";
+  }
+
+  const first = pending.slice(0, 8);
+  const spoken = first
+    .map((item) => `${item.name}, ${item.quantity}`)
+    .join("; ");
+
+  const remaining = pending.length - first.length;
+  return remaining > 0
+    ? `Hai ${pending.length} prodotti da comprare. I primi sono: ${spoken}. E altri ${remaining}.`
+    : `Hai ${pending.length} prodotti da comprare: ${spoken}.`;
 }
 
 export async function GET() {
@@ -350,10 +418,67 @@ export async function POST(request: Request) {
       }
     }
 
+    if (intent === "AddShoppingItemIntent") {
+      const rawItem = (
+        body.request?.intent?.slots?.["item"]?.value ??
+        body.request?.intent?.slots?.["prodotto"]?.value
+      )?.trim();
+
+      if (!rawItem) {
+        return json(buildAlexaResponse("Che prodotto vuoi aggiungere alla lista?", false));
+      }
+
+      try {
+        const household = await getHouseholdKey(alexaUserId);
+        if (!household) {
+          const code = await makePairingCode(alexaUserId);
+          return json(
+            buildAlexaResponse(
+              `Prima devo collegarmi alla tua lista. Apri Safe Scan Eats e inserisci il codice ${code.split("").join(" ")} nella sezione Collega Alexa.`,
+            ),
+          );
+        }
+
+        const result = await addSingleItemToCloud(household, rawItem);
+        if (!result.ok) {
+          return json(buildAlexaResponse("Non sono riuscito ad aggiungere quel prodotto. Riprova."));
+        }
+
+        return json(
+          buildAlexaResponse(
+            `Fatto. Ho aggiunto ${result.name}, ${result.quantity}, alla lista della spesa.`,
+          ),
+        );
+      } catch (error) {
+        console.error("[Alexa] single item add failed", error);
+        return json(buildAlexaResponse("Ho avuto un problema nell'aggiornare la lista della spesa. Riprova tra poco."));
+      }
+    }
+
+    if (intent === "ReadShoppingListIntent") {
+      try {
+        const household = await getHouseholdKey(alexaUserId);
+        if (!household) {
+          const code = await makePairingCode(alexaUserId);
+          return json(
+            buildAlexaResponse(
+              `Prima devo collegarmi alla tua lista. Apri Safe Scan Eats e inserisci il codice ${code.split("").join(" ")} nella sezione Collega Alexa.`,
+            ),
+          );
+        }
+
+        const items = await loadShoppingFromCloud(household);
+        return json(buildAlexaResponse(spokenShoppingList(items)));
+      } catch (error) {
+        console.error("[Alexa] shopping list read failed", error);
+        return json(buildAlexaResponse("Non riesco a leggere la lista della spesa in questo momento. Riprova tra poco."));
+      }
+    }
+
     if (intent === "AMAZON.HelpIntent") {
       return json(
         buildAlexaResponse(
-          "Puoi dirmi: voglio fare la carbonara, oppure: preparami la lista per il tiramisù.",
+          "Puoi dirmi: voglio fare la carbonara, aggiungi latte alla lista, oppure: cosa devo comprare.",
           false,
         ),
       );
