@@ -457,6 +457,7 @@ export async function POST(request: Request) {
         return json(
           buildAlexaResponse(
             `Fatto. Ho aggiunto ${result.count} ingredienti per ${dish} alla lista della spesa di Safe Scan Eats.`,
+            false,
           ),
         );
       } catch (error) {
@@ -494,6 +495,7 @@ export async function POST(request: Request) {
         return json(
           buildAlexaResponse(
             `Fatto. Ho aggiunto ${result.name}, ${result.quantity}, alla lista della spesa.`,
+            false,
           ),
         );
       } catch (error) {
@@ -515,7 +517,7 @@ export async function POST(request: Request) {
         }
 
         const items = await loadShoppingFromCloud(household);
-        return json(buildAlexaResponse(spokenShoppingList(items)));
+        return json(buildAlexaResponse(spokenShoppingList(items), false));
       } catch (error) {
         console.error("[Alexa] shopping list read failed", error);
         return json(buildAlexaResponse("Non riesco a leggere la lista della spesa in questo momento. Riprova tra poco."));
@@ -548,7 +550,7 @@ export async function POST(request: Request) {
           return json(buildAlexaResponse(`Non trovo ${rawItem} nella lista della spesa.`));
         }
 
-        return json(buildAlexaResponse(`Fatto. Ho tolto ${result.name} dalla lista della spesa.`));
+        return json(buildAlexaResponse(`Fatto. Ho tolto ${result.name} dalla lista della spesa.`, false));
       } catch (error) {
         console.error("[Alexa] shopping remove failed", error);
         return json(buildAlexaResponse("Ho avuto un problema nel modificare la lista della spesa. Riprova tra poco."));
@@ -581,7 +583,7 @@ export async function POST(request: Request) {
           return json(buildAlexaResponse(`Non trovo ${rawItem} tra i prodotti da comprare.`));
         }
 
-        return json(buildAlexaResponse(`Fatto. Ho segnato ${result.name} come comprato.`));
+        return json(buildAlexaResponse(`Fatto. Ho segnato ${result.name} come comprato.`, false));
       } catch (error) {
         console.error("[Alexa] shopping purchased failed", error);
         return json(buildAlexaResponse("Ho avuto un problema nel modificare la lista della spesa. Riprova tra poco."));
