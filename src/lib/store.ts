@@ -200,8 +200,14 @@ function shoppingNameKey(name: string) {
 
 type ParsedQuantity = { value: number; unit: "g" | "ml" | "pz" };
 
+function normalizeShoppingQuantity(quantity: string) {
+  const clean = quantity.trim();
+  if (/^\d+(?:[.,]\d+)?$/.test(clean)) return `${clean.replace(",", ".")} pz`;
+  return clean || "1 pz";
+}
+
 function parseShoppingQuantity(quantity: string): ParsedQuantity | null {
-  const match = quantity.trim().toLowerCase().replace(",", ".").match(/^(\d+(?:\.\d+)?)\s*(kg|g|l|ml|pz|pezzi|pezzo)?$/);
+  const match = normalizeShoppingQuantity(quantity).toLowerCase().replace(",", ".").match(/^(\d+(?:\.\d+)?)\s*(kg|g|l|ml|pz|pezzi|pezzo)?$/);
   if (!match) return null;
   const value = Number(match[1]);
   if (!Number.isFinite(value)) return null;
@@ -241,7 +247,7 @@ export function addShoppingItems(items: Array<{ name: string; quantity: string; 
   const next = [...getShoppingList()];
   for (const raw of items) {
     const name = raw.name.trim();
-    const quantity = raw.quantity.trim() || "1";
+    const quantity = normalizeShoppingQuantity(raw.quantity);
     if (!name) continue;
 
     const index = next.findIndex((item) => !item.checked && shoppingNameKey(item.name) === shoppingNameKey(name));
@@ -275,14 +281,14 @@ export function addShoppingItems(items: Array<{ name: string; quantity: string; 
 }
 
 export function addShoppingItem(name: string, quantity = "1") {
-  addShoppingItems([{ name, quantity }]);
+  addShoppingItems([{ name, quantity: normalizeShoppingQuantity(quantity) }]);
 }
 
 export function updateShoppingItem(id: string, patch: Partial<Pick<ShoppingItem, "name" | "quantity" | "recipe" | "checked">>) {
   const next = getShoppingList().map((item) => {
     if (item.id !== id) return item;
     const name = patch.name !== undefined ? patch.name.trim() : item.name;
-    const quantity = patch.quantity !== undefined ? patch.quantity.trim() || "1" : item.quantity;
+    const quantity = patch.quantity !== undefined ? normalizeShoppingQuantity(patch.quantity) : item.quantity;
     return { ...item, ...patch, name: name || item.name, quantity };
   });
   saveShoppingList(next);
