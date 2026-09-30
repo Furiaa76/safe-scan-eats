@@ -17,6 +17,7 @@ import {
   isCloudShoppingConfigured,
   loadCloudShopping,
   saveCloudShopping,
+  linkAlexaPairingCode,
 } from "@/lib/cloud-shopping";
 
 export const Route = createFileRoute("/shopping")({
@@ -30,6 +31,9 @@ function ShoppingPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editQuantity, setEditQuantity] = useState("");
+  const [alexaCode, setAlexaCode] = useState("");
+  const [alexaMessage, setAlexaMessage] = useState("");
+  const [alexaLinking, setAlexaLinking] = useState(false);
   const [cloudReady, setCloudReady] = useState(false);
   const [cloudState, setCloudState] = useState<"local" | "syncing" | "synced" | "error">(
     isCloudShoppingConfigured() ? "syncing" : "local",
@@ -119,6 +123,25 @@ function ShoppingPage() {
     setEditingId(null);
   };
 
+  const linkAlexa = async () => {
+    const code = alexaCode.replace(/\D/g, "").slice(0, 6);
+    if (code.length !== 6) {
+      setAlexaMessage("Inserisci il codice di 6 cifre detto da Alexa.");
+      return;
+    }
+    setAlexaLinking(true);
+    setAlexaMessage("");
+    try {
+      const ok = await linkAlexaPairingCode(code);
+      setAlexaMessage(ok ? "Alexa collegata alla tua lista della spesa." : "Codice non valido o scaduto. Chiedi ad Alexa un nuovo codice.");
+      if (ok) setAlexaCode("");
+    } catch {
+      setAlexaMessage("Non riesco a collegare Alexa in questo momento.");
+    } finally {
+      setAlexaLinking(false);
+    }
+  };
+
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
       <header className="flex items-center gap-3">
@@ -136,6 +159,29 @@ function ShoppingPage() {
       </header>
 
       <section className="mt-5 rounded-3xl border border-border bg-card p-4">
+        <p className="font-extrabold text-foreground">Collega Alexa</p>
+        <p className="mt-1 text-xs text-muted-foreground">Apri la skill “Safe Scan” su Alexa. Se non è ancora collegata, Alexa ti dirà un codice di 6 cifre.</p>
+        <div className="mt-3 flex gap-2">
+          <input
+            value={alexaCode}
+            onChange={(e) => setAlexaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            inputMode="numeric"
+            placeholder="Codice 6 cifre"
+            className="min-w-0 flex-1 rounded-2xl border border-border bg-background px-4 py-3 text-center text-lg font-extrabold tracking-[0.25em] outline-none focus:border-primary"
+          />
+          <button
+            type="button"
+            onClick={() => void linkAlexa()}
+            disabled={alexaLinking || alexaCode.length !== 6}
+            className="rounded-2xl bg-secondary px-4 text-sm font-extrabold text-secondary-foreground disabled:opacity-40"
+          >
+            {alexaLinking ? "Collego…" : "Collega"}
+          </button>
+        </div>
+        {alexaMessage && <p className="mt-2 text-xs font-semibold text-muted-foreground">{alexaMessage}</p>}
+      </section>
+
+      <section className="mt-4 rounded-3xl border border-border bg-card p-4">
         <p className="font-extrabold text-foreground">Aggiungi un prodotto</p>
         <div className="mt-3 grid grid-cols-[minmax(0,1fr)_95px] gap-2">
           <input
