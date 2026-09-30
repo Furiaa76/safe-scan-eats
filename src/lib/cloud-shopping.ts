@@ -78,3 +78,20 @@ export async function saveCloudShopping(items: ShoppingItem[]) {
   if (error) throw error;
   return true;
 }
+
+
+export async function linkAlexaPairingCode(code: string) {
+  const client = getClient();
+  const householdKey = getHouseholdKey();
+  if (!client || !householdKey) throw new Error("CLOUD_NOT_CONFIGURED");
+
+  const cleaned = code.replace(/\D/g, "").slice(0, 6);
+  if (cleaned.length !== 6) return false;
+
+  const { data, error } = await client.rpc("safe_scan_link_alexa", {
+    p_pairing_code: cleaned,
+    p_household_key: householdKey,
+  });
+  if (error) throw error;
+  return data === true;
+}
