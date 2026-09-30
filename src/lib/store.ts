@@ -268,7 +268,14 @@ export function clearHistory() {
 }
 
 export function getShoppingList(): ShoppingItem[] {
-  if (shoppingCache === undefined) shoppingCache = read<ShoppingItem[]>(SHOPPING_KEY) ?? [];
+  if (shoppingCache === undefined) {
+    const loaded = read<ShoppingItem[]>(SHOPPING_KEY) ?? [];
+    const normalized = normalizeExistingShoppingItems(loaded);
+    shoppingCache = normalized;
+    if (typeof window !== "undefined" && JSON.stringify(normalized) !== JSON.stringify(loaded)) {
+      window.localStorage.setItem(SHOPPING_KEY, JSON.stringify(normalized));
+    }
+  }
   return shoppingCache;
 }
 
@@ -285,8 +292,15 @@ function shoppingNameKey(name: string) {
 type ParsedQuantity = { value: number; unit: "g" | "ml" | "pz" };
 
 function normalizeShoppingQuantity(quantity: string) {
-  const clean = quantity.trim();
+  const clean = quantity.trim().replace(/[.;:]+$/, "").trim();
   if (/^\d+(?:[.,]\d+)?$/.test(clean)) return `${clean.replace(",", ".")} pz`;
+  const compact = clean.match(/^(\d+(?:[.,]\d+)?)\s*(kg|g|l|ml|pz|pezzi|pezzo)$/i);
+  if (compact) {
+    const value = compact[1].replace(",", ".");
+    const unit = compact[2].toLowerCase();
+    const normalizedUnit = unit === "pezzi" || unit === "pezzo" ? "pz" : unit;
+    return `${value} ${normalizedUnit}`;
+  }
   return clean || "1 pz";
 }
 
@@ -325,6 +339,39 @@ function mergeRecipeLabels(a?: string, b?: string) {
     .filter(Boolean);
   const unique = Array.from(new Set(labels));
   return unique.length ? unique.join(" · ") : undefined;
+}
+
+function normalizeExistingShoppingItems(items: ShoppingItem[]) {
+  const normalized = items.map((item) => {
+    const parsed = splitNameAndQuantity(item.name, item.quantity);
+    return {
+      ...item,
+      name: parsed.name,
+      quantity: normalizeShoppingQuantity(parsed.quantity),
+    };
+  });
+
+  const merged: ShoppingItem[] = [];
+  for (const item of normalized) {
+    const index = merged.findIndex((current) =>
+      current.checked === item.checked &&
+      shoppingNameKey(current.name) === shoppingNameKey(item.name) &&
+      (current.recipe ?? "") === (item.recipe ?? "")
+    );
+
+    if (index >= 0) {
+      const current = merged[index];
+      const quantity = mergeShoppingQuantities(current.quantity, item.quantity);
+      if (quantity) {
+        merged[index] = { ...current, quantity };
+        continue;
+      }
+    }
+
+    merged.push(item);
+  }
+
+  return merged;
 }
 
 export function addShoppingItems(items: Array<{ name: string; quantity: string; recipe?: string | undefined }>) {
