@@ -124,6 +124,43 @@ const BUILTIN_RECIPES: Record<string, Array<{ name: string; quantity: string }>>
     { name: "Caffè", quantity: "300 ml" },
     { name: "Cacao amaro", quantity: "30 g" },
   ],
+  "cacio e pepe": [
+    { name: "Spaghetti", quantity: "320 g" },
+    { name: "Pecorino romano", quantity: "180 g" },
+    { name: "Pepe nero", quantity: "q.b." },
+  ],
+  "pasta cacio e pepe": [
+    { name: "Spaghetti", quantity: "320 g" },
+    { name: "Pecorino romano", quantity: "180 g" },
+    { name: "Pepe nero", quantity: "q.b." },
+  ],
+  "pasta alla norma": [
+    { name: "Pasta", quantity: "320 g" },
+    { name: "Melanzane", quantity: "2" },
+    { name: "Passata di pomodoro", quantity: "500 g" },
+    { name: "Ricotta salata", quantity: "120 g" },
+    { name: "Basilico", quantity: "q.b." },
+    { name: "Olio extravergine di oliva", quantity: "q.b." },
+  ],
+  arancini: [
+    { name: "Riso", quantity: "320 g" },
+    { name: "Passata di pomodoro", quantity: "300 g" },
+    { name: "Carne macinata", quantity: "250 g" },
+    { name: "Piselli", quantity: "100 g" },
+    { name: "Mozzarella", quantity: "150 g" },
+    { name: "Uova", quantity: "2" },
+    { name: "Pangrattato", quantity: "200 g" },
+    { name: "Farina", quantity: "100 g" },
+  ],
+  "torta di mele": [
+    { name: "Mele", quantity: "4" },
+    { name: "Farina", quantity: "250 g" },
+    { name: "Zucchero", quantity: "150 g" },
+    { name: "Uova", quantity: "3" },
+    { name: "Burro", quantity: "100 g" },
+    { name: "Latte", quantity: "100 ml" },
+    { name: "Lievito per dolci", quantity: "16 g" },
+  ],
 };
 
 function cleanDish(input: string) {
@@ -158,33 +195,54 @@ async function generateIngredients(dish: string, servings = 4) {
   }
 
   const gatewayKey = process.env["AI_GATEWAY_API_KEY"] || process.env["VERCEL_OIDC_TOKEN"];
-  if (!gatewayKey) return null;
+  if (!gatewayKey) {
+    console.error("[Alexa] AI Gateway key missing");
+    return null;
+  }
 
-  const response = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${gatewayKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-3-flash",
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            'Crea una lista della spesa italiana essenziale per il numero di persone richiesto. Rispondi SOLO JSON nel formato {"ingredients":[{"name":string,"quantity":string}]}. Usa nomi e quantità in italiano.',
-        },
-        { role: "user", content: `Piatto: ${dish}\nPersone: ${servings}` },
-      ],
-    }),
-  });
-  if (!response.ok) return null;
-  const result = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-  const raw = result.choices?.[0]?.message?.content ?? "";
-  const parsed = JSON.parse(raw.replace(/^\`\`\`(json)?/i, "").replace(/\`\`\`$/, "").trim()) as {
-    ingredients?: Array<{ name?: unknown; quantity?: unknown }>;
-  };
+  let response: Response;
+  try {
+    response = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${gatewayKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-3.6-flash",
+        models: ["openai/gpt-5.6-sol", "anthropic/claude-fable-5"],
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content:
+              'Sei il motore ricette di Safe Scan Eats. Ricevi il nome libero di QUALSIASI piatto, dolce, torta, ricetta regionale o internazionale e il numero di persone. Crea la lista della spesa essenziale per prepararlo. Non rinominare il piatto e non sostituirlo con un altro. Se esistono varianti, usa la versione italiana/classica più comune. Rispondi SOLO JSON nel formato {"ingredients":[{"name":string,"quantity":string}]}. Usa nomi e quantità in italiano.',
+          },
+          { role: "user", content: `Piatto richiesto esattamente: ${dish}\nPersone: ${servings}` },
+        ],
+      }),
+    });
+  } catch (error) {
+    console.error("[Alexa] AI Gateway request failed", error);
+    return null;
+  }
+
+  if (!response.ok) {
+    console.error("[Alexa] AI Gateway error", response.status, await response.text());
+    return null;
+  }
+
+  let parsed: { ingredients?: Array<{ name?: unknown; quantity?: unknown }> };
+  try {
+    const result = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+    const raw = result.choices?.[0]?.message?.content ?? "";
+    parsed = JSON.parse(raw.replace(/^\`\`\`(json)?/i, "").replace(/\`\`\`$/, "").trim()) as {
+      ingredients?: Array<{ name?: unknown; quantity?: unknown }>;
+    };
+  } catch (error) {
+    console.error("[Alexa] AI recipe parse failed", error);
+    return null;
+  }
   const ingredients = (parsed.ingredients ?? [])
     .map((item) => ({
       name: typeof item.name === "string" ? item.name.trim() : "",
