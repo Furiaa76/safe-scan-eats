@@ -17,6 +17,7 @@ import {
   isCloudShoppingConfigured,
   loadCloudShopping,
   saveCloudShopping,
+  clearCloudShopping,
   linkAlexaPairingCode,
 } from "@/lib/cloud-shopping";
 
@@ -55,10 +56,11 @@ function ShoppingPage() {
         const remote = await loadCloudShopping();
         if (cancelled) return;
 
-        if (remote && remote.length > 0) {
+        if (remote) {
+          // Il cloud è la fonte autorevole quando Alexa è collegata.
+          // Anche una lista vuota deve sostituire la vecchia cache locale,
+          // altrimenti gli ingredienti cancellati possono ricomparire.
           replaceShoppingList(remote);
-        } else if (items.length > 0) {
-          await saveCloudShopping(items);
         }
 
         if (!cancelled) {
@@ -261,7 +263,14 @@ function ShoppingPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm("Vuoi svuotare tutta la lista della spesa?")) clearShoppingList();
+                    if (!window.confirm("Vuoi svuotare tutta la lista della spesa?")) return;
+                    clearShoppingList();
+                    if (isCloudShoppingConfigured()) {
+                      setCloudState("syncing");
+                      void clearCloudShopping()
+                        .then(() => setCloudState("synced"))
+                        .catch(() => setCloudState("error"));
+                    }
                   }}
                   className="text-xs font-extrabold text-danger"
                 >
