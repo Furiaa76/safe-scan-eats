@@ -84,3 +84,18 @@ export const readLabel = createServerFn({ method: "POST" })
     const out = await askVision(data.image, `Trascrivi fedelmente la lista ingredienti presente nella foto dell'etichetta di un alimento.\nRispondi SOLO con JSON: {"readable": boolean, "ingredients": string, "traces": string}.\n- "ingredients": il testo completo degli ingredienti così come scritto (tradotto in italiano se in altra lingua), senza inventare nulla.\n- "traces": la frase "può contenere..." se presente, altrimenti "".\nSe l'etichetta non è leggibile o non contiene ingredienti, readable=false.`);
     return { readable: out?.["readable"] === true && s(out?.["ingredients"]).length > 3, ingredients: s(out?.["ingredients"]), traces: s(out?.["traces"]) };
   });
+
+export const readHealthCard = createServerFn({ method: "POST" })
+  .inputValidator((d) => ImageInput.parse(d))
+  .handler(async ({ data }) => {
+    const out = await askVision(data.image, `Leggi una Tessera Sanitaria / CRS italiana fotografata dal fronte.\nRispondi SOLO con JSON: {"readable": boolean, "holder": string, "fiscalCode": string, "cardNumber": string}.\n- holder: nome e cognome dell'intestatario, solo se chiaramente leggibili.\n- fiscalCode: codice fiscale italiano di 16 caratteri, senza spazi.\n- cardNumber: numero identificativo della tessera/TS-CNS, solo cifre se leggibile.\nNon inventare nulla. Se un dato non si legge, usa stringa vuota. readable=true solo se almeno il codice fiscale è leggibile chiaramente.`);
+    const fiscalCode = s(out?.["fiscalCode"]).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16);
+    const cardNumber = s(out?.["cardNumber"]).replace(/\D/g, "");
+    return {
+      readable: out?.["readable"] === true && fiscalCode.length === 16,
+      holder: s(out?.["holder"]),
+      fiscalCode,
+      cardNumber,
+      lastFive: cardNumber.length >= 5 ? cardNumber.slice(-5) : "",
+    };
+  });
