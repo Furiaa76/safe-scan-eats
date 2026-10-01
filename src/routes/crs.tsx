@@ -84,6 +84,10 @@ function CrsPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const scanTimerRef = useRef<number | null>(null);
   const scanInFlightRef = useRef(false);
+  const fiscalRef = useRef("");
+  const lastFiveRef = useRef("");
+  const holderRef = useRef("");
+  const frontPhotoRef = useRef<string | null>(null);
   const readCard = useServerFn(readHealthCard);
 
   useEffect(() => {
@@ -143,21 +147,33 @@ function CrsPage() {
     try {
       const result = await readCard({ data: { image } });
 
-      if (result.fiscalCode) setFiscalCode(result.fiscalCode);
-      if (result.holder) setHolder(result.holder);
-      if (result.lastFive) setLastFive(result.lastFive);
+      if (result.fiscalCode.length === 16) {
+        fiscalRef.current = result.fiscalCode;
+        setFiscalCode(result.fiscalCode);
+        if (!frontPhotoRef.current) frontPhotoRef.current = image;
+      }
+      if (result.holder) {
+        holderRef.current = result.holder;
+        setHolder(result.holder);
+      }
+      if (result.lastFive.length === 5) {
+        lastFiveRef.current = result.lastFive;
+        setLastFive(result.lastFive);
+      }
 
-      if (result.readable && result.fiscalCode.length === 16 && result.lastFive.length === 5) {
-        setCardPhoto(image);
+      if (fiscalRef.current.length === 16 && lastFiveRef.current.length === 5) {
+        setCardPhoto(frontPhotoRef.current || image);
         setSaved(false);
         setScanError(null);
-        setScannerMessage("Tessera letta");
+        setScannerMessage("Tessera letta automaticamente");
         stopScanner();
         return;
       }
 
-      if (result.fiscalCode.length === 16) {
-        setScannerMessage("Codice fiscale letto. Cerco il numero tessera…");
+      if (fiscalRef.current.length === 16 && lastFiveRef.current.length !== 5) {
+        setScannerMessage("Fronte letto ✓ Ora gira la tessera e inquadra il retro");
+      } else if (lastFiveRef.current.length === 5 && fiscalRef.current.length !== 16) {
+        setScannerMessage("Retro letto ✓ Ora gira la tessera e inquadra il fronte");
       } else {
         setScannerMessage("Inquadra tutta la CRS e tienila ferma");
       }
@@ -176,7 +192,11 @@ function CrsPage() {
   const startScanner = async () => {
     setScanError(null);
     setCardPhoto(null);
-    setScannerMessage("Inquadra tutta la CRS");
+    setScannerMessage("Inquadra il fronte della CRS");
+    fiscalRef.current = "";
+    lastFiveRef.current = "";
+    holderRef.current = "";
+    frontPhotoRef.current = null;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -188,18 +208,23 @@ function CrsPage() {
       });
       streamRef.current = stream;
       setScannerOpen(true);
-      requestAnimationFrame(async () => {
-        const video = videoRef.current;
-        if (!video) return;
-        video.srcObject = stream;
-        try { await video.play(); } catch {}
-        scanTimerRef.current = window.setTimeout(scanLiveFrame, 900);
-      });
     } catch {
       setScanError("Non riesco ad aprire la fotocamera. Controlla che Safe Scan Eats abbia il permesso Fotocamera.");
       stopScanner();
     }
   };
+
+  useEffect(() => {
+    if (!scannerOpen || !streamRef.current || !videoRef.current) return;
+    const video = videoRef.current;
+    video.srcObject = streamRef.current;
+    const begin = async () => {
+      try { await video.play(); } catch {}
+      if (scanTimerRef.current !== null) window.clearTimeout(scanTimerRef.current);
+      scanTimerRef.current = window.setTimeout(scanLiveFrame, 900);
+    };
+    begin();
+  }, [scannerOpen]);
 
   useEffect(() => () => {
     if (scanTimerRef.current !== null) window.clearTimeout(scanTimerRef.current);
@@ -227,7 +252,7 @@ function CrsPage() {
     <section className="mt-5 rounded-3xl border border-border bg-card p-5">
       <div className="flex items-start gap-3"><CreditCard className="mt-0.5 h-6 w-6 shrink-0 text-primary" /><div><h2 className="font-extrabold text-foreground">La tua tessera</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">Salviamo questi dati solo su questo dispositivo. Non inserire PIN, PUK, SPID o password.</p></div></div>
 
-      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">Apri lo scanner e inquadra la CRS. Non devi premere il pulsante di scatto: quando Safe Scan Eats riconosce codice fiscale e numero tessera, cattura automaticamente l’immagine e chiude la fotocamera.</p>
+      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">Apri lo scanner e inquadra prima il fronte della CRS. Quando legge il codice fiscale te lo conferma; poi giri la tessera e inquadri il retro. Appena ha letto anche il numero tessera, acquisisce tutto automaticamente e chiude la fotocamera.</p>
 
       <div className="relative mt-4 aspect-[1.58/1] overflow-hidden rounded-3xl border-2 border-primary/40 bg-foreground">
         {scannerOpen ? <>
