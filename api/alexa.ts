@@ -1,4 +1,5 @@
 import { generateText } from "ai";
+// Alexa recipe generation uses Vercel AI SDK OIDC.
 import {
   SkillRequestSignatureVerifier,
   TimestampVerifier,
