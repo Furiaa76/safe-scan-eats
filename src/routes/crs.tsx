@@ -26,6 +26,25 @@ function sanitizeLastFive(value: string) {
   return value.replace(/\D/g, "").slice(0, 5);
 }
 
+async function localCrsOcr(image: string) {
+  const { createWorker } = await import("tesseract.js");
+  const worker = await createWorker("ita+eng");
+  try {
+    await worker.setParameters({ tessedit_pageseg_mode: "11" });
+    const result = await worker.recognize(image);
+    const text = (result.data.text || "").toUpperCase();
+    const compact = text.replace(/[^A-Z0-9]/g, "");
+    const fiscalCode = compact.match(/[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]/)?.[0] || "";
+    const numbers = (text.match(/\d(?:[\s.-]*\d){9,}/g) || [])
+      .map((v) => v.replace(/\D/g, ""))
+      .sort((a, b) => b.length - a.length);
+    const cardNumber = numbers[0] || "";
+    return { fiscalCode, lastFive: cardNumber.length >= 5 ? cardNumber.slice(-5) : "" };
+  } finally {
+    await worker.terminate();
+  }
+}
+
 // Code 39: sufficiente per mostrare il codice fiscale a molti lettori ottici.
 // Non sostituisce il chip/seriale della TS-CNS quando il punto vendita lo richiede.
 const CODE39: Record<string, string> = {
@@ -123,15 +142,20 @@ function CrsPage() {
   const captureVideoFrame = () => {
     const video = videoRef.current;
     if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return null;
-    const max = 1600;
-    const scale = Math.min(1, max / Math.max(video.videoWidth, video.videoHeight));
+    const marginX = Math.round(video.videoWidth * 0.05);
+    const marginY = Math.round(video.videoHeight * 0.05);
+    const sx = marginX, sy = marginY;
+    const sw = Math.max(1, video.videoWidth - marginX * 2);
+    const sh = Math.max(1, video.videoHeight - marginY * 2);
+    const max = 1800;
+    const scale = Math.min(1, max / Math.max(sw, sh));
     const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    canvas.width = Math.max(1, Math.round(sw * scale));
+    canvas.height = Math.max(1, Math.round(sh * scale));
     const ctx = canvas.getContext("2d");
     if (!ctx) return null;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/jpeg", 0.88);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.94);
   };
 
   const scanLiveFrame = async () => {
@@ -147,7 +171,19 @@ function CrsPage() {
     setScannerMessage("Sto leggendo i dati…");
 
     try {
-      const result = await readCard({ data: { image } });
+      let result = { fiscalCode: "", lastFive: "", holder: "" };
+      try {
+        result = await readCard({ data: { image } });
+      } catch {}
+
+      if (!result.fiscalCode || !result.lastFive) {
+        setScannerMessage("Leggo i caratteri direttamente sul telefono…");
+        try {
+          const local = await localCrsOcr(image);
+          if (!result.fiscalCode && local.fiscalCode) result.fiscalCode = local.fiscalCode;
+          if (!result.lastFive && local.lastFive) result.lastFive = local.lastFive;
+        } catch {}
+      }
 
       if (result.fiscalCode.length === 16) {
         fiscalRef.current = result.fiscalCode;
@@ -180,7 +216,7 @@ function CrsPage() {
         setScannerMessage("Inquadra tutta la CRS e tienila ferma");
       }
     } catch {
-      setScannerMessage("Avvicina la tessera e riduci i riflessi");
+      setScannerMessage("Non ho ancora letto i caratteri: tieni la tessera ferma dentro il riquadro");
     } finally {
       scanInFlightRef.current = false;
       setScanBusy(false);
@@ -198,12 +234,20 @@ function CrsPage() {
     try {
       const image = await fileToDataUrl(file, 1800, 0.9);
       setCardPhoto(image);
-      const result = await readCard({ data: { image } });
+      let result = { readable: false, holder: "", fiscalCode: "", lastFive: "" };
+      try { result = await readCard({ data: { image } }); } catch {}
+      if (!result.fiscalCode || !result.lastFive) {
+        try {
+          const local = await localCrsOcr(image);
+          if (!result.fiscalCode && local.fiscalCode) result.fiscalCode = local.fiscalCode;
+          if (!result.lastFive && local.lastFive) result.lastFive = local.lastFive;
+        } catch {}
+      }
       if (result.holder) setHolder(result.holder);
       if (result.fiscalCode) setFiscalCode(result.fiscalCode);
       if (result.lastFive) setLastFive(result.lastFive);
-      if (!result.readable) {
-        setScanError("La fotocamera si è aperta, ma non riesco a leggere bene i dati. Riprova senza riflessi e con tutta la tessera nell’inquadratura.");
+      if (!result.fiscalCode && !result.lastFive) {
+        setScanError("La foto è stata acquisita, ma non riesco ancora a leggere i caratteri. Fai riempire quasi tutto il riquadro dalla tessera e tienila ferma.");
       }
     } catch {
       setScanError("Non riesco a leggere la foto della CRS. Riprova.");
