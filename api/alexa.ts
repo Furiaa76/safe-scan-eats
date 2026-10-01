@@ -559,6 +559,15 @@ export async function POST(request: Request) {
 
   if (type === "IntentRequest") {
     const intent = body.request?.intent?.name;
+    console.log("[Alexa] intent", {
+      intent,
+      slots: Object.fromEntries(
+        Object.entries(body.request?.intent?.slots ?? {}).map(([name, slot]) => [
+          name,
+          slot?.value ?? "",
+        ]),
+      ),
+    });
 
     if (intent === "CreateShoppingListIntent") {
       const dish = (
