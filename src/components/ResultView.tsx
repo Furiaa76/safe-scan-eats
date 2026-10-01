@@ -12,7 +12,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { productsInCategory, type FoodProduct } from "@/lib/off";
-import { analyzeFood, VERDICT_LABEL, type Analysis, type Verdict } from "@/lib/verdict";
+import { analyzeFood, type Analysis, type Verdict } from "@/lib/verdict";
 import { ALLERGENS, type AllergenId } from "@/lib/allergens";
 import { useProfilesState, type Profile } from "@/lib/store";
 import { assessSsnCeliac } from "@/lib/ssn";
@@ -82,6 +82,18 @@ export function ResultView({
   const allergens = profile?.allergens ?? [];
   const findings = freeMode ? freeModeFindings(product) : [];
   const shouldSuggestAlternatives = product.source === "off" && !!product.categoryTag && allergens.length > 0 && analysis.verdict !== "compatible";
+  const resultTitle = freeMode
+    ? "Informazioni prodotto"
+    : analysis.verdict === "compatible"
+      ? "Va bene per te"
+      : analysis.verdict === "warning"
+        ? "Attenzione"
+        : "Non adatto";
+  const resultSubtitle = freeMode
+    ? "Modalità libera: nessun profilo applicato. Ti mostro cosa è stato rilevato senza stabilire se il prodotto è adatto a una persona specifica."
+    : profile
+      ? `${style.subtitle} Profilo: ${profile.name}.`
+      : style.subtitle;
   const shouldAskForFrontPhoto = !freeMode && analysis.verdict === "warning" && analysis.incomplete;
   const ssn = assessSsnCeliac(product);
   const checkSsnRegistryFn = useServerFn(checkSsnRegistry);
@@ -105,8 +117,8 @@ export function ResultView({
         </header>
         <div className="mt-6 flex flex-col items-center text-center">
           {freeMode ? <Info className="h-20 w-20" strokeWidth={1.5} /> : <style.Icon className="h-20 w-20" strokeWidth={1.5} />}
-          <h1 className="mt-3 text-3xl font-black uppercase tracking-wide">{freeMode ? "Informazioni prodotto" : VERDICT_LABEL[analysis.verdict]}</h1>
-          <p className="mt-2 max-w-[300px] text-sm font-semibold opacity-90">{freeMode ? "Modalità libera: nessun profilo applicato. Ti mostro cosa è stato rilevato senza stabilire se il prodotto è adatto a una persona specifica." : style.subtitle}</p>
+          <h1 className="mt-3 text-3xl font-black uppercase tracking-wide">{resultTitle}</h1>
+          <p className="mt-2 max-w-[320px] text-sm font-semibold opacity-90">{resultSubtitle}</p>
         </div>
       </div>
 
@@ -147,6 +159,15 @@ export function ResultView({
               })}
             </div>
           </section>
+        )}
+
+        {!freeMode && analysis.verdict !== "compatible" && allergens.length > 0 && (
+          <a
+            href={shouldSuggestAlternatives ? "#alternative-sicure" : "#ingredienti-prodotto"}
+            className="mt-4 flex w-full items-center justify-center rounded-2xl border-2 border-primary px-4 py-3.5 text-base font-extrabold text-primary"
+          >
+            {shouldSuggestAlternatives ? "Trova un’alternativa sicura" : "Controlla gli ingredienti"}
+          </a>
         )}
 
         {shouldAskForFrontPhoto && (
@@ -196,7 +217,7 @@ export function ResultView({
           </div>
         </section>
 
-        <section className="mt-5">
+        <section id="ingredienti-prodotto" className="mt-5 scroll-mt-4">
           <h2 className="text-base font-extrabold text-foreground">Ingredienti</h2>
           <p className="mt-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">{product.ingredientsText || "Lista ingredienti non disponibile."}</p>
         </section>
@@ -233,7 +254,7 @@ function Alternatives({ product, allergens }: { product: FoodProduct; allergens:
   if (!data || data.length === 0) return null;
 
   return (
-    <section className="mt-5">
+    <section id="alternative-sicure" className="mt-5 scroll-mt-4">
       <h2 className="text-base font-extrabold text-foreground">Alternative compatibili per te</h2>
       <p className="mt-1 text-xs text-muted-foreground">Suggerimenti della stessa categoria con dati ingredienti completi. Verifica comunque sempre l'etichetta.</p>
       <div className="mt-2 flex flex-col gap-2">
