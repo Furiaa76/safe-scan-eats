@@ -10,6 +10,22 @@ run("npm", ["run", "mobile:assets"]);
 run("npx", ["capacitor-assets", "generate"]);
 run("npx", ["cap", "sync"]);
 
+const androidManifest = "android/app/src/main/AndroidManifest.xml";
+if (fs.existsSync(androidManifest)) {
+  let manifest = fs.readFileSync(androidManifest, "utf8");
+  if (!manifest.includes('android.permission.CAMERA')) {
+    manifest = manifest.replace(
+      "<manifest",
+      '<manifest'
+    );
+    manifest = manifest.replace(
+      /<manifest([^>]*)>/,
+      '<manifest$1>\n    <uses-permission android:name="android.permission.CAMERA" />'
+    );
+    fs.writeFileSync(androidManifest, manifest);
+  }
+}
+
 const iosInfoPlist = "ios/App/App/Info.plist";
 if (fs.existsSync(iosInfoPlist)) {
   let plist = fs.readFileSync(iosInfoPlist, "utf8");
