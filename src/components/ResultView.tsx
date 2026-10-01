@@ -85,7 +85,7 @@ export function ResultView({
   const shouldAskForFrontPhoto = !freeMode && analysis.verdict === "warning" && analysis.incomplete;
   const ssn = assessSsnCeliac(product);
   const checkSsnRegistryFn = useServerFn(checkSsnRegistry);
-  const { data: registryCheck, isFetching: registryChecking } = useQuery({
+  const { data: registryCheck, isFetching: registryChecking, refetch: retryRegistryCheck } = useQuery({
     queryKey: ["ssn-registry", product.name, product.brand],
     queryFn: () => checkSsnRegistryFn({ data: { name: product.name, brand: product.brand } }),
     staleTime: 1000 * 60 * 60 * 12,
@@ -171,7 +171,7 @@ export function ResultView({
             <div className="min-w-0 flex-1">
               <h2 className="text-base font-extrabold text-foreground">Celiachia · Servizio Sanitario Nazionale</h2>
               <p className={`mt-1 text-sm font-extrabold ${ssnConfirmed ? "text-safe" : "text-foreground"}`}>
-                {ssnConfirmed ? "EROGABILE SSN: SÌ" : registryChecking ? "CONTROLLO REGISTRO SSN…" : "STATO SSN: DA VERIFICARE"}
+                {ssnConfirmed ? "EROGABILE SSN: SÌ" : registryChecking ? "CONTROLLO REGISTRO SSN…" : registryCheck?.status === "unavailable" ? "REGISTRO SSN TEMPORANEAMENTE NON DISPONIBILE" : "EROGABILITÀ SSN NON CONFERMATA"}
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
                 {ssnConfirmed
@@ -181,17 +181,29 @@ export function ResultView({
                   : registryCheck?.status === "not-found"
                     ? "Non l'ho trovato automaticamente nel Registro ufficiale. Non significa necessariamente che non sia erogabile: verifica il nome/formato nel Registro."
                     : registryCheck?.status === "unavailable"
-                      ? "Il Registro ufficiale non è raggiungibile in questo momento. Riprova più tardi o aprilo manualmente."
+                      ? "Il controllo automatico non è disponibile in questo momento. Questo non indica né che il prodotto sia erogabile né che non lo sia: verifica nel Registro ufficiale o riprova il controllo."
                       : ssn.detail}
               </p>
-              <a
-                href={registryCheck?.registryUrl || "https://www.salute.gov.it/new/sites/default/files/SG_ORD_PROD_2.pdf"}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-3 inline-flex rounded-xl bg-secondary px-3 py-2 text-xs font-extrabold text-secondary-foreground"
-              >
-                Apri Registro ufficiale
-              </a>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {registryCheck?.status === "unavailable" && (
+                  <button
+                    type="button"
+                    onClick={() => retryRegistryCheck()}
+                    disabled={registryChecking}
+                    className="inline-flex rounded-xl bg-primary px-3 py-2 text-xs font-extrabold text-primary-foreground disabled:opacity-60"
+                  >
+                    {registryChecking ? "Controllo…" : "Riprova controllo"}
+                  </button>
+                )}
+                <a
+                  href={registryCheck?.registryUrl || "https://www.salute.gov.it/new/sites/default/files/SG_ORD_PROD_2.pdf"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex rounded-xl bg-secondary px-3 py-2 text-xs font-extrabold text-secondary-foreground"
+                >
+                  Apri Registro ufficiale
+                </a>
+              </div>
             </div>
           </div>
         </section>
