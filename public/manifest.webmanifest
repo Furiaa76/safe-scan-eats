@@ -1,0 +1,18 @@
+{
+  "name": "Safe Scan Eats",
+  "short_name": "Safe Scan Eats",
+  "description": "Scansiona prodotti e ingredienti per controllare allergeni e intolleranze.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7FAF5",
+  "theme_color": "#0A8F4B",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
