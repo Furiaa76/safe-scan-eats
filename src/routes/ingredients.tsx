@@ -170,6 +170,7 @@ function GuidedFlow() {
   const [brand, setBrand] = useState(search.brand ?? "");
   const [label, setLabel] = useState<string | null>(null);
   const [text, setText] = useState("");
+  const [labelQuality, setLabelQuality] = useState<"good" | "uncertain">("uncertain");
   const [busy, setBusy] = useState<null | "front" | "label">(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -217,11 +218,23 @@ function GuidedFlow() {
       const r = await readFn({ data: { image: dataUrl } });
       if (!r.readable) throw new Error("not-readable");
       setText([r.ingredients, r.traces].filter(Boolean).join(" "));
+      setLabelQuality(r.complete && r.confidence >= 0.75 ? "good" : "uncertain");
+      if (!r.complete || r.confidence < 0.75) {
+        setError("La lettura dell'etichetta non è abbastanza affidabile. Controlla il testo qui sotto o rifai la foto più da vicino.");
+      }
     } catch {
       try {
         const ocr = await localOcr(dataUrl);
         if (ocr.length < 4) throw new Error("ocr-empty");
         setText(ocr);
+        const letters = (ocr.match(/[a-zàèéìòù]/gi) ?? []).length;
+        const odd = (ocr.match(/[|{}<>\\_^~=]/g) ?? []).length;
+        const words = ocr.split(/\s+/).filter((w) => /[a-zàèéìòù]{3,}/i.test(w)).length;
+        const looksReliable = ocr.length >= 45 && letters / Math.max(1, ocr.length) >= 0.55 && odd <= 2 && words >= 6;
+        setLabelQuality(looksReliable ? "good" : "uncertain");
+        if (!looksReliable) {
+          setError("La lettura OCR è poco chiara. Correggi il testo oppure rifai la foto più da vicino.");
+        }
       } catch {
         setError("Non riesco a leggere gli ingredienti. Riprova con più luce oppure scrivili qui sotto.");
       }
@@ -237,6 +250,7 @@ function GuidedFlow() {
       brand: brand.trim() || undefined,
       image: search.image,
       claims: identity?.claims?.length ? identity.claims.join("|") : undefined,
+      quality: labelQuality,
     },
   });
 
@@ -259,6 +273,7 @@ function GuidedFlow() {
       <PhotoBox photo={label} busy={busy === "label"} busyText="Leggo gli ingredienti…" hint="Tocca per fotografare la lista ingredienti" icon={<Camera className="h-14 w-14 text-primary-foreground/80" />} onFile={onLabel} />
       {error && <p className="mt-3 text-sm font-semibold text-danger">{error}</p>}
       <label className="mt-5 text-sm font-extrabold text-foreground" htmlFor="ing">Ingredienti letti (controlla e correggi)</label><textarea id="ing" value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Es. farina di grano tenero, zucchero, burro, uova…" className="mt-2 rounded-2xl border border-border bg-card p-4 text-base text-foreground outline-none focus:border-primary" />
+      {text.trim().length >= 3 && labelQuality === "uncertain" && <p className="mt-3 rounded-2xl bg-caution-soft p-3 text-sm font-bold text-caution-foreground">⚠️ Lettura incerta: il risultato verrà mostrato come ATTENZIONE finché il testo non è confermato da una foto più chiara o corretto manualmente.</p>}
       <button type="button" disabled={text.trim().length < 3 || busy !== null} onClick={analyze} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">Analizza ingredienti</button><button type="button" onClick={() => setStep(1)} className="mt-2 py-2 text-sm font-bold text-muted-foreground">Torna alla foto frontale</button>
     </>}
   </div>;
