@@ -1,0 +1,44 @@
+name: Mobile Native Scaffold
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "capacitor.config.ts"
+      - "package.json"
+      - "public/app-icon.svg"
+      - "scripts/mobile-init.mjs"
+      - "scripts/generate-mobile-assets.mjs"
+      - ".github/workflows/mobile-native.yml"
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run mobile:init
+      - run: cd android && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: safe-scan-eats-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+
+  ios-project:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install
+      - run: npm run mobile:init
+      - uses: actions/upload-artifact@v4
+        with:
+          name: safe-scan-eats-ios-project
+          path: ios
