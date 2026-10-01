@@ -81,21 +81,6 @@ export const identifyFront = createServerFn({ method: "POST" })
 export const readLabel = createServerFn({ method: "POST" })
   .inputValidator((d) => ImageInput.parse(d))
   .handler(async ({ data }) => {
-    const out = await askVision(data.image, `Trascrivi fedelmente la lista ingredienti presente nella foto dell'etichetta di un alimento.
-Rispondi SOLO con JSON: {"readable": boolean, "complete": boolean, "confidence": number, "ingredients": string, "traces": string}.
-- "ingredients": il testo completo degli ingredienti così come scritto (tradotto in italiano se in altra lingua), senza inventare nulla.
-- "traces": la frase "può contenere..." se presente, altrimenti "".
-- "complete": true SOLO se TUTTA la lista ingredienti è leggibile in modo continuo e completa. Se anche una sola parte contiene parole spezzate, caratteri casuali, frammenti incomprensibili, testo tagliato o ingredienti dubbi, complete=false.
-- "confidence": numero da 0 a 1 sulla qualità della lettura. Usa valori alti quando la maggior parte della lista è nitida e coerente; abbassa nettamente il punteggio se ci sono frammenti corrotti, parole incerte o testo tagliato.
-Non ricostruire o indovinare parole illeggibili. Se l'etichetta non è leggibile o non contiene ingredienti, readable=false, complete=false e confidence bassa.`);
-    const ingredients = s(out?.["ingredients"]);
-    const confidenceRaw = typeof out?.["confidence"] === "number" ? out["confidence"] : Number(out?.["confidence"]);
-    const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : 0;
-    return {
-      readable: out?.["readable"] === true && ingredients.length > 3,
-      complete: out?.["complete"] === true,
-      confidence,
-      ingredients,
-      traces: s(out?.["traces"]),
-    };
+    const out = await askVision(data.image, `Trascrivi fedelmente la lista ingredienti presente nella foto dell'etichetta di un alimento.\nRispondi SOLO con JSON: {"readable": boolean, "ingredients": string, "traces": string}.\n- "ingredients": il testo completo degli ingredienti così come scritto (tradotto in italiano se in altra lingua), senza inventare nulla.\n- "traces": la frase "può contenere..." se presente, altrimenti "".\nSe l'etichetta non è leggibile o non contiene ingredienti, readable=false.`);
+    return { readable: out?.["readable"] === true && s(out?.["ingredients"]).length > 3, ingredients: s(out?.["ingredients"]), traces: s(out?.["traces"]) };
   });
