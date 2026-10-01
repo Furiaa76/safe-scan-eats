@@ -5,7 +5,7 @@ import { ArrowLeft, Camera, Check, Info, Loader2, ScanSearch, Tag } from "lucide
 import { identifyFront, readLabel } from "@/lib/vision.functions";
 import { fileToDataUrl, saveFrontPhoto } from "@/lib/image";
 
-type IngSearch = { code?: string; name?: string; brand?: string; image?: string };
+type IngSearch = { code?: string; name?: string; brand?: string; image?: string; mode?: "front" | "label" };
 
 export const Route = createFileRoute("/ingredients")({
   validateSearch: (s: Record<string, unknown>): IngSearch => ({
@@ -13,6 +13,7 @@ export const Route = createFileRoute("/ingredients")({
     name: typeof s["name"] === "string" ? s["name"] : undefined,
     brand: typeof s["brand"] === "string" ? s["brand"] : undefined,
     image: typeof s["image"] === "string" ? s["image"] : undefined,
+    mode: s["mode"] === "front" || s["mode"] === "label" ? s["mode"] : undefined,
   }),
   head: () => ({ meta: [{ title: "Fotografa fronte ed etichetta — SafeFood Scan" }, { name: "description", content: "Fotografa il prodotto e la lista ingredienti per controllare gli allergeni." }] }),
   component: GuidedFlow,
@@ -163,7 +164,7 @@ function GuidedFlow() {
   const navigate = useNavigate();
   const identifyFn = useServerFn(identifyFront);
   const readFn = useServerFn(readLabel);
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<0 | 1 | 2>(search.mode === "front" ? 1 : search.mode === "label" ? 2 : 0);
   const [front, setFront] = useState<string | null>(null);
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [name, setName] = useState(search.name ?? "");
@@ -242,9 +243,21 @@ function GuidedFlow() {
 
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
     <header className="flex items-center gap-3"><Link to="/" aria-label="Torna alla home" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-secondary text-secondary-foreground"><ArrowLeft className="h-5 w-5" /></Link><h1 className="truncate text-lg font-extrabold text-foreground">Fotografa il prodotto</h1></header>
-    <ol className="mt-5 grid grid-cols-2 gap-2">{[{ n: 1, t: "Fronte" }, { n: 2, t: "Etichetta ingredienti" }].map((s) => <li key={s.n} className={`flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-bold ${step === s.n ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-background/30 text-xs">{step > s.n ? <Check className="h-3.5 w-3.5" /> : s.n}</span><span className="truncate">{s.t}</span></li>)}</ol>
-    {search.code && <p className="mt-3 text-xs text-muted-foreground">Codice a barre: <span className="font-mono">{search.code}</span></p>}
-    {step === 1 ? <>
+    {step === 0 ? <>
+      <p className="mt-6 text-xl font-extrabold text-foreground">Cosa vuoi fotografare?</p>
+      <p className="mt-1 text-sm text-muted-foreground">Puoi scegliere da dove partire. Se vuoi, puoi sempre passare all’altra foto dopo.</p>
+      <button type="button" onClick={() => { setError(null); setStep(1); }} className="mt-5 flex w-full items-center gap-4 rounded-3xl bg-primary p-5 text-left text-primary-foreground shadow-lg">
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-primary-foreground/20"><ScanSearch className="h-8 w-8" /></div>
+        <div><p className="text-lg font-extrabold">Fotografa il fronte</p><p className="mt-1 text-sm opacity-90">Riconosci prodotto e scritte come “senza glutine”</p></div>
+      </button>
+      <button type="button" onClick={() => { setError(null); setStep(2); }} className="mt-3 flex w-full items-center gap-4 rounded-3xl border-2 border-primary bg-card p-5 text-left text-foreground">
+        <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-secondary"><Camera className="h-8 w-8 text-primary" /></div>
+        <div><p className="text-lg font-extrabold">Fotografa gli ingredienti</p><p className="mt-1 text-sm text-muted-foreground">Vai direttamente alla lista ingredienti</p></div>
+      </button>
+    </> : <>
+      <ol className="mt-5 grid grid-cols-2 gap-2">{[{ n: 1, t: "Fronte" }, { n: 2, t: "Etichetta ingredienti" }].map((s) => <li key={s.n} className={`flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-bold ${step === s.n ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-background/30 text-xs">{step > s.n ? <Check className="h-3.5 w-3.5" /> : s.n}</span><span className="truncate">{s.t}</span></li>)}</ol>
+      {search.code && <p className="mt-3 text-xs text-muted-foreground">Codice a barre: <span className="font-mono">{search.code}</span></p>}
+      {step === 1 ? <>
       <p className="mt-4 text-base font-extrabold text-foreground">1. Fotografa la PARTE FRONTALE del prodotto</p><p className="mt-1 text-sm text-muted-foreground">Ci serve per capire di quale prodotto si tratta e leggere eventuali dichiarazioni esplicite come “senza glutine”.</p>
       <PhotoBox photo={front} busy={busy === "front"} busyText="Leggo il prodotto…" hint="Tocca per fotografare il fronte della confezione" icon={<ScanSearch className="h-14 w-14 text-primary-foreground/80" />} onFile={onFront} />
       {identity && <div className="mt-4 rounded-2xl border border-border bg-card p-4"><p className="text-xs font-bold uppercase text-muted-foreground">{identity.recognized ? "Prodotto riconosciuto" : identity.claims.length ? "Dichiarazioni rilevate" : "Prodotto non riconosciuto"}</p>{identity.recognized && <p className="mt-1 text-base font-extrabold text-foreground">{identity.name}{identity.brand ? ` · ${identity.brand}` : ""}</p>}{identity.category && <p className="text-xs text-muted-foreground">{identity.category}</p>}{identity.claims.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{identity.claims.map((claim) => <span key={claim} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{claim}</span>)}</div>}</div>}
@@ -260,6 +273,7 @@ function GuidedFlow() {
       {error && <p className="mt-3 text-sm font-semibold text-danger">{error}</p>}
       <label className="mt-5 text-sm font-extrabold text-foreground" htmlFor="ing">Ingredienti letti (controlla e correggi)</label><textarea id="ing" value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Es. farina di grano tenero, zucchero, burro, uova…" className="mt-2 rounded-2xl border border-border bg-card p-4 text-base text-foreground outline-none focus:border-primary" />
       <button type="button" disabled={text.trim().length < 3 || busy !== null} onClick={analyze} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">Analizza ingredienti</button><button type="button" onClick={() => setStep(1)} className="mt-2 py-2 text-sm font-bold text-muted-foreground">Torna alla foto frontale</button>
+    </>}
     </>}
   </div>;
 }
