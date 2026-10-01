@@ -155,7 +155,7 @@ export function ResultView({
             <p className="mt-1 text-sm leading-relaxed text-caution-foreground">Per ridurre i dubbi, fotografa il fronte della confezione. L'app proverà a riconoscere dichiarazioni visibili come “senza glutine” o “senza lattosio”.</p>
             <Link
               to="/ingredients"
-              search={{ code: product.code || undefined, name: product.name || undefined, brand: product.brand || undefined, image: product.imageUrl }}
+              search={{ code: product.code || undefined, name: product.name || undefined, brand: product.brand || undefined, image: product.imageUrl, mode: "front" }}
               className="mt-3 flex w-full items-center justify-center rounded-2xl bg-primary px-4 py-3.5 text-base font-extrabold text-primary-foreground"
             >
               Fai una foto del fronte
