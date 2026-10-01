@@ -1,9 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Camera, CreditCard, ExternalLink, Eye, EyeOff, Loader2, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { readHealthCard } from "@/lib/vision.functions";
-import { fileToDataUrl } from "@/lib/image";
 
 export const Route = createFileRoute("/crs")({
   head: () => ({ meta: [{ title: "CRS / Tessera Sanitaria — Safe Scan Eats" }] }),
@@ -79,6 +78,12 @@ function CrsPage() {
   const [scanBusy, setScanBusy] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [cardPhoto, setCardPhoto] = useState<string | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerMessage, setScannerMessage] = useState("Inquadra tutta la CRS");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanTimerRef = useRef<number | null>(null);
+  const scanInFlightRef = useRef(false);
   const readCard = useServerFn(readHealthCard);
 
   useEffect(() => {
@@ -97,26 +102,109 @@ function CrsPage() {
 
   const valid = fiscalCode.length === 16 && lastFive.length === 5;
 
-  const scanCard = async (file?: File) => {
-    if (!file) return;
-    setScanError(null);
+  const stopScanner = () => {
+    if (scanTimerRef.current !== null) {
+      window.clearTimeout(scanTimerRef.current);
+      scanTimerRef.current = null;
+    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    scanInFlightRef.current = false;
+    setScannerOpen(false);
+    setScanBusy(false);
+  };
+
+  const captureVideoFrame = () => {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return null;
+    const max = 1600;
+    const scale = Math.min(1, max / Math.max(video.videoWidth, video.videoHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.88);
+  };
+
+  const scanLiveFrame = async () => {
+    if (!streamRef.current || scanInFlightRef.current) return;
+    const image = captureVideoFrame();
+    if (!image) {
+      scanTimerRef.current = window.setTimeout(scanLiveFrame, 700);
+      return;
+    }
+
+    scanInFlightRef.current = true;
     setScanBusy(true);
+    setScannerMessage("Sto leggendo i dati…");
+
     try {
-      const image = await fileToDataUrl(file, 1800, 0.9);
-      setCardPhoto(image);
       const result = await readCard({ data: { image } });
-      if (!result.readable) throw new Error("not-readable");
-      setHolder(result.holder || "");
-      setFiscalCode(result.fiscalCode || "");
-      setLastFive(result.lastFive || "");
-      setSaved(false);
-      if (!result.lastFive) setScanError("Codice fiscale letto, ma non riesco a leggere il numero tessera. Puoi correggere le ultime 5 cifre qui sotto.");
+
+      if (result.fiscalCode) setFiscalCode(result.fiscalCode);
+      if (result.holder) setHolder(result.holder);
+      if (result.lastFive) setLastFive(result.lastFive);
+
+      if (result.readable && result.fiscalCode.length === 16 && result.lastFive.length === 5) {
+        setCardPhoto(image);
+        setSaved(false);
+        setScanError(null);
+        setScannerMessage("Tessera letta");
+        stopScanner();
+        return;
+      }
+
+      if (result.fiscalCode.length === 16) {
+        setScannerMessage("Codice fiscale letto. Cerco il numero tessera…");
+      } else {
+        setScannerMessage("Inquadra tutta la CRS e tienila ferma");
+      }
     } catch {
-      setScanError("Non riesco a leggere bene la tessera. Riprova con buona luce, senza riflessi e inquadrando tutta la CRS.");
+      setScannerMessage("Avvicina la tessera e riduci i riflessi");
     } finally {
+      scanInFlightRef.current = false;
       setScanBusy(false);
     }
+
+    if (streamRef.current) {
+      scanTimerRef.current = window.setTimeout(scanLiveFrame, 1400);
+    }
   };
+
+  const startScanner = async () => {
+    setScanError(null);
+    setCardPhoto(null);
+    setScannerMessage("Inquadra tutta la CRS");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setScannerOpen(true);
+      requestAnimationFrame(async () => {
+        const video = videoRef.current;
+        if (!video) return;
+        video.srcObject = stream;
+        try { await video.play(); } catch {}
+        scanTimerRef.current = window.setTimeout(scanLiveFrame, 900);
+      });
+    } catch {
+      setScanError("Non riesco ad aprire la fotocamera. Controlla che Safe Scan Eats abbia il permesso Fotocamera.");
+      stopScanner();
+    }
+  };
+
+  useEffect(() => () => {
+    if (scanTimerRef.current !== null) window.clearTimeout(scanTimerRef.current);
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+  }, []);
 
   const save = () => {
     const data: SavedCard = { holder: holder.trim(), fiscalCode, lastFive };
@@ -139,13 +227,24 @@ function CrsPage() {
     <section className="mt-5 rounded-3xl border border-border bg-card p-5">
       <div className="flex items-start gap-3"><CreditCard className="mt-0.5 h-6 w-6 shrink-0 text-primary" /><div><h2 className="font-extrabold text-foreground">La tua tessera</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">Salviamo questi dati solo su questo dispositivo. Non inserire PIN, PUK, SPID o password.</p></div></div>
 
-      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">Fotografa la CRS/Tessera Sanitaria: Safe Scan Eats prova a leggere automaticamente intestatario, codice fiscale e ultime 5 cifre del numero tessera.</p>
+      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">Apri lo scanner e inquadra la CRS. Non devi premere il pulsante di scatto: quando Safe Scan Eats riconosce codice fiscale e numero tessera, cattura automaticamente l’immagine e chiude la fotocamera.</p>
 
-      <label className="relative mt-4 flex aspect-[1.58/1] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-3xl border-2 border-dashed border-primary/40 bg-secondary">
-        {cardPhoto ? <img src={cardPhoto} alt="Anteprima CRS" className="h-full w-full object-cover" /> : <><Camera className="h-12 w-12 text-primary" /><p className="mt-3 px-6 text-center text-sm font-extrabold text-foreground">Tocca qui e inquadra la CRS</p><p className="mt-1 px-6 text-center text-xs text-muted-foreground">Meglio senza riflessi e con tutta la tessera dentro l’inquadratura</p></>}
-        {scanBusy && <div className="absolute inset-0 grid place-items-center bg-foreground/70"><div className="text-center"><Loader2 className="mx-auto h-9 w-9 animate-spin text-primary-foreground" /><p className="mt-2 text-sm font-bold text-primary-foreground">Leggo la tessera…</p></div></div>}
-        <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={scanBusy} onChange={(e) => { scanCard(e.target.files?.[0]); e.target.value = ""; }} />
-      </label>
+      <div className="relative mt-4 aspect-[1.58/1] overflow-hidden rounded-3xl border-2 border-primary/40 bg-foreground">
+        {scannerOpen ? <>
+          <video ref={videoRef} playsInline muted autoPlay className="h-full w-full object-cover" />
+          <div className="pointer-events-none absolute inset-[8%] rounded-2xl border-2 border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,0.28)]" />
+          <div className="absolute inset-x-3 bottom-3 rounded-2xl bg-black/65 px-3 py-2 text-center text-sm font-extrabold text-white">
+            {scanBusy && <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />}{scannerMessage}
+          </div>
+        </> : cardPhoto ? <img src={cardPhoto} alt="CRS acquisita automaticamente" className="h-full w-full object-cover" /> : <button type="button" onClick={startScanner} className="flex h-full w-full flex-col items-center justify-center bg-secondary px-6 text-center">
+          <Camera className="h-12 w-12 text-primary" />
+          <p className="mt-3 text-sm font-extrabold text-foreground">Apri scanner CRS</p>
+          <p className="mt-1 text-xs text-muted-foreground">La foto viene scattata automaticamente quando i dati sono leggibili</p>
+        </button>}
+      </div>
+
+      {scannerOpen && <button type="button" onClick={stopScanner} className="mt-3 w-full rounded-2xl border border-border py-3 text-sm font-extrabold text-foreground">Chiudi scanner</button>}
+      {!scannerOpen && cardPhoto && <button type="button" onClick={startScanner} className="mt-3 w-full rounded-2xl border border-border py-3 text-sm font-extrabold text-foreground">Scansiona di nuovo</button>}
 
       {scanError && <p className="mt-3 text-sm font-semibold text-danger">{scanError}</p>}
 
