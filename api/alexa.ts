@@ -286,6 +286,33 @@ async function addDishToCloud(householdKey: string, dish: string, servings = 4) 
 }
 
 
+function recipeMentionsDish(recipe: string | undefined, dish: string) {
+  if (!recipe) return false;
+  const wanted = cleanDish(dish);
+  return recipe
+    .split("·")
+    .map((part) => cleanDish(part.replace(/\(\d+\s+persone?\)/gi, "")))
+    .some((part) => part === wanted || part.includes(wanted) || wanted.includes(part));
+}
+
+async function shoppingHasDish(householdKey: string, dish: string) {
+  const items = await loadShoppingFromCloud(householdKey);
+  return items.some((item) => recipeMentionsDish(item.recipe, dish));
+}
+
+async function replaceDishInCloud(householdKey: string, dish: string, servings = 4) {
+  const ingredients = await generateIngredients(dish, servings);
+  if (!ingredients) return { ok: false as const, count: 0 };
+
+  const existing = await loadShoppingFromCloud(householdKey);
+  const kept = existing.filter((item) => !recipeMentionsDish(item.recipe, dish));
+  const recipeLabel = servings === 4 ? dish : `${dish} (${servings} persone)`;
+  const merged = mergeItems(kept, ingredients, recipeLabel);
+  await saveShoppingToCloud(householdKey, merged);
+  return { ok: true as const, count: ingredients.length };
+}
+
+
 async function loadShoppingFromCloud(householdKey: string) {
   const rows = await rpc<Array<Record<string, unknown>>>("safe_scan_get_shopping", {
     p_household_key: householdKey,
@@ -506,6 +533,22 @@ export async function POST(request: Request) {
           );
         }
 
+        const alreadyPresent = await shoppingHasDish(household, dish);
+        if (alreadyPresent) {
+          return json(
+            buildAlexaResponse(
+              `${dish} è già presente nella lista. Vuoi aggiungerla a quella esistente oppure sostituirla?`,
+              false,
+              {
+                pendingAction: "duplicateRecipe",
+                householdKey: household,
+                dish,
+                servings,
+              },
+            ),
+          );
+        }
+
         const result = await addDishToCloud(household, dish, servings);
         if (!result.ok) {
           return json(buildAlexaResponse(`Ho capito ${dish}, ma non riesco a creare la lista ingredienti in questo momento.`));
@@ -697,6 +740,76 @@ export async function POST(request: Request) {
       return json(buildAlexaResponse("Va bene.", false));
     }
 
+    if (intent === "AddDuplicateRecipeIntent") {
+      const pendingAction = body.session?.attributes?.["pendingAction"];
+      const householdKey = body.session?.attributes?.["householdKey"];
+      const dish = body.session?.attributes?.["dish"];
+      const servingsValue = body.session?.attributes?.["servings"];
+
+      if (
+        pendingAction === "duplicateRecipe" &&
+        typeof householdKey === "string" &&
+        typeof dish === "string"
+      ) {
+        const servings =
+          typeof servingsValue === "number" && Number.isFinite(servingsValue)
+            ? servingsValue
+            : 4;
+        try {
+          const result = await addDishToCloud(householdKey, dish, servings);
+          if (!result.ok) {
+            return json(buildAlexaResponse("Non sono riuscito ad aggiungere di nuovo la ricetta. Riprova tra poco.", false));
+          }
+          return json(
+            buildAlexaResponse(
+              `Va bene. Ho aggiunto un'altra ${dish} per ${servings} ${servings === 1 ? "persona" : "persone"} alla lista.`,
+              false,
+            ),
+          );
+        } catch (error) {
+          console.error("[Alexa] duplicate recipe add failed", error);
+          return json(buildAlexaResponse("Ho avuto un problema nell'aggiornare la lista. Riprova tra poco.", false));
+        }
+      }
+
+      return json(buildAlexaResponse("Non c'è nessuna ricetta da aggiungere di nuovo.", false));
+    }
+
+    if (intent === "ReplaceDuplicateRecipeIntent") {
+      const pendingAction = body.session?.attributes?.["pendingAction"];
+      const householdKey = body.session?.attributes?.["householdKey"];
+      const dish = body.session?.attributes?.["dish"];
+      const servingsValue = body.session?.attributes?.["servings"];
+
+      if (
+        pendingAction === "duplicateRecipe" &&
+        typeof householdKey === "string" &&
+        typeof dish === "string"
+      ) {
+        const servings =
+          typeof servingsValue === "number" && Number.isFinite(servingsValue)
+            ? servingsValue
+            : 4;
+        try {
+          const result = await replaceDishInCloud(householdKey, dish, servings);
+          if (!result.ok) {
+            return json(buildAlexaResponse("Non sono riuscito a sostituire la ricetta. Riprova tra poco.", false));
+          }
+          return json(
+            buildAlexaResponse(
+              `Fatto. Ho sostituito ${dish} con la versione per ${servings} ${servings === 1 ? "persona" : "persone"}.`,
+              false,
+            ),
+          );
+        } catch (error) {
+          console.error("[Alexa] duplicate recipe replace failed", error);
+          return json(buildAlexaResponse("Ho avuto un problema nell'aggiornare la lista. Riprova tra poco.", false));
+        }
+      }
+
+      return json(buildAlexaResponse("Non c'è nessuna ricetta da sostituire.", false));
+    }
+
     if (intent === "RestoreShoppingItemIntent") {
       const rawItem = (
         body.request?.intent?.slots?.["item"]?.value ??
@@ -733,7 +846,7 @@ export async function POST(request: Request) {
     if (intent === "AMAZON.HelpIntent") {
       return json(
         buildAlexaResponse(
-          "Puoi dirmi: voglio fare la carbonara per due persone, aggiungi latte alla lista, cosa devo comprare, togli il latte dalla lista, segna il latte come comprato, rimetti il latte da comprare, oppure svuota la lista.",
+          "Puoi dirmi: voglio fare la carbonara per due persone, aggiungi latte alla lista, cosa devo comprare, togli il latte dalla lista, segna il latte come comprato, rimetti il latte da comprare, oppure svuota la lista. Se una ricetta è già presente, puoi dire aggiungi oppure sostituisci.",
           false,
         ),
       );
