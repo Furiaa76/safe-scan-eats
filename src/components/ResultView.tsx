@@ -253,7 +253,7 @@ export function Disclaimer({ severe }: { severe: boolean }) {
     <div className="mt-6 rounded-2xl border border-caution/40 bg-caution-soft p-4">
       <div className="flex items-start gap-3">
         <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-caution-foreground" />
-        <p className="text-sm leading-relaxed text-caution-foreground">SafeFood Scan è uno strumento informativo e <strong>non sostituisce il parere medico</strong>. I dati possono essere incompleti o non aggiornati: verifica sempre l'etichetta.{severe && <> <strong>Hai indicato allergie gravi: controlla l'etichetta e contatta il produttore.</strong></>}</p>
+        <p className="text-sm leading-relaxed text-caution-foreground">Safe Scan Eats è uno strumento informativo e <strong>non sostituisce il parere medico</strong>. I dati possono essere incompleti o non aggiornati: verifica sempre l'etichetta.{severe && <> <strong>Hai indicato allergie gravi: controlla l'etichetta e contatta il produttore.</strong></>}</p>
       </div>
     </div>
   );
