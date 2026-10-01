@@ -32,7 +32,7 @@ const VERDICT_STYLE: Record<
     bg: "bg-caution",
     fg: "text-caution-foreground",
     Icon: TriangleAlert,
-    subtitle: "Ci sono dubbi o dati mancanti. Controlla bene l'etichetta.",
+    subtitle: "La lettura non è abbastanza chiara per dare un sì o un no sicuro. Non significa che il prodotto non sia compatibile.",
   },
   avoid: {
     bg: "bg-danger",
