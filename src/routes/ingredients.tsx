@@ -180,10 +180,10 @@ function labelTextLooksReliable(text: string): boolean {
 
   return (
     ingredientSignal &&
-    wordTokens.length >= 8 &&
-    letterRatio >= 0.62 &&
-    singleLetterTokens.length <= Math.max(1, Math.floor(tokens.length * 0.06)) &&
-    noisyTokens.length <= 1
+    wordTokens.length >= 6 &&
+    letterRatio >= 0.56 &&
+    singleLetterTokens.length <= Math.max(2, Math.floor(tokens.length * 0.1)) &&
+    noisyTokens.length <= 2
   );
 }
 
@@ -248,7 +248,7 @@ function GuidedFlow() {
       if (!r.readable) throw new Error("not-readable");
       const combinedText = [r.ingredients, r.traces].filter(Boolean).join(" ");
       setText(combinedText);
-      const reliable = r.complete && r.confidence >= 0.9 && labelTextLooksReliable(combinedText);
+      const reliable = r.complete && r.confidence >= 0.72 && labelTextLooksReliable(combinedText);
       setLabelQuality(reliable ? "good" : "uncertain");
       if (!reliable) {
         setError("La lettura dell'etichetta non è abbastanza affidabile. Controlla il testo qui sotto o rifai la foto più da vicino.");
@@ -261,7 +261,7 @@ function GuidedFlow() {
         const letters = (ocr.match(/[a-zàèéìòù]/gi) ?? []).length;
         const odd = (ocr.match(/[|{}<>\\_^~=]/g) ?? []).length;
         const words = ocr.split(/\s+/).filter((w) => /[a-zàèéìòù]{3,}/i.test(w)).length;
-        const looksReliable = ocr.length >= 55 && letters / Math.max(1, ocr.length) >= 0.62 && odd <= 1 && words >= 8 && labelTextLooksReliable(ocr);
+        const looksReliable = ocr.length >= 45 && letters / Math.max(1, ocr.length) >= 0.56 && odd <= 2 && words >= 6 && labelTextLooksReliable(ocr);
         setLabelQuality(looksReliable ? "good" : "uncertain");
         if (!looksReliable) {
           setError("La lettura OCR è poco chiara. Correggi il testo oppure rifai la foto più da vicino.");
