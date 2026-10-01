@@ -4,7 +4,7 @@ import {
 } from "ask-sdk-express-adapter";
 
 type AlexaRequest = {
-  session?: { user?: { userId?: string } };
+  session?: { user?: { userId?: string }; attributes?: Record<string, unknown> };
   context?: { System?: { user?: { userId?: string } } };
   request?: {
     type?: string;
@@ -27,9 +27,14 @@ type ShoppingItem = {
 const SUPABASE_URL = "https://mqrmdynpcextvjgkkyfj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umpU64DAPwgRiT56fEzvtw_pIo2Wh20";
 
-function buildAlexaResponse(text: string, shouldEndSession = true) {
+function buildAlexaResponse(
+  text: string,
+  shouldEndSession = true,
+  sessionAttributes?: Record<string, unknown>,
+) {
   return {
     version: "1.0",
+    ...(sessionAttributes ? { sessionAttributes } : {}),
     response: {
       outputSpeech: { type: "PlainText", text },
       shouldEndSession,
@@ -642,6 +647,56 @@ export async function POST(request: Request) {
       }
     }
 
+    if (intent === "ClearShoppingListIntent") {
+      try {
+        const household = await getHouseholdKey(alexaUserId);
+        if (!household) {
+          const code = await makePairingCode(alexaUserId);
+          return json(
+            buildAlexaResponse(
+              `Prima devo collegarmi alla tua lista. Apri Safe Scan Eats e inserisci il codice ${code.split("").join(" ")} nella sezione Collega Alexa.`,
+            ),
+          );
+        }
+
+        return json(
+          buildAlexaResponse(
+            "Vuoi davvero svuotare tutta la lista della spesa? Rispondi sì oppure no.",
+            false,
+            { pendingAction: "clearShoppingList", householdKey: household },
+          ),
+        );
+      } catch (error) {
+        console.error("[Alexa] clear confirmation failed", error);
+        return json(buildAlexaResponse("Ho avuto un problema con la lista della spesa. Riprova tra poco."));
+      }
+    }
+
+    if (intent === "AMAZON.YesIntent") {
+      const pendingAction = body.session?.attributes?.["pendingAction"];
+      const householdKey = body.session?.attributes?.["householdKey"];
+
+      if (pendingAction === "clearShoppingList" && typeof householdKey === "string") {
+        try {
+          await saveShoppingToCloud(householdKey, []);
+          return json(buildAlexaResponse("Fatto. Ho svuotato tutta la lista della spesa.", false));
+        } catch (error) {
+          console.error("[Alexa] shopping clear failed", error);
+          return json(buildAlexaResponse("Non sono riuscito a svuotare la lista. Riprova tra poco.", false));
+        }
+      }
+
+      return json(buildAlexaResponse("Non c'è nessuna operazione da confermare.", false));
+    }
+
+    if (intent === "AMAZON.NoIntent") {
+      const pendingAction = body.session?.attributes?.["pendingAction"];
+      if (pendingAction === "clearShoppingList") {
+        return json(buildAlexaResponse("Va bene, non ho cancellato nulla.", false));
+      }
+      return json(buildAlexaResponse("Va bene.", false));
+    }
+
     if (intent === "RestoreShoppingItemIntent") {
       const rawItem = (
         body.request?.intent?.slots?.["item"]?.value ??
@@ -678,7 +733,7 @@ export async function POST(request: Request) {
     if (intent === "AMAZON.HelpIntent") {
       return json(
         buildAlexaResponse(
-          "Puoi dirmi: voglio fare la carbonara per due persone, aggiungi latte alla lista, cosa devo comprare, togli il latte dalla lista, segna il latte come comprato, oppure rimetti il latte da comprare.",
+          "Puoi dirmi: voglio fare la carbonara per due persone, aggiungi latte alla lista, cosa devo comprare, togli il latte dalla lista, segna il latte come comprato, rimetti il latte da comprare, oppure svuota la lista.",
           false,
         ),
       );
