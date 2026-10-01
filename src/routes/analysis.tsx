@@ -13,6 +13,7 @@ type AnalysisSearch = {
   brand?: string | undefined;
   image?: string | undefined;
   claims?: string | undefined;
+  quality?: "good" | "uncertain" | undefined;
 };
 
 export const Route = createFileRoute("/analysis")({
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/analysis")({
     brand: typeof s["brand"] === "string" ? (s["brand"] as string) : undefined,
     image: typeof s["image"] === "string" ? (s["image"] as string) : undefined,
     claims: typeof s["claims"] === "string" ? (s["claims"] as string) : undefined,
+    quality: s["quality"] === "good" || s["quality"] === "uncertain" ? s["quality"] : undefined,
   }),
   head: () => ({ meta: [{ title: "Analisi ingredienti — SafeFood Scan" }, { name: "description", content: "Risultato dell'analisi degli ingredienti fotografati." }] }),
   component: AnalysisPage,
@@ -41,7 +43,7 @@ function claimsToLabelTags(claims?: string): string[] {
 }
 
 function AnalysisPage() {
-  const { text, code, name, brand, image, claims } = Route.useSearch();
+  const { text, code, name, brand, image, claims, quality } = Route.useSearch();
   const profile = useProfile();
   const [photo, setPhoto] = useState<string | undefined>(image);
   useEffect(() => { if (!image) setPhoto(loadFrontPhoto() ?? undefined); }, [image]);
@@ -63,7 +65,19 @@ function AnalysisPage() {
   const sourceText = labelTags.length > 0
     ? "Valutazione basata sugli ingredienti letti dall'etichetta e sulle dichiarazioni esplicite rilevate sul fronte"
     : "Valutazione basata sugli ingredienti letti dall'etichetta";
-  const analysis = { ...base, reasons: [...base.reasons, { level: "info" as const, text: sourceText }] };
+  const uncertainLabel = quality === "uncertain";
+  const analysis = uncertainLabel
+    ? {
+        ...base,
+        verdict: "warning" as const,
+        incomplete: true,
+        reasons: [
+          { level: "warning" as const, text: "Lettura etichetta incompleta o poco affidabile: rifai la foto più da vicino oppure correggi il testo prima di considerare il prodotto compatibile." },
+          ...base.reasons,
+          { level: "info" as const, text: sourceText },
+        ],
+      }
+    : { ...base, reasons: [...base.reasons, { level: "info" as const, text: sourceText }] };
 
   useEffect(() => {
     if (!text) return;
