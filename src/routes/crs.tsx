@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CreditCard, ExternalLink, Eye, EyeOff, Save, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, Camera, CreditCard, ExternalLink, Eye, EyeOff, Loader2, Save, ShieldCheck, Trash2 } from "lucide-react";
+import { readHealthCard } from "@/lib/vision.functions";
+import { fileToDataUrl } from "@/lib/image";
 
 export const Route = createFileRoute("/crs")({
   head: () => ({ meta: [{ title: "CRS / Tessera Sanitaria — Safe Scan Eats" }] }),
@@ -73,6 +76,10 @@ function CrsPage() {
   const [lastFive, setLastFive] = useState("");
   const [saved, setSaved] = useState(false);
   const [showData, setShowData] = useState(true);
+  const [scanBusy, setScanBusy] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [cardPhoto, setCardPhoto] = useState<string | null>(null);
+  const readCard = useServerFn(readHealthCard);
 
   useEffect(() => {
     try {
@@ -89,6 +96,27 @@ function CrsPage() {
   }, []);
 
   const valid = fiscalCode.length === 16 && lastFive.length === 5;
+
+  const scanCard = async (file?: File) => {
+    if (!file) return;
+    setScanError(null);
+    setScanBusy(true);
+    try {
+      const image = await fileToDataUrl(file, 1800, 0.9);
+      setCardPhoto(image);
+      const result = await readCard({ data: { image } });
+      if (!result.readable) throw new Error("not-readable");
+      setHolder(result.holder || "");
+      setFiscalCode(result.fiscalCode || "");
+      setLastFive(result.lastFive || "");
+      setSaved(false);
+      if (!result.lastFive) setScanError("Codice fiscale letto, ma non riesco a leggere il numero tessera. Puoi correggere le ultime 5 cifre qui sotto.");
+    } catch {
+      setScanError("Non riesco a leggere bene la tessera. Riprova con buona luce, senza riflessi e inquadrando tutta la CRS.");
+    } finally {
+      setScanBusy(false);
+    }
+  };
 
   const save = () => {
     const data: SavedCard = { holder: holder.trim(), fiscalCode, lastFive };
@@ -111,17 +139,34 @@ function CrsPage() {
     <section className="mt-5 rounded-3xl border border-border bg-card p-5">
       <div className="flex items-start gap-3"><CreditCard className="mt-0.5 h-6 w-6 shrink-0 text-primary" /><div><h2 className="font-extrabold text-foreground">La tua tessera</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">Salviamo questi dati solo su questo dispositivo. Non inserire PIN, PUK, SPID o password.</p></div></div>
 
-      <label className="mt-5 block text-sm font-extrabold text-foreground">Intestatario</label>
-      <input value={holder} onChange={(e) => setHolder(e.target.value)} placeholder="Es. Giusy" className="mt-2 w-full rounded-2xl border border-border bg-background px-4 py-3.5 text-base outline-none focus:border-primary" />
+      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">Fotografa la CRS/Tessera Sanitaria: Safe Scan Eats prova a leggere automaticamente intestatario, codice fiscale e ultime 5 cifre del numero tessera.</p>
 
-      <label className="mt-4 block text-sm font-extrabold text-foreground">Codice fiscale</label>
-      <input value={fiscalCode} onChange={(e) => setFiscalCode(sanitizeFiscalCode(e.target.value))} autoCapitalize="characters" placeholder="16 caratteri" className="mt-2 w-full rounded-2xl border border-border bg-background px-4 py-3.5 font-mono text-base uppercase outline-none focus:border-primary" />
+      <label className="relative mt-4 flex aspect-[1.58/1] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-3xl border-2 border-dashed border-primary/40 bg-secondary">
+        {cardPhoto ? <img src={cardPhoto} alt="Anteprima CRS" className="h-full w-full object-cover" /> : <><Camera className="h-12 w-12 text-primary" /><p className="mt-3 px-6 text-center text-sm font-extrabold text-foreground">Tocca qui e inquadra la CRS</p><p className="mt-1 px-6 text-center text-xs text-muted-foreground">Meglio senza riflessi e con tutta la tessera dentro l’inquadratura</p></>}
+        {scanBusy && <div className="absolute inset-0 grid place-items-center bg-foreground/70"><div className="text-center"><Loader2 className="mx-auto h-9 w-9 animate-spin text-primary-foreground" /><p className="mt-2 text-sm font-bold text-primary-foreground">Leggo la tessera…</p></div></div>}
+        <input type="file" accept="image/*" capture="environment" className="sr-only" disabled={scanBusy} onChange={(e) => { scanCard(e.target.files?.[0]); e.target.value = ""; }} />
+      </label>
 
-      <label className="mt-4 block text-sm font-extrabold text-foreground">Ultime 5 cifre numero identificativo tessera</label>
-      <input value={lastFive} onChange={(e) => setLastFive(sanitizeLastFive(e.target.value))} inputMode="numeric" placeholder="Es. 12345" className="mt-2 w-full rounded-2xl border border-border bg-background px-4 py-3.5 font-mono text-base outline-none focus:border-primary" />
-      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Sono le ultime 5 cifre del “Numero di identificazione” della TS/CRS, richieste anche da alcuni servizi regionali online.</p>
+      {scanError && <p className="mt-3 text-sm font-semibold text-danger">{scanError}</p>}
 
-      <button type="button" disabled={!valid} onClick={save} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 font-extrabold text-primary-foreground disabled:opacity-40"><Save className="h-5 w-5" />Salva su questo dispositivo</button>
+      {(holder || fiscalCode || lastFive) && <div className="mt-4 rounded-2xl bg-muted p-4">
+        <p className="text-xs font-extrabold uppercase text-muted-foreground">Dati letti automaticamente</p>
+        <p className="mt-2 text-sm font-bold text-foreground">{holder || "Intestatario non letto"}</p>
+        <p className="mt-1 font-mono text-sm font-bold text-foreground">{fiscalCode || "Codice fiscale non letto"}</p>
+        <p className="mt-1 font-mono text-sm font-bold text-foreground">Ultime 5 cifre: {lastFive || "—"}</p>
+      </div>}
+
+      <details className="mt-4 rounded-2xl border border-border bg-background p-4">
+        <summary className="cursor-pointer text-sm font-extrabold text-foreground">Correggi manualmente se serve</summary>
+        <label className="mt-4 block text-sm font-extrabold text-foreground">Intestatario</label>
+        <input value={holder} onChange={(e) => setHolder(e.target.value)} placeholder="Nome e cognome" className="mt-2 w-full rounded-2xl border border-border bg-background px-4 py-3.5 text-base outline-none focus:border-primary" />
+        <label className="mt-4 block text-sm font-extrabold text-foreground">Codice fiscale</label>
+        <input value={fiscalCode} onChange={(e) => setFiscalCode(sanitizeFiscalCode(e.target.value))} autoCapitalize="characters" placeholder="16 caratteri" className="mt-2 w-full rounded-2xl border border-border bg-background px-4 py-3.5 font-mono text-base uppercase outline-none focus:border-primary" />
+        <label className="mt-4 block text-sm font-extrabold text-foreground">Ultime 5 cifre numero tessera</label>
+        <input value={lastFive} onChange={(e) => setLastFive(sanitizeLastFive(e.target.value))} inputMode="numeric" placeholder="Es. 12345" className="mt-2 w-full rounded-2xl border border-border bg-background px-4 py-3.5 font-mono text-base outline-none focus:border-primary" />
+      </details>
+
+      <button type="button" disabled={!valid || scanBusy} onClick={save} className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 font-extrabold text-primary-foreground disabled:opacity-40"><Save className="h-5 w-5" />Salva dati letti su questo dispositivo</button>
     </section>
 
     {saved && valid && <section className="mt-5 rounded-3xl border border-border bg-card p-5">
