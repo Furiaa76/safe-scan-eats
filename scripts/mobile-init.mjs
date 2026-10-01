@@ -10,4 +10,16 @@ run("npm", ["run", "mobile:assets"]);
 run("npx", ["capacitor-assets", "generate"]);
 run("npx", ["cap", "sync"]);
 
+const iosInfoPlist = "ios/App/App/Info.plist";
+if (fs.existsSync(iosInfoPlist)) {
+  let plist = fs.readFileSync(iosInfoPlist, "utf8");
+  if (!plist.includes("<key>NSCameraUsageDescription</key>")) {
+    plist = plist.replace(
+      "</dict>\n</plist>",
+      "\t<key>NSCameraUsageDescription</key>\n\t<string>Safe Scan Eats usa la fotocamera per scansionare codici a barre, confezioni e ingredienti dei prodotti.</string>\n</dict>\n</plist>"
+    );
+    fs.writeFileSync(iosInfoPlist, plist);
+  }
+}
+
 console.log("Native iOS and Android projects are ready.");
