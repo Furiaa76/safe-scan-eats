@@ -158,6 +158,35 @@ async function localFrontOcr(image: string): Promise<string[]> {
   }
 }
 
+function labelTextLooksReliable(text: string): boolean {
+  const value = text.trim();
+  if (value.length < 55) return false;
+
+  const normalized = value
+    .toLocaleLowerCase("it-IT")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, " ");
+
+  const tokens = normalized.split(/\s+/).filter(Boolean);
+  const wordTokens = tokens.filter((token) => /[a-z]{3,}/i.test(token));
+  const singleLetterTokens = tokens.filter((token) => /^[a-z]$/i.test(token));
+  const noisyTokens = tokens.filter((token) => /[{}<>|\\_^~=]|^[^a-z0-9]+$/i.test(token));
+  const letterCount = (normalized.match(/[a-z]/gi) ?? []).length;
+  const letterRatio = letterCount / Math.max(1, normalized.length);
+
+  const ingredientSignal =
+    /ingredient/i.test(normalized) ||
+    /(zucchero|sale|latte|farina|olio|burro|uova|yogurt|cacao|aroma|acqua|frutta|pesca|pomodoro|riso|mais|soia)/i.test(normalized);
+
+  return (
+    ingredientSignal &&
+    wordTokens.length >= 8 &&
+    letterRatio >= 0.62 &&
+    singleLetterTokens.length <= Math.max(1, Math.floor(tokens.length * 0.06)) &&
+    noisyTokens.length <= 1
+  );
+}
+
 function GuidedFlow() {
   const search = Route.useSearch();
   const navigate = useNavigate();
@@ -217,9 +246,11 @@ function GuidedFlow() {
     try {
       const r = await readFn({ data: { image: dataUrl } });
       if (!r.readable) throw new Error("not-readable");
-      setText([r.ingredients, r.traces].filter(Boolean).join(" "));
-      setLabelQuality(r.complete && r.confidence >= 0.75 ? "good" : "uncertain");
-      if (!r.complete || r.confidence < 0.75) {
+      const combinedText = [r.ingredients, r.traces].filter(Boolean).join(" ");
+      setText(combinedText);
+      const reliable = r.complete && r.confidence >= 0.9 && labelTextLooksReliable(combinedText);
+      setLabelQuality(reliable ? "good" : "uncertain");
+      if (!reliable) {
         setError("La lettura dell'etichetta non è abbastanza affidabile. Controlla il testo qui sotto o rifai la foto più da vicino.");
       }
     } catch {
@@ -230,7 +261,7 @@ function GuidedFlow() {
         const letters = (ocr.match(/[a-zàèéìòù]/gi) ?? []).length;
         const odd = (ocr.match(/[|{}<>\\_^~=]/g) ?? []).length;
         const words = ocr.split(/\s+/).filter((w) => /[a-zàèéìòù]{3,}/i.test(w)).length;
-        const looksReliable = ocr.length >= 45 && letters / Math.max(1, ocr.length) >= 0.55 && odd <= 2 && words >= 6;
+        const looksReliable = ocr.length >= 55 && letters / Math.max(1, ocr.length) >= 0.62 && odd <= 1 && words >= 8 && labelTextLooksReliable(ocr);
         setLabelQuality(looksReliable ? "good" : "uncertain");
         if (!looksReliable) {
           setError("La lettura OCR è poco chiara. Correggi il testo oppure rifai la foto più da vicino.");
@@ -272,7 +303,7 @@ function GuidedFlow() {
       {identity?.claims?.length ? <div className="mt-3 flex flex-wrap gap-2">{identity.claims.map((claim) => <span key={claim} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{claim}</span>)}</div> : null}
       <PhotoBox photo={label} busy={busy === "label"} busyText="Leggo gli ingredienti…" hint="Tocca per fotografare la lista ingredienti" icon={<Camera className="h-14 w-14 text-primary-foreground/80" />} onFile={onLabel} />
       {error && <p className="mt-3 text-sm font-semibold text-danger">{error}</p>}
-      <label className="mt-5 text-sm font-extrabold text-foreground" htmlFor="ing">Ingredienti letti (controlla e correggi)</label><textarea id="ing" value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Es. farina di grano tenero, zucchero, burro, uova…" className="mt-2 rounded-2xl border border-border bg-card p-4 text-base text-foreground outline-none focus:border-primary" />
+      <label className="mt-5 text-sm font-extrabold text-foreground" htmlFor="ing">Ingredienti letti (controlla e correggi)</label><textarea id="ing" value={text} onChange={(e) => { const next = e.target.value; setText(next); setLabelQuality(labelTextLooksReliable(next) ? "good" : "uncertain"); }} rows={6} placeholder="Es. farina di grano tenero, zucchero, burro, uova…" className="mt-2 rounded-2xl border border-border bg-card p-4 text-base text-foreground outline-none focus:border-primary" />
       {text.trim().length >= 3 && labelQuality === "uncertain" && <p className="mt-3 rounded-2xl bg-caution-soft p-3 text-sm font-bold text-caution-foreground">⚠️ Lettura incerta: il risultato verrà mostrato come ATTENZIONE finché il testo non è confermato da una foto più chiara o corretto manualmente.</p>}
       <button type="button" disabled={text.trim().length < 3 || busy !== null} onClick={analyze} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">Analizza ingredienti</button><button type="button" onClick={() => setStep(1)} className="mt-2 py-2 text-sm font-bold text-muted-foreground">Torna alla foto frontale</button>
     </>}
