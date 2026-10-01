@@ -86,7 +86,7 @@ Rispondi SOLO con JSON: {"readable": boolean, "complete": boolean, "confidence":
 - "ingredients": il testo completo degli ingredienti così come scritto (tradotto in italiano se in altra lingua), senza inventare nulla.
 - "traces": la frase "può contenere..." se presente, altrimenti "".
 - "complete": true SOLO se TUTTA la lista ingredienti è leggibile in modo continuo e completa. Se anche una sola parte contiene parole spezzate, caratteri casuali, frammenti incomprensibili, testo tagliato o ingredienti dubbi, complete=false.
-- "confidence": numero da 0 a 1 sulla qualità della lettura. Usa >=0.9 solo per testo nitido e integralmente leggibile; se ci sono frammenti corrotti o parole incerte usa <=0.6.
+- "confidence": numero da 0 a 1 sulla qualità della lettura. Usa valori alti quando la maggior parte della lista è nitida e coerente; abbassa nettamente il punteggio se ci sono frammenti corrotti, parole incerte o testo tagliato.
 Non ricostruire o indovinare parole illeggibili. Se l'etichetta non è leggibile o non contiene ingredienti, readable=false, complete=false e confidence bassa.`);
     const ingredients = s(out?.["ingredients"]);
     const confidenceRaw = typeof out?.["confidence"] === "number" ? out["confidence"] : Number(out?.["confidence"]);
