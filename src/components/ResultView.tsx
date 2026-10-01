@@ -94,7 +94,8 @@ export function ResultView({
     : profile
       ? `${style.subtitle} Profilo: ${profile.name}.`
       : style.subtitle;
-  const shouldAskForFrontPhoto = !freeMode && analysis.verdict === "warning" && analysis.incomplete;
+  const shouldAskForFrontPhoto = !freeMode && product.source === "off" && analysis.verdict === "warning" && analysis.incomplete;
+  const shouldRetakeLabelPhoto = !freeMode && product.source === "manual" && analysis.verdict === "warning" && analysis.incomplete;
   const ssn = assessSsnCeliac(product);
   const checkSsnRegistryFn = useServerFn(checkSsnRegistry);
   const { data: registryCheck, isFetching: registryChecking } = useQuery({
@@ -168,6 +169,20 @@ export function ResultView({
           >
             {shouldSuggestAlternatives ? "Trova un’alternativa sicura" : "Controlla gli ingredienti"}
           </a>
+        )}
+
+        {shouldRetakeLabelPhoto && (
+          <section className="mt-5 rounded-2xl border border-caution/40 bg-caution-soft p-4">
+            <h2 className="text-base font-extrabold text-caution-foreground">Lettura etichetta incerta</h2>
+            <p className="mt-1 text-sm leading-relaxed text-caution-foreground">Non posso darti un “Va bene per te” affidabile con una lettura incompleta. Rifai la foto più vicino, con buona luce e tutta la lista ingredienti a fuoco.</p>
+            <Link
+              to="/ingredients"
+              search={{ code: product.code || undefined, name: product.name || undefined, brand: product.brand || undefined, image: product.imageUrl }}
+              className="mt-3 flex w-full items-center justify-center rounded-2xl bg-primary px-4 py-3.5 text-base font-extrabold text-primary-foreground"
+            >
+              Rifai foto etichetta
+            </Link>
+          </section>
         )}
 
         {shouldAskForFrontPhoto && (
