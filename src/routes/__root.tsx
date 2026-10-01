@@ -54,20 +54,8 @@ function RootComponent() {
       return;
     }
 
-    // Su iOS l'app può essere sospesa e poi riaperta sulla vecchia schermata.
-    let hiddenAt = 0;
-    const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        hiddenAt = Date.now();
-        return;
-      }
-      if (document.visibilityState === "visible" && hiddenAt && Date.now() - hiddenAt > 1500) {
-        resetToHome();
-      }
-    };
-
-    document.addEventListener("visibilitychange", onVisibilityChange);
-    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+    // Se l'app va semplicemente in background, mantieni la schermata corrente.
+    // Il ritorno alla home avviene solo su un nuovo avvio standalone.
   }, []);
 
   return <QueryClientProvider client={queryClient}><Outlet /></QueryClientProvider>;
