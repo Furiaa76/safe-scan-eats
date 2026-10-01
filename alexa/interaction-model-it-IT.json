@@ -9,6 +9,10 @@
             {
               "name": "dish",
               "type": "AMAZON.SearchQuery"
+            },
+            {
+              "name": "servings",
+              "type": "AMAZON.NUMBER"
             }
           ],
           "samples": [
@@ -24,7 +28,18 @@
             "stasera voglio fare {dish}",
             "voglio preparare {dish}",
             "vorrei preparare {dish}",
-            "aggiungi alla lista gli ingredienti per {dish}"
+            "voglio cucinare {dish}",
+            "vorrei cucinare {dish}",
+            "devo fare {dish}",
+            "devo preparare {dish}",
+            "mi servono gli ingredienti per {dish}",
+            "dimmi gli ingredienti per {dish}",
+            "aggiungi alla lista gli ingredienti per {dish}",
+            "voglio fare {dish} per {servings} persone",
+            "voglio preparare {dish} per {servings} persone",
+            "fammi la lista per {dish} per {servings} persone",
+            "prepara la lista della spesa per {dish} per {servings} persone",
+            "mi servono gli ingredienti per {dish} per {servings} persone"
           ]
         },
         {
