@@ -17,6 +17,7 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as ProductCodeRouteImport } from './routes/product.$code'
 import { Route as ShoppingRouteImport } from './routes/shopping'
 import { Route as CrsRouteImport } from './routes/crs'
+import { Route as StoresRouteImport } from './routes/stores'
 
 const IndexRoute = IndexRouteImport.update({ id: '/', path: '/', getParentRoute: () => rootRouteImport } as any)
 const AnalysisRoute = AnalysisRouteImport.update({ id: '/analysis', path: '/analysis', getParentRoute: () => rootRouteImport } as any)
@@ -27,6 +28,7 @@ const SearchRoute = SearchRouteImport.update({ id: '/search', path: '/search', g
 const ProductCodeRoute = ProductCodeRouteImport.update({ id: '/product/$code', path: '/product/$code', getParentRoute: () => rootRouteImport } as any)
 const ShoppingRoute = ShoppingRouteImport.update({ id: '/shopping', path: '/shopping', getParentRoute: () => rootRouteImport } as any)
 const CrsRoute = CrsRouteImport.update({ id: '/crs', path: '/crs', getParentRoute: () => rootRouteImport } as any)
+const StoresRoute = StoresRouteImport.update({ id: '/stores', path: '/stores', getParentRoute: () => rootRouteImport } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -38,6 +40,7 @@ export interface FileRoutesByFullPath {
   '/product/$code': typeof ProductCodeRoute
   '/shopping': typeof ShoppingRoute
   '/crs': typeof CrsRoute
+  '/stores': typeof StoresRoute
 }
 export interface FileRoutesByTo extends FileRoutesByFullPath {}
 export interface FileRoutesById {
@@ -50,13 +53,14 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/product/$code': typeof ProductCodeRoute
   '/crs': typeof CrsRoute
+  '/stores': typeof StoresRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/analysis' | '/history' | '/ingredients' | '/scan' | '/search' | '/product/$code' | '/shopping' | '/crs'
+  fullPaths: '/' | '/analysis' | '/history' | '/ingredients' | '/scan' | '/search' | '/product/$code' | '/shopping' | '/crs' | '/stores'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/analysis' | '/history' | '/ingredients' | '/scan' | '/search' | '/product/$code' | '/shopping' | '/crs'
-  id: '__root__' | '/' | '/analysis' | '/history' | '/ingredients' | '/scan' | '/search' | '/product/$code' | '/shopping' | '/crs'
+  to: '/' | '/analysis' | '/history' | '/ingredients' | '/scan' | '/search' | '/product/$code' | '/shopping' | '/crs' | '/stores'
+  id: '__root__' | '/' | '/analysis' | '/history' | '/ingredients' | '/scan' | '/search' | '/product/$code' | '/shopping' | '/crs' | '/stores'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -69,6 +73,7 @@ export interface RootRouteChildren {
   ProductCodeRoute: typeof ProductCodeRoute
   ShoppingRoute: typeof ShoppingRoute
   CrsRoute: typeof CrsRoute
+  StoresRoute: typeof StoresRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +87,7 @@ declare module '@tanstack/react-router' {
     '/product/$code': { id: '/product/$code'; path: '/product/$code'; fullPath: '/product/$code'; preLoaderRoute: typeof ProductCodeRouteImport; parentRoute: typeof rootRouteImport }
     '/shopping': { id: '/shopping'; path: '/shopping'; fullPath: '/shopping'; preLoaderRoute: typeof ShoppingRouteImport; parentRoute: typeof rootRouteImport }
     '/crs': { id: '/crs'; path: '/crs'; fullPath: '/crs'; preLoaderRoute: typeof CrsRouteImport; parentRoute: typeof rootRouteImport }
+    '/stores': { id: '/stores'; path: '/stores'; fullPath: '/stores'; preLoaderRoute: typeof StoresRouteImport; parentRoute: typeof rootRouteImport }
   }
 }
 
@@ -95,6 +101,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProductCodeRoute,
   ShoppingRoute,
   CrsRoute,
+  StoresRoute,
 }
 export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>()
 
