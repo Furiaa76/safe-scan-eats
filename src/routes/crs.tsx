@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Camera, CreditCard, ExternalLink, Eye, EyeOff, Loader2, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { readHealthCard } from "@/lib/vision.functions";
+import { fileToDataUrl } from "@/lib/image";
 
 export const Route = createFileRoute("/crs")({
   head: () => ({ meta: [{ title: "CRS / Tessera Sanitaria — Safe Scan Eats" }] }),
@@ -84,6 +85,7 @@ function CrsPage() {
   const streamRef = useRef<MediaStream | null>(null);
   const scanTimerRef = useRef<number | null>(null);
   const scanInFlightRef = useRef(false);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const fiscalRef = useRef("");
   const lastFiveRef = useRef("");
   const holderRef = useRef("");
@@ -189,6 +191,32 @@ function CrsPage() {
     }
   };
 
+  const scanFallbackPhoto = async (file?: File) => {
+    if (!file) return;
+    setScanError(null);
+    setScanBusy(true);
+    try {
+      const image = await fileToDataUrl(file, 1800, 0.9);
+      setCardPhoto(image);
+      const result = await readCard({ data: { image } });
+      if (result.holder) setHolder(result.holder);
+      if (result.fiscalCode) setFiscalCode(result.fiscalCode);
+      if (result.lastFive) setLastFive(result.lastFive);
+      if (!result.readable) {
+        setScanError("La fotocamera si è aperta, ma non riesco a leggere bene i dati. Riprova senza riflessi e con tutta la tessera nell’inquadratura.");
+      }
+    } catch {
+      setScanError("Non riesco a leggere la foto della CRS. Riprova.");
+    } finally {
+      setScanBusy(false);
+    }
+  };
+
+  const openNativeCameraFallback = () => {
+    setScannerOpen(false);
+    cameraInputRef.current?.click();
+  };
+
   const startScanner = async () => {
     setScanError(null);
     setCardPhoto(null);
@@ -198,6 +226,10 @@ function CrsPage() {
     holderRef.current = "";
     frontPhotoRef.current = null;
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        openNativeCameraFallback();
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: { ideal: "environment" },
@@ -209,8 +241,9 @@ function CrsPage() {
       streamRef.current = stream;
       setScannerOpen(true);
     } catch {
-      setScanError("Non riesco ad aprire la fotocamera. Controlla che Safe Scan Eats abbia il permesso Fotocamera.");
       stopScanner();
+      setScanError("Lo scanner continuo non è disponibile su questo iPhone/browser. Apro la fotocamera del telefono.");
+      window.setTimeout(openNativeCameraFallback, 50);
     }
   };
 
@@ -254,6 +287,7 @@ function CrsPage() {
 
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">Apri lo scanner e inquadra prima il fronte della CRS. Quando legge il codice fiscale te lo conferma; poi giri la tessera e inquadri il retro. Appena ha letto anche il numero tessera, acquisisce tutto automaticamente e chiude la fotocamera.</p>
 
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => { scanFallbackPhoto(e.target.files?.[0]); e.target.value = ""; }} />
       <div className="relative mt-4 aspect-[1.58/1] overflow-hidden rounded-3xl border-2 border-primary/40 bg-foreground">
         {scannerOpen ? <>
           <video ref={videoRef} playsInline muted autoPlay className="h-full w-full object-cover" />
@@ -270,6 +304,7 @@ function CrsPage() {
 
       {scannerOpen && <button type="button" onClick={stopScanner} className="mt-3 w-full rounded-2xl border border-border py-3 text-sm font-extrabold text-foreground">Chiudi scanner</button>}
       {!scannerOpen && cardPhoto && <button type="button" onClick={startScanner} className="mt-3 w-full rounded-2xl border border-border py-3 text-sm font-extrabold text-foreground">Scansiona di nuovo</button>}
+      {!scannerOpen && <button type="button" onClick={openNativeCameraFallback} className="mt-2 w-full rounded-2xl border border-border py-3 text-sm font-extrabold text-foreground">Apri fotocamera del telefono</button>}
 
       {scanError && <p className="mt-3 text-sm font-semibold text-danger">{scanError}</p>}
 
