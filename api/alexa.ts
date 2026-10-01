@@ -1,3 +1,4 @@
+import { generateText } from "ai";
 import {
   SkillRequestSignatureVerifier,
   TimestampVerifier,
@@ -194,63 +195,31 @@ async function generateIngredients(dish: string, servings = 4) {
     }));
   }
 
-  const gatewayKey = process.env["AI_GATEWAY_API_KEY"] || process.env["VERCEL_OIDC_TOKEN"];
-  if (!gatewayKey) {
-    console.error("[Alexa] AI Gateway key missing");
-    return null;
-  }
-
-  let response: Response;
   try {
-    response = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${gatewayKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3.6-flash",
-        models: ["openai/gpt-5.6-sol", "anthropic/claude-fable-5"],
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              'Sei il motore ricette di Safe Scan Eats. Ricevi il nome libero di QUALSIASI piatto, dolce, torta, ricetta regionale o internazionale e il numero di persone. Crea la lista della spesa essenziale per prepararlo. Non rinominare il piatto e non sostituirlo con un altro. Se esistono varianti, usa la versione italiana/classica più comune. Rispondi SOLO JSON nel formato {"ingredients":[{"name":string,"quantity":string}]}. Usa nomi e quantità in italiano.',
-          },
-          { role: "user", content: `Piatto richiesto esattamente: ${dish}\nPersone: ${servings}` },
-        ],
-      }),
+    const { text } = await generateText({
+      model: "google/gemini-3.6-flash",
+      system:
+        'Sei il motore ricette di Safe Scan Eats. Ricevi il nome libero di QUALSIASI piatto, dolce, torta, ricetta regionale o internazionale e il numero di persone. Crea la lista della spesa essenziale per prepararlo. Non rinominare il piatto e non sostituirlo con un altro. Se esistono varianti, usa la versione italiana/classica più comune. Rispondi SOLO JSON nel formato {"ingredients":[{"name":string,"quantity":string}]}. Usa nomi e quantità in italiano.',
+      prompt: `Piatto richiesto esattamente: ${dish}\nPersone: ${servings}`,
     });
-  } catch (error) {
-    console.error("[Alexa] AI Gateway request failed", error);
-    return null;
-  }
 
-  if (!response.ok) {
-    console.error("[Alexa] AI Gateway error", response.status, await response.text());
-    return null;
-  }
+    const parsed = JSON.parse(
+      text.replace(/^\`\`\`(json)?/i, "").replace(/\`\`\`$/, "").trim(),
+    ) as { ingredients?: Array<{ name?: unknown; quantity?: unknown }> };
 
-  let parsed: { ingredients?: Array<{ name?: unknown; quantity?: unknown }> };
-  try {
-    const result = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-    const raw = result.choices?.[0]?.message?.content ?? "";
-    parsed = JSON.parse(raw.replace(/^\`\`\`(json)?/i, "").replace(/\`\`\`$/, "").trim()) as {
-      ingredients?: Array<{ name?: unknown; quantity?: unknown }>;
-    };
+    const ingredients = (parsed.ingredients ?? [])
+      .map((item) => ({
+        name: typeof item.name === "string" ? item.name.trim() : "",
+        quantity: typeof item.quantity === "string" ? item.quantity.trim() : "1",
+      }))
+      .filter((item) => item.name)
+      .slice(0, 30);
+
+    return ingredients.length ? ingredients : null;
   } catch (error) {
-    console.error("[Alexa] AI recipe parse failed", error);
+    console.error("[Alexa] AI recipe generation failed", error);
     return null;
   }
-  const ingredients = (parsed.ingredients ?? [])
-    .map((item) => ({
-      name: typeof item.name === "string" ? item.name.trim() : "",
-      quantity: typeof item.quantity === "string" ? item.quantity.trim() : "1",
-    }))
-    .filter((item) => item.name)
-    .slice(0, 30);
-  return ingredients.length ? ingredients : null;
 }
 
 function normalizeName(name: string) {
