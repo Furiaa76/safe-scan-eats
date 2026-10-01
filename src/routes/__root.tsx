@@ -8,9 +8,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
-      { title: "SafeFood Scan — Controlla allergeni e intolleranze" },
+      { title: "Safe Scan Eats — Controlla allergeni e intolleranze" },
       { name: "description", content: "Scansiona i prodotti e scopri subito se sono compatibili con le tue intolleranze e allergie alimentari." },
-      { property: "og:title", content: "SafeFood Scan — Controlla allergeni e intolleranze" },
+      { property: "og:title", content: "Safe Scan Eats — Controlla allergeni e intolleranze" },
       { property: "og:description", content: "Scansiona i prodotti e scopri subito se sono compatibili con le tue intolleranze e allergie alimentari." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
