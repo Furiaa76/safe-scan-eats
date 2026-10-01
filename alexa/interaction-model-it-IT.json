@@ -9,38 +9,139 @@
             {
               "name": "dish",
               "type": "AMAZON.SearchQuery"
-            },
-            {
-              "name": "servings",
-              "type": "AMAZON.NUMBER"
             }
           ],
           "samples": [
-            "preparare la lista per {dish}",
-            "preparami la lista per {dish}",
-            "prepara la lista per {dish}",
-            "preparami la lista della spesa per {dish}",
-            "prepara la lista della spesa per {dish}",
-            "fammi la lista per {dish}",
-            "fammi la lista della spesa per {dish}",
             "voglio fare {dish}",
             "vorrei fare {dish}",
-            "stasera voglio fare {dish}",
             "voglio preparare {dish}",
             "vorrei preparare {dish}",
             "voglio cucinare {dish}",
             "vorrei cucinare {dish}",
             "devo fare {dish}",
             "devo preparare {dish}",
+            "preparami la lista per {dish}",
+            "prepara la lista per {dish}",
+            "fammi la lista per {dish}",
+            "fammi la lista della spesa per {dish}",
+            "prepara la lista della spesa per {dish}",
             "mi servono gli ingredienti per {dish}",
             "dimmi gli ingredienti per {dish}",
+            "quali ingredienti servono per {dish}",
+            "cosa serve per fare {dish}",
+            "aggiungi gli ingredienti per {dish}",
             "aggiungi alla lista gli ingredienti per {dish}",
-            "voglio fare {dish} per {servings} persone",
-            "voglio preparare {dish} per {servings} persone",
-            "fammi la lista per {dish} per {servings} persone",
-            "prepara la lista della spesa per {dish} per {servings} persone",
-            "mi servono gli ingredienti per {dish} per {servings} persone"
+            "stasera voglio fare {dish}"
           ]
+        },
+        {
+          "name": "AddShoppingItemIntent",
+          "slots": [
+            {
+              "name": "item",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "aggiungi {item}",
+            "aggiungi {item} alla lista",
+            "metti {item} nella lista",
+            "metti {item} nella lista della spesa",
+            "devo comprare {item}"
+          ]
+        },
+        {
+          "name": "ReadShoppingListIntent",
+          "slots": [],
+          "samples": [
+            "leggi la lista",
+            "leggi la lista della spesa",
+            "cosa devo comprare",
+            "cosa c'è nella lista",
+            "dimmi la lista della spesa"
+          ]
+        },
+        {
+          "name": "RemoveShoppingItemIntent",
+          "slots": [
+            {
+              "name": "item",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "togli {item}",
+            "elimina {item}",
+            "rimuovi {item}",
+            "togli {item} dalla lista",
+            "elimina {item} dalla lista della spesa"
+          ]
+        },
+        {
+          "name": "MarkShoppingItemPurchasedIntent",
+          "slots": [
+            {
+              "name": "item",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "segna {item} come comprato",
+            "ho comprato {item}",
+            "metti {item} tra gli acquistati"
+          ]
+        },
+        {
+          "name": "RestoreShoppingItemIntent",
+          "slots": [
+            {
+              "name": "item",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "rimetti {item} da comprare",
+            "rimetti {item} nella lista",
+            "segna {item} come da comprare"
+          ]
+        },
+        {
+          "name": "ClearShoppingListIntent",
+          "slots": [],
+          "samples": [
+            "svuota la lista",
+            "svuota la lista della spesa",
+            "cancella tutta la lista",
+            "elimina tutta la lista"
+          ]
+        },
+        {
+          "name": "AddDuplicateRecipeIntent",
+          "slots": [],
+          "samples": [
+            "aggiungi",
+            "aggiungila",
+            "aggiungi comunque",
+            "aggiungila di nuovo"
+          ]
+        },
+        {
+          "name": "ReplaceDuplicateRecipeIntent",
+          "slots": [],
+          "samples": [
+            "sostituisci",
+            "sostituiscila",
+            "rimpiazza",
+            "rimpiazzala"
+          ]
+        },
+        {
+          "name": "AMAZON.YesIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NoIntent",
+          "samples": []
         },
         {
           "name": "AMAZON.HelpIntent",
