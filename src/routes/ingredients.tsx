@@ -160,7 +160,7 @@ async function localFrontOcr(image: string): Promise<string[]> {
 
 function labelTextLooksReliable(text: string): boolean {
   const value = text.trim();
-  if (value.length < 55) return false;
+  if (value.length < 45) return false;
 
   const normalized = value
     .toLocaleLowerCase("it-IT")
