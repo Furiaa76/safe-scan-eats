@@ -342,7 +342,7 @@ function CrsPage() {
         </> : cardPhoto ? <img src={cardPhoto} alt="CRS acquisita automaticamente" className="h-full w-full object-cover" /> : <button type="button" onClick={startScanner} className="flex h-full w-full flex-col items-center justify-center bg-secondary px-6 text-center">
           <Camera className="h-12 w-12 text-primary" />
           <p className="mt-3 text-sm font-extrabold text-foreground">Apri scanner CRS</p>
-          <p className="mt-1 text-xs text-muted-foreground">La foto viene scattata automaticamente quando i dati sono leggibili</p>
+          <p className="mt-1 text-xs text-muted-foreground">La foto viene scattata automaticamente quando i dati sono leggibili · OCR locale attivo</p>
         </button>}
       </div>
 
