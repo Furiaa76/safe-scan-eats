@@ -79,6 +79,18 @@ export async function saveCloudShopping(items: ShoppingItem[]) {
   return true;
 }
 
+export async function clearCloudShopping() {
+  const client = getClient();
+  const householdKey = getHouseholdKey();
+  if (!client || !householdKey) return false;
+
+  const { error } = await client.rpc("safe_scan_replace_shopping", {
+    p_household_key: householdKey,
+    p_items: [],
+  });
+  if (error) throw error;
+  return true;
+}
 
 export async function linkAlexaPairingCode(code: string) {
   const client = getClient();
