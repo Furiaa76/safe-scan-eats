@@ -9,16 +9,16 @@ import { addProfile, enableFreeMode, removeProfile, saveProfile, setActiveProfil
 export const Route = createFileRoute("/")({
   server: { handlers: { POST: async ({ request }) => handleAlexaRequest(request) } },
   head: () => ({ meta: [
-    { title: "SafeFood Scan — Controlla allergeni e intolleranze" },
+    { title: "Safe Scan Eats — Controlla allergeni e intolleranze" },
     { name: "description", content: "Scansiona i prodotti e scopri subito se sono compatibili con le tue intolleranze e allergie alimentari." },
-    { property: "og:title", content: "SafeFood Scan" },
+    { property: "og:title", content: "Safe Scan Eats" },
     { property: "og:description", content: "Scopri subito se un prodotto è compatibile con le tue allergie e intolleranze." },
   ]}),
   component: Index,
 });
 
 function Disclaimer() {
-  return <div className="rounded-2xl border border-caution/40 bg-caution-soft p-4"><div className="flex items-start gap-3"><ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-caution-foreground" /><p className="text-sm leading-relaxed text-caution-foreground"><strong>Importante:</strong> SafeFood Scan è uno strumento informativo e <strong>non sostituisce il parere medico</strong>. In caso di allergie gravi, verifica sempre l'etichetta del prodotto e contatta il produttore.</p></div></div>;
+  return <div className="rounded-2xl border border-caution/40 bg-caution-soft p-4"><div className="flex items-start gap-3"><ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-caution-foreground" /><p className="text-sm leading-relaxed text-caution-foreground"><strong>Importante:</strong> Safe Scan Eats è uno strumento informativo e <strong>non sostituisce il parere medico</strong>. In caso di allergie gravi, verifica sempre l'etichetta del prodotto e contatta il produttore.</p></div></div>;
 }
 
 function ProfileForm({ adding = false, onCancel }: { adding?: boolean; onCancel?: () => void }) {
@@ -36,7 +36,7 @@ function ProfileForm({ adding = false, onCancel }: { adding?: boolean; onCancel?
   const free = () => { enableFreeMode(); onCancel?.(); navigate({ to: "/", replace: true }); };
 
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-8">
-    <div className="flex items-center gap-3"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"><Salad className="h-6 w-6" /></div><div className="min-w-0"><h1 className="truncate text-2xl font-black text-foreground">SafeFood Scan</h1><p className="text-sm text-muted-foreground">Mangia sereno, in un tocco.</p></div></div>
+    <div className="flex items-center gap-3"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"><Salad className="h-6 w-6" /></div><div className="min-w-0"><h1 className="truncate text-2xl font-black text-foreground">Safe Scan Eats</h1><p className="text-sm text-muted-foreground">Mangia sereno, in un tocco.</p></div></div>
     <h2 className="mt-8 text-xl font-extrabold text-foreground">{adding ? "Aggiungi un profilo" : "Ciao! Come ti chiami?"}</h2>
     <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome del profilo" className="mt-3 w-full rounded-2xl border border-input bg-card px-4 py-3.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
     <h2 className="mt-8 text-xl font-extrabold text-foreground">Cosa deve evitare?</h2><p className="mt-1 text-sm text-muted-foreground">Seleziona intolleranze e allergie. Il profilo verrà usato automaticamente nelle analisi.</p>
