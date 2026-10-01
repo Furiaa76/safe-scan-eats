@@ -26,6 +26,21 @@ function sanitizeLastFive(value: string) {
   return value.replace(/\D/g, "").slice(0, 5);
 }
 
+async function readCrsBarcode(image: string): Promise<string> {
+  try {
+    const { BrowserMultiFormatReader } = await import("@zxing/browser");
+    const reader = new BrowserMultiFormatReader();
+    const result = await reader.decodeFromImageUrl(image);
+    const raw = result.getText().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const cf = raw.match(/[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]/)?.[0];
+    if (cf) return cf;
+    if (/^[A-Z0-9]{16}$/.test(raw)) return raw;
+    return "";
+  } catch {
+    return "";
+  }
+}
+
 async function localCrsOcr(image: string) {
   const { createWorker } = await import("tesseract.js");
   const worker = await createWorker("ita+eng");
@@ -35,10 +50,11 @@ async function localCrsOcr(image: string) {
     const text = (result.data.text || "").toUpperCase();
     const compact = text.replace(/[^A-Z0-9]/g, "");
     const fiscalCode = compact.match(/[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]/)?.[0] || "";
-    const numbers = (text.match(/\d(?:[\s.-]*\d){9,}/g) || [])
-      .map((v) => v.replace(/\D/g, ""))
-      .sort((a, b) => b.length - a.length);
-    const cardNumber = numbers[0] || "";
+    const lines = text.split(/\n+/).map((v) => v.trim()).filter(Boolean);
+    const labelled = lines.filter((line) => /IDENTIFIC|TESSER|CARD|NUMERO/.test(line));
+    const labelledNumbers = labelled.flatMap((line) => (line.match(/\d(?:[\s.-]*\d){4,}/g) || []).map((v) => v.replace(/\D/g, "")));
+    const allNumbers = (text.match(/\d(?:[\s.-]*\d){9,}/g) || []).map((v) => v.replace(/\D/g, ""));
+    const cardNumber = [...labelledNumbers, ...allNumbers].filter((v) => v.length >= 5).sort((a, b) => b.length - a.length)[0] || "";
     return { fiscalCode, lastFive: cardNumber.length >= 5 ? cardNumber.slice(-5) : "" };
   } finally {
     await worker.terminate();
@@ -172,16 +188,30 @@ function CrsPage() {
 
     try {
       let result = { fiscalCode: "", lastFive: "", holder: "" };
-      try {
-        result = await readCard({ data: { image } });
-      } catch {}
+
+      // Sul retro della Tessera Sanitaria il codice a barre contiene il codice fiscale:
+      // lo leggiamo prima con ZXing, che è molto più affidabile dell'OCR sui caratteri piccoli.
+      const barcodeFiscal = await readCrsBarcode(image);
+      if (barcodeFiscal) {
+        result.fiscalCode = barcodeFiscal;
+        setScannerMessage("Codice a barre letto ✓ Ora leggo il numero tessera…");
+      }
 
       if (!result.fiscalCode || !result.lastFive) {
-        setScannerMessage("Leggo i caratteri direttamente sul telefono…");
         try {
           const local = await localCrsOcr(image);
           if (!result.fiscalCode && local.fiscalCode) result.fiscalCode = local.fiscalCode;
           if (!result.lastFive && local.lastFive) result.lastFive = local.lastFive;
+        } catch {}
+      }
+
+      // Solo se manca ancora qualcosa proviamo la lettura visiva lato server.
+      if (!result.fiscalCode || !result.lastFive) {
+        try {
+          const ai = await readCard({ data: { image } });
+          if (!result.fiscalCode && ai.fiscalCode) result.fiscalCode = ai.fiscalCode;
+          if (!result.lastFive && ai.lastFive) result.lastFive = ai.lastFive;
+          if (ai.holder) result.holder = ai.holder;
         } catch {}
       }
 
@@ -264,7 +294,7 @@ function CrsPage() {
   const startScanner = async () => {
     setScanError(null);
     setCardPhoto(null);
-    setScannerMessage("Inquadra il fronte della CRS");
+    setScannerMessage("Inquadra il RETRO della CRS, soprattutto il codice a barre");
     fiscalRef.current = "";
     lastFiveRef.current = "";
     holderRef.current = "";
@@ -329,7 +359,7 @@ function CrsPage() {
     <section className="mt-5 rounded-3xl border border-border bg-card p-5">
       <div className="flex items-start gap-3"><CreditCard className="mt-0.5 h-6 w-6 shrink-0 text-primary" /><div><h2 className="font-extrabold text-foreground">La tua tessera</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">Salviamo questi dati solo su questo dispositivo. Non inserire PIN, PUK, SPID o password.</p></div></div>
 
-      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">Apri lo scanner e inquadra prima il fronte della CRS. Quando legge il codice fiscale te lo conferma; poi giri la tessera e inquadri il retro. Appena ha letto anche il numero tessera, acquisisce tutto automaticamente e chiude la fotocamera.</p>
+      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">Apri lo scanner e inquadra direttamente il RETRO della CRS/Tessera Sanitaria, dove c’è il codice a barre. Safe Scan Eats legge prima il codice a barre per ricavare il codice fiscale e poi prova a leggere il numero identificativo della tessera. Non serve più partire dal fronte.</p>
 
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => { scanFallbackPhoto(e.target.files?.[0]); e.target.value = ""; }} />
       <div className="relative mt-4 aspect-[1.58/1] overflow-hidden rounded-3xl border-2 border-primary/40 bg-foreground">
@@ -342,7 +372,7 @@ function CrsPage() {
         </> : cardPhoto ? <img src={cardPhoto} alt="CRS acquisita automaticamente" className="h-full w-full object-cover" /> : <button type="button" onClick={startScanner} className="flex h-full w-full flex-col items-center justify-center bg-secondary px-6 text-center">
           <Camera className="h-12 w-12 text-primary" />
           <p className="mt-3 text-sm font-extrabold text-foreground">Apri scanner CRS</p>
-          <p className="mt-1 text-xs text-muted-foreground">La foto viene scattata automaticamente quando i dati sono leggibili · OCR locale attivo</p>
+          <p className="mt-1 text-xs text-muted-foreground">Inquadra il RETRO con il codice a barre ben visibile</p>
         </button>}
       </div>
 
