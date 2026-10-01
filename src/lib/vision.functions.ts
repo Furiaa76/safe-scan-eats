@@ -85,9 +85,9 @@ export const readLabel = createServerFn({ method: "POST" })
 Rispondi SOLO con JSON: {"readable": boolean, "complete": boolean, "confidence": number, "ingredients": string, "traces": string}.
 - "ingredients": il testo completo degli ingredienti così come scritto (tradotto in italiano se in altra lingua), senza inventare nulla.
 - "traces": la frase "può contenere..." se presente, altrimenti "".
-- "complete": true SOLO se la lista ingredienti è leggibile in modo continuo e sembra completa; false se parole/frasi sono spezzate, deformate, mancanti o dubbie.
-- "confidence": numero da 0 a 1 sulla qualità della lettura.
-Se l'etichetta non è leggibile o non contiene ingredienti, readable=false, complete=false e confidence bassa.`);
+- "complete": true SOLO se TUTTA la lista ingredienti è leggibile in modo continuo e completa. Se anche una sola parte contiene parole spezzate, caratteri casuali, frammenti incomprensibili, testo tagliato o ingredienti dubbi, complete=false.
+- "confidence": numero da 0 a 1 sulla qualità della lettura. Usa >=0.9 solo per testo nitido e integralmente leggibile; se ci sono frammenti corrotti o parole incerte usa <=0.6.
+Non ricostruire o indovinare parole illeggibili. Se l'etichetta non è leggibile o non contiene ingredienti, readable=false, complete=false e confidence bassa.`);
     const ingredients = s(out?.["ingredients"]);
     const confidenceRaw = typeof out?.["confidence"] === "number" ? out["confidence"] : Number(out?.["confidence"]);
     const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(1, confidenceRaw)) : 0;
