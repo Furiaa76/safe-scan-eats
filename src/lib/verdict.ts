@@ -115,7 +115,14 @@ function dairyHit(text: string): string | null {
 
 const lower = (a: AllergenId) => allergenById(a).label.toLowerCase();
 
-export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[]): Analysis {
+function customAllergenHit(text: string, rawTerm: string): boolean {
+  const term = rawTerm.trim().toLocaleLowerCase("it-IT");
+  if (term.length < 2) return false;
+  const escaped = term.replace(/[.*+?^$()|[\]\\{}]/g, "\\export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[]): Analysis {");
+  return new RegExp(`(^|[^a-zàèéìòù])${escaped}([^a-zàèéìòù]|$)`, "i").test(text);
+}
+
+export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customAllergens: string[] = []): Analysis {
   const reasons: Reason[] = [];
   const text = cleanText(p.ingredientsText);
   const { main, traces } = splitTraces(text);
@@ -192,6 +199,25 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[]): Analys
     }
   }
 
+  for (const rawTerm of customAllergens) {
+    const term = rawTerm.trim();
+    if (!term) continue;
+
+    if (customAllergenHit(main, term)) {
+      avoid = true;
+      reasons.push({
+        level: "avoid",
+        text: `Contiene ${term}, che hai indicato manualmente come sostanza/allergia da evitare`,
+      });
+    } else if (customAllergenHit(traces, term)) {
+      warn = true;
+      reasons.push({
+        level: "warning",
+        text: `Può contenere tracce di ${term}, che hai indicato manualmente nel profilo`,
+      });
+    }
+  }
+
   const incomplete = !hasIngredients;
   if (incomplete) {
     warn = true;
@@ -201,7 +227,7 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[]): Analys
     });
   }
 
-  if (userAllergens.length === 0) {
+  if (userAllergens.length === 0 && customAllergens.length === 0) {
     reasons.push({ level: "info", text: "Non hai selezionato allergeni nel tuo profilo" });
   }
 
