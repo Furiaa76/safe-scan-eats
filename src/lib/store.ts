@@ -10,6 +10,8 @@ export interface Profile {
   id: string;
   name: string;
   allergens: AllergenId[];
+  /** Allergie o sostanze specifiche dichiarate manualmente dall'utente. */
+  customAllergens?: string[];
   severe: boolean;
 }
 
@@ -157,7 +159,16 @@ function makeProfileId() {
 }
 
 function normalizeState(state: ProfilesState): ProfilesState {
-  const profiles = Array.isArray(state.profiles) ? state.profiles : [];
+  const profiles = Array.isArray(state.profiles)
+    ? state.profiles.map((p) => ({
+        ...p,
+        allergens: Array.isArray(p.allergens) ? p.allergens : [],
+        customAllergens: Array.isArray(p.customAllergens)
+          ? Array.from(new Set(p.customAllergens.map((x) => String(x).trim()).filter(Boolean)))
+          : [],
+        severe: !!p.severe,
+      }))
+    : [];
   const activeExists = profiles.some((p) => p.id === state.activeProfileId);
   return {
     profiles,
@@ -177,6 +188,7 @@ function loadProfilesState(): ProfilesState {
       id: legacy.id || makeProfileId(),
       name: legacy.name || "Profilo",
       allergens: Array.isArray(legacy.allergens) ? legacy.allergens : [],
+      customAllergens: Array.isArray(legacy.customAllergens) ? legacy.customAllergens : [],
       severe: !!legacy.severe,
     };
     const state: ProfilesState = { profiles: [migrated], activeProfileId: migrated.id, freeMode: false };
@@ -208,7 +220,13 @@ export function getProfile(): Profile | null {
 export function saveProfile(p: Omit<Profile, "id"> & { id?: string }) {
   const state = getProfilesState();
   const id = p.id || state.activeProfileId || makeProfileId();
-  const nextProfile: Profile = { id, name: p.name, allergens: p.allergens, severe: p.severe };
+  const nextProfile: Profile = {
+    id,
+    name: p.name,
+    allergens: p.allergens,
+    customAllergens: Array.from(new Set((p.customAllergens ?? []).map((x) => x.trim()).filter(Boolean))),
+    severe: p.severe,
+  };
   const exists = state.profiles.some((profile) => profile.id === id);
   const profiles = exists
     ? state.profiles.map((profile) => (profile.id === id ? nextProfile : profile))
