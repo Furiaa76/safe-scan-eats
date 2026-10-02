@@ -18,7 +18,11 @@ export type AllergenId =
   | "soia"
   | "pesce"
   | "crostacei"
-  | "sesamo";
+  | "sesamo"
+  | "polline-betulla"
+  | "polline-graminacee"
+  | "polline-ambrosia"
+  | "polline-artemisia-asteracee";
 
 export interface Allergen {
   id: AllergenId;
@@ -26,6 +30,8 @@ export interface Allergen {
   icon: LucideIcon;
   /** Parole chiave da cercare nella lista ingredienti */
   keywords: string[];
+  /** I pollini/piante generano solo avvisi di possibile reattività crociata. */
+  group?: "food" | "pollen";
 }
 
 export const ALLERGENS: Allergen[] = [
@@ -84,6 +90,48 @@ export const ALLERGENS: Allergen[] = [
     label: "Sesamo",
     icon: Bean,
     keywords: ["sesamo", "semi di sesamo", "tahina"],
+  },
+  {
+    id: "polline-betulla",
+    label: "Betulla",
+    icon: Bean,
+    group: "pollen",
+    keywords: [
+      "mela", "apple", "albicocca", "apricot", "ciliegia", "cherry", "pesca", "peach",
+      "pera", "pear", "prugna", "plum", "carota", "carrot", "sedano", "celery",
+      "kiwi", "nocciola", "hazelnut", "arachide", "peanut", "soia", "soybean"
+    ],
+  },
+  {
+    id: "polline-graminacee",
+    label: "Graminacee",
+    icon: Wheat,
+    group: "pollen",
+    keywords: [
+      "pesca", "peach", "anguria", "watermelon", "arancia", "orange",
+      "pomodoro", "tomato", "patata", "potato"
+    ],
+  },
+  {
+    id: "polline-ambrosia",
+    label: "Ambrosia",
+    icon: Bean,
+    group: "pollen",
+    keywords: [
+      "melone", "cantalupo", "cantaloupe", "honeydew", "anguria", "watermelon",
+      "banana", "cetriolo", "cucumber", "zucchina", "zucchini"
+    ],
+  },
+  {
+    id: "polline-artemisia-asteracee",
+    label: "Artemisia / Asteraceae",
+    icon: Bean,
+    group: "pollen",
+    keywords: [
+      "camomilla", "chamomile", "sedano", "celery", "finocchio", "fennel",
+      "carota", "carrot", "prezzemolo", "parsley", "anice", "aniseed",
+      "carvi", "caraway", "coriandolo", "coriander", "pepe nero", "black pepper"
+    ],
   },
 ];
 
