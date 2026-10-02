@@ -6,6 +6,7 @@ on:
     paths:
       - "capacitor.config.ts"
       - "package.json"
+      - "src/**"
       - "public/app-icon.svg"
       - "scripts/mobile-init.mjs"
       - "scripts/generate-mobile-assets.mjs"
