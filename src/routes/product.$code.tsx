@@ -17,7 +17,7 @@ function ProductPage() {
   const profile = useProfile();
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["off-product", code], queryFn: () => fetchProduct(code), staleTime: 1000 * 60 * 10, retry: 1 });
   const product = data ?? null;
-  const analysis = product ? analyzeFood(product, profile?.allergens ?? []) : null;
+  const analysis = product ? analyzeFood(product, profile?.allergens ?? [], profile?.customAllergens ?? []) : null;
 
   useEffect(() => {
     if (!product || !analysis) return;
