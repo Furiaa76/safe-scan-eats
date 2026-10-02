@@ -80,6 +80,7 @@ export function ResultView({
   const { freeMode } = useProfilesState();
   const style = VERDICT_STYLE[analysis.verdict];
   const allergens = profile?.allergens ?? [];
+  const customAllergens = profile?.customAllergens ?? [];
   const foodAllergens = allergens.filter((id) => allergenById(id).group !== "pollen");
   const findings = freeMode ? freeModeFindings(product) : [];
   const hasFoodIssue = analysis.reasons.some((reason) => reason.level === "avoid" || (reason.level === "warning" && !reason.text.startsWith("Possibile reattività crociata")));
@@ -215,7 +216,7 @@ export function ResultView({
           <p className="mt-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">{product.ingredientsText || "Lista ingredienti non disponibile."}</p>
         </section>
 
-        {shouldSuggestAlternatives && <Alternatives product={product} allergens={foodAllergens} />}
+        {shouldSuggestAlternatives && <Alternatives product={product} allergens={foodAllergens} customAllergens={customAllergens} />}
         {product.source === "off" && <p className="mt-4 text-center text-[11px] text-muted-foreground">Dati prodotto: Open Food Facts</p>}
 
         <Link to="/scan" search={{ mode: "barcode" }} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground"><RotateCcw className="h-5 w-5" />Scansiona un altro prodotto</Link>
@@ -225,14 +226,14 @@ export function ResultView({
   );
 }
 
-function Alternatives({ product, allergens }: { product: FoodProduct; allergens: AllergenId[] }) {
+function Alternatives({ product, allergens, customAllergens }: { product: FoodProduct; allergens: AllergenId[]; customAllergens: string[] }) {
   const { data, isFetching } = useQuery({
-    queryKey: ["alternatives", product.categoryTag, allergens.join(",")],
+    queryKey: ["alternatives", product.categoryTag, allergens.join(","), customAllergens.join("|")],
     queryFn: async () => {
       const list = await productsInCategory(product.categoryTag!);
       return list
         .filter((p) => p.code !== product.code && p.ingredientsText.trim().length > 3)
-        .map((p) => ({ product: p, analysis: analyzeFood(p, allergens) }))
+        .map((p) => ({ product: p, analysis: analyzeFood(p, allergens, customAllergens) }))
         .filter(({ analysis }) => analysis.verdict === "compatible" && !analysis.incomplete)
         .map(({ product }) => product)
         .slice(0, 3);
