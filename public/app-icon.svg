@@ -21,15 +21,18 @@
     <circle cx="655" cy="440" r="5" fill="#073B2A"/>
   </g>
   <circle cx="750" cy="690" r="108" fill="#fff" stroke="#FF2A1F" stroke-width="16"/>
-  <g fill="#E3A400">
-    <path d="M750 618c-13 15-20 31-20 48 16-5 29-15 40-30-3-8-10-14-20-18z"/>
-    <path d="M721 645c-18 10-30 23-36 40 17 1 33-5 47-17-1-9-5-17-11-23z"/>
-    <path d="M779 645c18 10 30 23 36 40-17 1-33-5-47-17 1-9 5-17 11-23z"/>
-    <path d="M716 680c-18 9-31 22-38 38 18 2 34-4 49-16-1-9-5-16-11-22z"/>
-    <path d="M784 680c18 9 31 22 38 38-18 2-34-4-49-16 1-9 5-16 11-22z"/>
-    <path d="M720 716c-16 8-28 19-35 34 16 2 31-3 44-13 0-8-3-15-9-21z"/>
-    <path d="M780 716c16 8 28 19 35 34-16 2-31-3-44-13 0-8 3-15 9-21z"/>
-    <path d="M744 654h12v132h-12z"/>
+  <g fill="#F2B300">
+    <!-- Spiga di grano completa: stelo centrale e chicchi alternati -->
+    <path d="M744 626h12v160h-12z"/>
+    <ellipse cx="750" cy="632" rx="17" ry="31" transform="rotate(0 750 632)"/>
+    <ellipse cx="724" cy="656" rx="14" ry="30" transform="rotate(-42 724 656)"/>
+    <ellipse cx="776" cy="656" rx="14" ry="30" transform="rotate(42 776 656)"/>
+    <ellipse cx="718" cy="691" rx="14" ry="30" transform="rotate(-48 718 691)"/>
+    <ellipse cx="782" cy="691" rx="14" ry="30" transform="rotate(48 782 691)"/>
+    <ellipse cx="720" cy="727" rx="13" ry="28" transform="rotate(-52 720 727)"/>
+    <ellipse cx="780" cy="727" rx="13" ry="28" transform="rotate(52 780 727)"/>
+    <ellipse cx="730" cy="758" rx="11" ry="24" transform="rotate(-45 730 758)"/>
+    <ellipse cx="770" cy="758" rx="11" ry="24" transform="rotate(45 770 758)"/>
   </g>
   <path d="M682 622l136 136" stroke="#FF2A1F" stroke-width="20" stroke-linecap="round"/>
 </svg>
