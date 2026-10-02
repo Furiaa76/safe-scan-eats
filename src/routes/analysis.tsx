@@ -59,7 +59,7 @@ function AnalysisPage() {
     source: "manual",
   }), [text, code, name, brand, photo, labelTags]);
 
-  const base = analyzeFood(product, profile?.allergens ?? []);
+  const base = analyzeFood(product, profile?.allergens ?? [], profile?.customAllergens ?? []);
   const sourceText = labelTags.length > 0
     ? "Valutazione basata sugli ingredienti letti dall'etichetta e sulle dichiarazioni esplicite rilevate sul fronte"
     : "Valutazione basata sugli ingredienti letti dall'etichetta";
