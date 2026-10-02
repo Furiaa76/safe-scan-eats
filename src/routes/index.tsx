@@ -21,37 +21,85 @@ function Disclaimer() {
   return <div className="rounded-2xl border border-caution/40 bg-caution-soft p-4"><div className="flex items-start gap-3"><ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-caution-foreground" /><p className="text-sm leading-relaxed text-caution-foreground"><strong>Importante:</strong> Safe Scan Eats è uno strumento informativo e <strong>non sostituisce il parere medico</strong>. In caso di allergie gravi, verifica sempre l'etichetta del prodotto e contatta il produttore.</p></div></div>;
 }
 
-function ProfileForm({ adding = false, onCancel }: { adding?: boolean; onCancel?: () => void }) {
+function ProfileForm({
+  adding = false,
+  editingProfile,
+  onCancel,
+}: {
+  adding?: boolean;
+  editingProfile?: ReturnType<typeof useProfile>;
+  onCancel?: () => void;
+}) {
   const navigate = useNavigate();
-  const [name, setName] = useState("");
-  const [selected, setSelected] = useState<Set<AllergenId>>(new Set());
-  const [severe, setSevere] = useState(false);
-  const toggle = (id: AllergenId) => setSelected((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
+  const [name, setName] = useState(editingProfile?.name ?? "");
+  const [selected, setSelected] = useState<Set<AllergenId>>(new Set(editingProfile?.allergens ?? []));
+  const [customText, setCustomText] = useState((editingProfile?.customAllergens ?? []).join(", "));
+  const [severe, setSevere] = useState(editingProfile?.severe ?? false);
+  const toggle = (id: AllergenId) => setSelected((prev) => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const customAllergens = () => Array.from(new Set(
+    customText
+      .split(/[\n,;]+/)
+      .map((x) => x.trim())
+      .filter((x) => x.length >= 2)
+  ));
   const submit = () => {
-    const data = { name: name.trim() || (adding ? "Nuovo profilo" : "Ospite"), allergens: Array.from(selected), severe };
-    if (adding) addProfile(data); else saveProfile(data);
+    const data = {
+      id: editingProfile?.id,
+      name: name.trim() || (adding ? "Nuovo profilo" : editingProfile?.name || "Ospite"),
+      allergens: Array.from(selected),
+      customAllergens: customAllergens(),
+      severe,
+    };
+    if (adding) addProfile(data);
+    else saveProfile(data);
     onCancel?.();
     navigate({ to: "/", replace: true });
   };
-  const free = () => { enableFreeMode(); onCancel?.(); navigate({ to: "/", replace: true }); };
+  const free = () => {
+    enableFreeMode();
+    onCancel?.();
+    navigate({ to: "/", replace: true });
+  };
+  const isEditing = !!editingProfile;
 
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-8">
     <div className="flex items-center gap-3"><div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"><Salad className="h-6 w-6" /></div><div className="min-w-0"><h1 className="truncate text-2xl font-black text-foreground">Safe Scan Eats</h1><p className="text-sm text-muted-foreground">Mangia sereno, in un tocco.</p></div></div>
-    <h2 className="mt-8 text-xl font-extrabold text-foreground">{adding ? "Aggiungi un profilo" : "Ciao! Come ti chiami?"}</h2>
+    <h2 className="mt-8 text-xl font-extrabold text-foreground">{isEditing ? "Modifica profilo" : adding ? "Aggiungi un profilo" : "Ciao! Come ti chiami?"}</h2>
     <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome del profilo" className="mt-3 w-full rounded-2xl border border-input bg-card px-4 py-3.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
-    <h2 className="mt-8 text-xl font-extrabold text-foreground">Cosa deve evitare?</h2><p className="mt-1 text-sm text-muted-foreground">Seleziona intolleranze e allergie alimentari. Il profilo verrà usato automaticamente nelle analisi.</p>
-    <div className="mt-4 grid grid-cols-2 gap-3">{ALLERGENS.filter((a) => a.group !== "pollen").map((a) => { const active = selected.has(a.id); const Icon = a.icon; return <button key={a.id} type="button" onClick={() => toggle(a.id)} aria-pressed={active} className={`relative flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-colors ${active ? "border-primary bg-secondary" : "border-border bg-card"}`}><Icon className={`h-6 w-6 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`} /><span className="min-w-0 flex-1 text-sm font-bold leading-tight text-foreground">{a.label}</span>{active && <span className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full bg-primary text-primary-foreground"><Check className="h-4 w-4" /></span>}</button>; })}</div>
-    <h2 className="mt-8 text-xl font-extrabold text-foreground">Pollini, piante e tisane</h2><p className="mt-1 text-sm text-muted-foreground">Seleziona le allergie ai pollini che conosci. Se un ingrediente è associato a possibile reattività crociata, l'app mostrerà un avviso senza classificarlo automaticamente come “da evitare”.</p>
-    <div className="mt-4 grid grid-cols-2 gap-3">{ALLERGENS.filter((a) => a.group === "pollen").map((a) => { const active = selected.has(a.id); const Icon = a.icon; return <button key={a.id} type="button" onClick={() => toggle(a.id)} aria-pressed={active} className={`relative flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-colors ${active ? "border-primary bg-secondary" : "border-border bg-card"}`}><Icon className={`h-6 w-6 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`} /><span className="min-w-0 flex-1 text-sm font-bold leading-tight text-foreground">{a.label}</span>{active && <span className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full bg-primary text-primary-foreground"><Check className="h-4 w-4" /></span>}</button>; })}</div>
+
+    <h2 className="mt-8 text-xl font-extrabold text-foreground">Allergie e intolleranze alimentari</h2>
+    <p className="mt-1 text-sm text-muted-foreground">Seleziona ciò che deve essere controllato direttamente negli ingredienti.</p>
+    <div className="mt-4 grid grid-cols-2 gap-3">{ALLERGENS.filter((a) => a.group !== "pollen").map((a) => {
+      const active = selected.has(a.id);
+      const Icon = a.icon;
+      return <button key={a.id} type="button" onClick={() => toggle(a.id)} aria-pressed={active} className={`relative flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-colors ${active ? "border-primary bg-secondary" : "border-border bg-card"}`}><Icon className={`h-6 w-6 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`} /><span className="min-w-0 flex-1 text-sm font-bold leading-tight text-foreground">{a.label}</span>{active && <span className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full bg-primary text-primary-foreground"><Check className="h-4 w-4" /></span>}</button>;
+    })}</div>
+
+    <h2 className="mt-8 text-xl font-extrabold text-foreground">Pollini, piante e tisane</h2>
+    <p className="mt-1 text-sm text-muted-foreground">Queste voci generano solo avvisi di possibile reattività crociata quando esiste un collegamento specifico con un ingrediente.</p>
+    <div className="mt-4 grid grid-cols-2 gap-3">{ALLERGENS.filter((a) => a.group === "pollen").map((a) => {
+      const active = selected.has(a.id);
+      const Icon = a.icon;
+      return <button key={a.id} type="button" onClick={() => toggle(a.id)} aria-pressed={active} className={`relative flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-colors ${active ? "border-primary bg-secondary" : "border-border bg-card"}`}><Icon className={`h-6 w-6 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`} /><span className="min-w-0 flex-1 text-sm font-bold leading-tight text-foreground">{a.label}</span>{active && <span className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full bg-primary text-primary-foreground"><Check className="h-4 w-4" /></span>}</button>;
+    })}</div>
+
+    <h2 className="mt-8 text-xl font-extrabold text-foreground">Allergie specifiche dichiarate</h2>
+    <p className="mt-1 text-sm text-muted-foreground">Scrivi solo sostanze o piante che sai di dover evitare, per esempio “menta” o “echinacea”. Separale con una virgola. L’app le confronterà direttamente con gli ingredienti senza considerarle una diagnosi.</p>
+    <textarea value={customText} onChange={(e) => setCustomText(e.target.value)} rows={3} placeholder="Es. menta, echinacea" className="mt-3 w-full resize-none rounded-2xl border border-input bg-card px-4 py-3.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
+
     <button type="button" onClick={() => setSevere(!severe)} aria-pressed={severe} className={`mt-5 flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-colors ${severe ? "border-danger bg-danger-soft" : "border-border bg-card"}`}><TriangleAlert className={`h-6 w-6 shrink-0 ${severe ? "text-danger" : "text-muted-foreground"}`} /><span className="min-w-0 flex-1 text-sm leading-snug text-foreground"><strong>Allergie gravi.</strong> L'app ricorderà di controllare sempre l'etichetta.</span>{severe && <Check className="h-5 w-5 shrink-0 text-danger" />}</button>
-    <button type="button" disabled={selected.size === 0} onClick={submit} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground transition-opacity disabled:opacity-40">Salva profilo<ChevronRight className="h-5 w-5" /></button>
-    {!adding && <button type="button" onClick={free} className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-primary bg-card py-3.5 text-base font-extrabold text-primary"><User className="h-5 w-5" />Continua in modalità libera</button>}
-    {adding && onCancel && <button type="button" onClick={onCancel} className="mt-3 py-3 text-sm font-bold text-muted-foreground">Annulla</button>}
+    <button type="button" disabled={selected.size === 0 && customAllergens().length === 0} onClick={submit} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground transition-opacity disabled:opacity-40">Salva profilo<ChevronRight className="h-5 w-5" /></button>
+    {!adding && !isEditing && <button type="button" onClick={free} className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-primary bg-card py-3.5 text-base font-extrabold text-primary"><User className="h-5 w-5" />Continua in modalità libera</button>}
+    {(adding || isEditing) && onCancel && <button type="button" onClick={onCancel} className="mt-3 py-3 text-sm font-bold text-muted-foreground">Annulla</button>}
     <div className="mt-6"><Disclaimer /></div>
   </div>;
 }
 
-function Home({ onAddProfile }: { onAddProfile: () => void }) {
+function Home({ onAddProfile, onEditProfile }: { onAddProfile: () => void; onEditProfile: () => void }) {
   const profile = useProfile();
   const state = useProfilesState();
   const shopping = useShoppingList();
@@ -75,7 +123,8 @@ function Home({ onAddProfile }: { onAddProfile: () => void }) {
       {freeMode ? <p className="mt-3 text-xs leading-relaxed text-muted-foreground">Nessun filtro personale: l'app mostra le informazioni del prodotto e gli allergeni rilevati senza giudicarli rispetto a un profilo.</p> : <>
         <div className="mt-3 flex flex-wrap items-center gap-2"><span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><User className="h-3.5 w-3.5" />Evita:</span>{profile?.allergens.filter((id) => ALLERGENS.find((x) => x.id === id)?.group !== "pollen").map((id) => { const a = ALLERGENS.find((x) => x.id === id); return a ? <span key={id} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{a.label}</span> : null; })}</div>
         {!!profile?.allergens.some((id) => ALLERGENS.find((x) => x.id === id)?.group === "pollen") && <div className="mt-2 flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-muted-foreground">Pollini/piante:</span>{profile.allergens.filter((id) => ALLERGENS.find((x) => x.id === id)?.group === "pollen").map((id) => { const a = ALLERGENS.find((x) => x.id === id); return a ? <span key={id} className="rounded-full bg-caution-soft px-3 py-1 text-xs font-bold text-caution-foreground">{a.label}</span> : null; })}</div>}
-        {profile && <button type="button" onClick={deleteActiveProfile} className="mt-4 flex items-center gap-1.5 text-xs font-extrabold text-danger"><Trash2 className="h-4 w-4" />Elimina profilo “{profile.name}”</button>}
+        {!!profile?.customAllergens?.length && <div className="mt-2 flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-muted-foreground">Dichiarate da te:</span>{profile.customAllergens.map((name) => <span key={name} className="rounded-full bg-danger-soft px-3 py-1 text-xs font-bold text-danger">{name}</span>)}</div>}
+        {profile && <div className="mt-4 flex flex-wrap gap-4"><button type="button" onClick={onEditProfile} className="text-xs font-extrabold text-primary">Modifica profilo</button><button type="button" onClick={deleteActiveProfile} className="flex items-center gap-1.5 text-xs font-extrabold text-danger"><Trash2 className="h-4 w-4" />Elimina profilo “{profile.name}”</button></div>}
       </>}
     </section>
 
@@ -89,8 +138,11 @@ function Home({ onAddProfile }: { onAddProfile: () => void }) {
 
 function Index() {
   const state = useProfilesState();
-  const [adding, setAdding] = useState(false);
-  if (adding) return <ProfileForm adding onCancel={() => setAdding(false)} />;
+  const profile = useProfile();
+  const [formMode, setFormMode] = useState<"home" | "add" | "edit">("home");
+
+  if (formMode === "add") return <ProfileForm adding onCancel={() => setFormMode("home")} />;
+  if (formMode === "edit" && profile) return <ProfileForm editingProfile={profile} onCancel={() => setFormMode("home")} />;
   if (state.profiles.length === 0 && !state.freeMode) return <ProfileForm />;
-  return <Home onAddProfile={() => setAdding(true)} />;
+  return <Home onAddProfile={() => setFormMode("add")} onEditProfile={() => setFormMode("edit")} />;
 }
