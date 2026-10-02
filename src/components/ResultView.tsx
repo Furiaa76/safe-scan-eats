@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { productsInCategory, type FoodProduct } from "@/lib/off";
 import { analyzeFood, VERDICT_LABEL, type Analysis, type Verdict } from "@/lib/verdict";
-import { ALLERGENS, type AllergenId } from "@/lib/allergens";
+import { ALLERGENS, allergenById, type AllergenId } from "@/lib/allergens";
 import { useProfilesState, type Profile } from "@/lib/store";
 import { assessSsnCeliac } from "@/lib/ssn";
 import { checkSsnRegistry } from "@/lib/ssn.functions";
@@ -62,7 +62,7 @@ function freeModeFindings(product: FoodProduct) {
   for (const [pattern, label] of TAG_LABELS) if (pattern.test(tags)) found.add(label);
 
   const ingredients = product.ingredientsText.toLocaleLowerCase("it");
-  for (const allergen of ALLERGENS) {
+  for (const allergen of ALLERGENS.filter((item) => item.group !== "pollen")) {
     if (allergen.keywords.some((keyword) => ingredients.includes(keyword.toLocaleLowerCase("it")))) found.add(allergen.label);
   }
   return Array.from(found);
@@ -80,8 +80,10 @@ export function ResultView({
   const { freeMode } = useProfilesState();
   const style = VERDICT_STYLE[analysis.verdict];
   const allergens = profile?.allergens ?? [];
+  const foodAllergens = allergens.filter((id) => allergenById(id).group !== "pollen");
   const findings = freeMode ? freeModeFindings(product) : [];
-  const shouldSuggestAlternatives = product.source === "off" && !!product.categoryTag && allergens.length > 0 && analysis.verdict !== "compatible";
+  const hasFoodIssue = analysis.reasons.some((reason) => reason.level === "avoid" || (reason.level === "warning" && !reason.text.startsWith("Possibile reattività crociata")));
+  const shouldSuggestAlternatives = product.source === "off" && !!product.categoryTag && foodAllergens.length > 0 && hasFoodIssue;
   const shouldAskForFrontPhoto = !freeMode && analysis.verdict === "warning" && analysis.incomplete;
   const ssn = assessSsnCeliac(product);
   const checkSsnRegistryFn = useServerFn(checkSsnRegistry);
@@ -213,7 +215,7 @@ export function ResultView({
           <p className="mt-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">{product.ingredientsText || "Lista ingredienti non disponibile."}</p>
         </section>
 
-        {shouldSuggestAlternatives && <Alternatives product={product} allergens={allergens} />}
+        {shouldSuggestAlternatives && <Alternatives product={product} allergens={foodAllergens} />}
         {product.source === "off" && <p className="mt-4 text-center text-[11px] text-muted-foreground">Dati prodotto: Open Food Facts</p>}
 
         <Link to="/scan" search={{ mode: "barcode" }} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground"><RotateCcw className="h-5 w-5" />Scansiona un altro prodotto</Link>
