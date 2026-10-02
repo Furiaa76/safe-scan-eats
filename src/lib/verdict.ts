@@ -27,6 +27,10 @@ const OFF_TAGS: Record<AllergenId, string[]> = {
   pesce: ["en:fish"],
   crostacei: ["en:crustaceans"],
   sesamo: ["en:sesame-seeds"],
+  "polline-betulla": [],
+  "polline-graminacee": [],
+  "polline-ambrosia": [],
+  "polline-artemisia-asteracee": [],
 };
 
 const FREE_LABELS: Partial<Record<AllergenId, string[]>> = {
@@ -57,6 +61,10 @@ const EN_KEYWORDS: Record<AllergenId, string[]> = {
   pesce: ["fish", "anchov", "tuna", "salmon"],
   crostacei: ["shrimp", "prawn", "crab", "lobster", "crustacean"],
   sesamo: ["sesame"],
+  "polline-betulla": [],
+  "polline-graminacee": [],
+  "polline-ambrosia": [],
+  "polline-artemisia-asteracee": [],
 };
 
 const DAIRY_WORDS = [
@@ -118,6 +126,20 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[]): Analys
   let warn = false;
 
   for (const a of userAllergens) {
+    const allergen = allergenById(a);
+
+    if (allergen.group === "pollen") {
+      const crossKw = keywordHit(main, a);
+      if (crossKw) {
+        warn = true;
+        reasons.push({
+          level: "warning",
+          text: `Possibile reattività crociata: hai indicato allergia a ${allergen.label} e il prodotto contiene ${crossKw}. Non significa automaticamente allergia a questo alimento: se hai già avuto reazioni, verifica con allergologo/medico.`,
+        });
+      }
+      continue;
+    }
+
     const freeLabel = (FREE_LABELS[a] ?? []).some((l) => p.labelTags.includes(l));
 
     if (a === "lattosio") {
