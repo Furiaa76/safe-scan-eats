@@ -27,6 +27,7 @@ const OFF_TAGS: Record<AllergenId, string[]> = {
   pesce: ["en:fish"],
   crostacei: ["en:crustaceans"],
   sesamo: ["en:sesame-seeds"],
+  istamina: [],
   "polline-betulla": [],
   "polline-graminacee": [],
   "polline-ambrosia": [],
@@ -61,6 +62,7 @@ const EN_KEYWORDS: Record<AllergenId, string[]> = {
   pesce: ["fish", "anchov", "tuna", "salmon"],
   crostacei: ["shrimp", "prawn", "crab", "lobster", "crustacean"],
   sesamo: ["sesame"],
+  istamina: ["aged cheese", "cured meat", "salami", "smoked fish", "canned tuna", "canned fish", "fermented", "soy sauce", "miso", "sauerkraut", "kimchi", "vinegar", "wine", "beer", "tomato", "spinach", "eggplant", "avocado", "chocolate", "cocoa", "strawberry", "citrus", "banana"],
   "polline-betulla": [],
   "polline-graminacee": [],
   "polline-ambrosia": [],
@@ -148,6 +150,23 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
     }
 
     const freeLabel = (FREE_LABELS[a] ?? []).some((l) => p.labelTags.includes(l));
+
+    if (a === "istamina") {
+      const histamineKw = keywordHit(main, a);
+      if (histamineKw) {
+        warn = true;
+        reasons.push({
+          level: "warning",
+          text: `Possibile alimento problematico per sensibilità all'istamina: rilevato “${histamineKw}”. Il contenuto reale di istamina non si può determinare con certezza dalla sola etichetta e può variare con maturazione, conservazione e fermentazione.`,
+        });
+      } else {
+        reasons.push({
+          level: "info",
+          text: "Nessun ingrediente tipicamente associato a elevata istamina è stato rilevato, ma l'etichetta non permette di escludere né quantificare l'istamina.",
+        });
+      }
+      continue;
+    }
 
     if (a === "lattosio") {
       const lactoseKw = keywordHit(main, a);
