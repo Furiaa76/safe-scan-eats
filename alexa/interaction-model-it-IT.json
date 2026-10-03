@@ -35,6 +35,22 @@
           ]
         },
         {
+          "name": "SelectProfileIntent",
+          "slots": [
+            {
+              "name": "profile",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "profilo {profile}",
+            "usa il profilo {profile}",
+            "usa {profile}",
+            "per {profile}",
+            "scegli {profile}"
+          ]
+        },
+        {
           "name": "AddShoppingItemIntent",
           "slots": [
             {
