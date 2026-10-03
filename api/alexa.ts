@@ -26,6 +26,12 @@ type ShoppingItem = {
   createdAt?: string;
 };
 
+type AlexaProfile = {
+  id: string;
+  name: string;
+  allergens: string[];
+};
+
 const SUPABASE_URL = "https://mqrmdynpcextvjgkkyfj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umpU64DAPwgRiT56fEzvtw_pIo2Wh20";
 
@@ -76,6 +82,51 @@ function getAlexaUserId(body: AlexaRequest) {
     body.context?.System?.user?.userId ??
     body.session?.user?.userId ??
     ""
+  );
+}
+
+async function getHouseholdProfiles(householdKey: string): Promise<AlexaProfile[]> {
+  try {
+    const profiles = await rpc<unknown>("safe_scan_get_profiles", {
+      p_household_key: householdKey,
+    });
+    if (!Array.isArray(profiles)) return [];
+    return profiles
+      .map((profile) => {
+        if (!profile || typeof profile !== "object") return null;
+        const row = profile as Record<string, unknown>;
+        const name = typeof row.name === "string" ? row.name.trim() : "";
+        const id = typeof row.id === "string" ? row.id : crypto.randomUUID();
+        const allergens = Array.isArray(row.allergens)
+          ? row.allergens.filter((value): value is string => typeof value === "string")
+          : [];
+        return name ? { id, name, allergens } : null;
+      })
+      .filter((profile): profile is AlexaProfile => Boolean(profile));
+  } catch {
+    return [];
+  }
+}
+
+function normalizeProfileName(value: string) {
+  return value
+    .trim()
+    .toLocaleLowerCase("it-IT")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function findProfileBySpokenName(profiles: AlexaProfile[], spoken: string) {
+  const wanted = normalizeProfileName(spoken);
+  if (!wanted) return null;
+  const exact = profiles.find((profile) => normalizeProfileName(profile.name) === wanted);
+  if (exact) return exact;
+  return (
+    profiles.find((profile) => normalizeProfileName(profile.name).includes(wanted)) ??
+    profiles.find((profile) => wanted.includes(normalizeProfileName(profile.name))) ??
+    null
   );
 }
 
@@ -327,8 +378,13 @@ function mergeItems(existing: ShoppingItem[], additions: Array<{ name: string; q
   return next;
 }
 
-async function addDishToCloud(householdKey: string, dish: string, servings = 4) {
-  const preferences = await getHouseholdPreferences(householdKey);
+async function addDishToCloud(
+  householdKey: string,
+  dish: string,
+  servings = 4,
+  profileAllergens?: string[],
+) {
+  const preferences = profileAllergens ?? await getHouseholdPreferences(householdKey);
   const avoidHistamine = preferences.includes("istamina");
   const ingredients = await generateIngredients(dish, servings, avoidHistamine);
   if (!ingredients) return { ok: false as const, count: 0 };
@@ -356,6 +412,60 @@ async function addDishToCloud(householdKey: string, dish: string, servings = 4) 
 }
 
 
+async function addRecipeForProfile(
+  householdKey: string,
+  dish: string,
+  servings: number,
+  profile: AlexaProfile | null,
+) {
+  const alreadyPresent = await shoppingHasDish(householdKey, dish);
+  if (alreadyPresent) {
+    return {
+      duplicate: true as const,
+      response: buildAlexaResponse(
+        `${dish} è già presente nella lista. Vuoi aggiungerla a quella esistente oppure sostituirla?`,
+        false,
+        {
+          pendingAction: "duplicateRecipe",
+          householdKey,
+          dish,
+          servings,
+          profileName: profile?.name ?? "",
+          profileAllergens: profile?.allergens ?? [],
+        },
+      ),
+    };
+  }
+
+  const result = await addDishToCloud(
+    householdKey,
+    dish,
+    servings,
+    profile?.allergens,
+  );
+  if (!result.ok) {
+    return {
+      duplicate: false as const,
+      response: buildAlexaResponse(
+        `Ho capito ${dish}, ma non riesco a creare la lista ingredienti in questo momento.`,
+      ),
+    };
+  }
+
+  const histamineNote = profile?.allergens.includes("istamina")
+    ? " Ho adattato gli ingredienti per evitare, per quanto possibile, quelli tipicamente problematici per sensibilità all'istamina."
+    : "";
+  const profileNote = profile ? ` per il profilo ${profile.name}` : "";
+
+  return {
+    duplicate: false as const,
+    response: buildAlexaResponse(
+      `Fatto. Ho aggiunto ${result.count} ingredienti per ${dish} per ${servings} ${servings === 1 ? "persona" : "persone"}${profileNote} alla lista della spesa di Safe Scan Eats.${histamineNote}`,
+      false,
+    ),
+  };
+}
+
 function recipeMentionsDish(recipe: string | undefined, dish: string) {
   if (!recipe) return false;
   const wanted = cleanDish(dish);
@@ -370,8 +480,13 @@ async function shoppingHasDish(householdKey: string, dish: string) {
   return items.some((item) => recipeMentionsDish(item.recipe, dish));
 }
 
-async function replaceDishInCloud(householdKey: string, dish: string, servings = 4) {
-  const preferences = await getHouseholdPreferences(householdKey);
+async function replaceDishInCloud(
+  householdKey: string,
+  dish: string,
+  servings = 4,
+  profileAllergens?: string[],
+) {
+  const preferences = profileAllergens ?? await getHouseholdPreferences(householdKey);
   const avoidHistamine = preferences.includes("istamina");
   const ingredients = await generateIngredients(dish, servings, avoidHistamine);
   if (!ingredients) return { ok: false as const, count: 0 };
@@ -614,14 +729,16 @@ export async function POST(request: Request) {
           );
         }
 
-        const alreadyPresent = await shoppingHasDish(household, dish);
-        if (alreadyPresent) {
+        const profiles = await getHouseholdProfiles(household);
+
+        if (profiles.length > 1) {
+          const names = profiles.map((profile) => profile.name).join(", ");
           return json(
             buildAlexaResponse(
-              `${dish} è già presente nella lista. Vuoi aggiungerla a quella esistente oppure sostituirla?`,
+              `Per quale profilo vuoi preparare ${dish}? Puoi scegliere: ${names}.`,
               false,
               {
-                pendingAction: "duplicateRecipe",
+                pendingAction: "recipeProfileSelection",
                 householdKey: household,
                 dish,
                 servings,
@@ -630,24 +747,61 @@ export async function POST(request: Request) {
           );
         }
 
-        const result = await addDishToCloud(household, dish, servings);
-        if (!result.ok) {
-          return json(buildAlexaResponse(`Ho capito ${dish}, ma non riesco a creare la lista ingredienti in questo momento.`));
-        }
-
-        const preferences = await getHouseholdPreferences(household);
-        const histamineNote = preferences.includes("istamina")
-          ? " Ho adattato gli ingredienti per evitare, per quanto possibile, quelli tipicamente problematici per sensibilità all'istamina."
-          : "";
-        return json(
-          buildAlexaResponse(
-            `Fatto. Ho aggiunto ${result.count} ingredienti per ${dish} per ${servings} ${servings === 1 ? "persona" : "persone"} alla lista della spesa di Safe Scan Eats.${histamineNote}`,
-            false,
-          ),
-        );
+        const profile = profiles.length === 1 ? profiles[0] : null;
+        const result = await addRecipeForProfile(household, dish, servings, profile);
+        return json(result.response);
       } catch (error) {
         console.error("[Alexa] shopping add failed", error);
         return json(buildAlexaResponse("Ho avuto un problema nell'aggiornare la lista della spesa. Riprova tra poco."));
+      }
+    }
+
+    if (intent === "SelectProfileIntent") {
+      const pendingAction = body.session?.attributes?.["pendingAction"];
+      const householdKey = body.session?.attributes?.["householdKey"];
+      const dish = body.session?.attributes?.["dish"];
+      const servingsValue = body.session?.attributes?.["servings"];
+      const spokenProfile = (
+        body.request?.intent?.slots?.["profile"]?.value ??
+        body.request?.intent?.slots?.["profilo"]?.value
+      )?.trim();
+
+      if (
+        pendingAction !== "recipeProfileSelection" ||
+        typeof householdKey !== "string" ||
+        typeof dish !== "string"
+      ) {
+        return json(buildAlexaResponse("Non c'è una ricetta in attesa di scelta del profilo.", false));
+      }
+
+      if (!spokenProfile) {
+        return json(buildAlexaResponse("Dimmi il nome del profilo da usare.", false, body.session?.attributes));
+      }
+
+      const servings =
+        typeof servingsValue === "number" && Number.isFinite(servingsValue)
+          ? servingsValue
+          : 4;
+
+      try {
+        const profiles = await getHouseholdProfiles(householdKey);
+        const profile = findProfileBySpokenName(profiles, spokenProfile);
+        if (!profile) {
+          const names = profiles.map((item) => item.name).join(", ");
+          return json(
+            buildAlexaResponse(
+              `Non trovo il profilo ${spokenProfile}. Puoi scegliere: ${names}.`,
+              false,
+              body.session?.attributes,
+            ),
+          );
+        }
+
+        const result = await addRecipeForProfile(householdKey, dish, servings, profile);
+        return json(result.response);
+      } catch (error) {
+        console.error("[Alexa] profile selection failed", error);
+        return json(buildAlexaResponse("Non riesco a usare quel profilo in questo momento. Riprova tra poco.", false));
       }
     }
 
@@ -830,6 +984,7 @@ export async function POST(request: Request) {
       const householdKey = body.session?.attributes?.["householdKey"];
       const dish = body.session?.attributes?.["dish"];
       const servingsValue = body.session?.attributes?.["servings"];
+      const profileAllergens = body.session?.attributes?.["profileAllergens"];
 
       if (
         pendingAction === "duplicateRecipe" &&
@@ -841,7 +996,14 @@ export async function POST(request: Request) {
             ? servingsValue
             : 4;
         try {
-          const result = await addDishToCloud(householdKey, dish, servings);
+          const result = await addDishToCloud(
+            householdKey,
+            dish,
+            servings,
+            Array.isArray(profileAllergens)
+              ? profileAllergens.filter((value): value is string => typeof value === "string")
+              : undefined,
+          );
           if (!result.ok) {
             return json(buildAlexaResponse("Non sono riuscito ad aggiungere di nuovo la ricetta. Riprova tra poco.", false));
           }
@@ -876,7 +1038,14 @@ export async function POST(request: Request) {
             ? servingsValue
             : 4;
         try {
-          const result = await replaceDishInCloud(householdKey, dish, servings);
+          const result = await replaceDishInCloud(
+            householdKey,
+            dish,
+            servings,
+            Array.isArray(profileAllergens)
+              ? profileAllergens.filter((value): value is string => typeof value === "string")
+              : undefined,
+          );
           if (!result.ok) {
             return json(buildAlexaResponse("Non sono riuscito a sostituire la ricetta. Riprova tra poco.", false));
           }
@@ -931,7 +1100,7 @@ export async function POST(request: Request) {
     if (intent === "AMAZON.HelpIntent") {
       return json(
         buildAlexaResponse(
-          "Puoi dirmi: voglio fare la carbonara per due persone, aggiungi latte alla lista, cosa devo comprare, togli il latte dalla lista, segna il latte come comprato, rimetti il latte da comprare, oppure svuota la lista. Se una ricetta è già presente, puoi dire aggiungi oppure sostituisci.",
+          "Puoi dirmi: voglio fare la carbonara per due persone, aggiungi latte alla lista, cosa devo comprare, togli il latte dalla lista, segna il latte come comprato, rimetti il latte da comprare, oppure svuota la lista. Quando hai più profili, prima ti chiederò quale profilo usare per la ricetta. Se una ricetta è già presente, puoi dire aggiungi oppure sostituisci.",
           false,
         ),
       );
