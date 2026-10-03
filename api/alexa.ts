@@ -79,6 +79,45 @@ function getAlexaUserId(body: AlexaRequest) {
   );
 }
 
+async function getHouseholdPreferences(householdKey: string) {
+  try {
+    const allergens = await rpc<string[] | null>("safe_scan_get_preferences", {
+      p_household_key: householdKey,
+    });
+    return Array.isArray(allergens) ? allergens : [];
+  } catch {
+    return [];
+  }
+}
+
+function histamineSaferIngredients(items: Array<{ name: string; quantity: string }>) {
+  const substitutions: Array<[RegExp, string]> = [
+    [/pecorino romano/gi, "Formaggio fresco non stagionato"],
+    [/parmigiano(?: grattugiato)?/gi, "Formaggio fresco non stagionato"],
+    [/grana/gi, "Formaggio fresco non stagionato"],
+    [/gorgonzola/gi, "Formaggio fresco non stagionato"],
+    [/guanciale/gi, "Carne fresca di pollo o tacchino"],
+    [/salame|prosciutto crudo|speck|bresaola/gi, "Carne fresca non stagionata"],
+    [/tonno(?: in scatola)?|sgombro|sardine|acciughe|alici/gi, "Pesce molto fresco"],
+    [/passata di pomodoro|concentrato di pomodoro|pomodoro/gi, "Zucca o crema di verdure tollerate"],
+    [/melanzane?/gi, "Zucchine"],
+    [/spinaci/gi, "Bietole"],
+    [/avocado/gi, "Olio extravergine d'oliva"],
+    [/cacao(?: amaro)?|cioccolato/gi, "Carruba"],
+    [/aceto/gi, "Succo di limone se tollerato"],
+    [/vino|birra/gi, "Acqua o brodo fresco"],
+    [/salsa di soia|miso|kimchi|crauti/gi, "Condimento non fermentato"],
+  ];
+
+  return items.map((item) => {
+    let name = item.name;
+    for (const [pattern, replacement] of substitutions) {
+      name = name.replace(pattern, replacement);
+    }
+    return { ...item, name };
+  });
+}
+
 async function getHouseholdKey(alexaUserId: string) {
   if (!alexaUserId) return null;
   return rpc<string | null>("safe_scan_alexa_household", {
@@ -184,24 +223,25 @@ function scaleRecipeQuantity(quantity: string, servings: number) {
   return `${String(scaled).replace(".", ",")}${match[2]}`.trim();
 }
 
-async function generateIngredients(dish: string, servings = 4) {
+async function generateIngredients(dish: string, servings = 4, avoidHistamine = false) {
   const cleaned = cleanDish(dish);
   const builtIn =
     BUILTIN_RECIPES[cleaned] ??
     Object.entries(BUILTIN_RECIPES).find(([key]) => cleaned.includes(key))?.[1];
   if (builtIn) {
-    return builtIn.map((item) => ({
+    const scaled = builtIn.map((item) => ({
       ...item,
       quantity: scaleRecipeQuantity(item.quantity, servings),
     }));
+    return avoidHistamine ? histamineSaferIngredients(scaled) : scaled;
   }
 
   try {
     const { text } = await generateText({
       model: "google/gemini-3.6-flash",
       system:
-        'Sei il motore ricette di Safe Scan Eats. Ricevi il nome libero di QUALSIASI piatto, dolce, torta, ricetta regionale o internazionale e il numero di persone. Crea la lista della spesa essenziale per prepararlo. Non rinominare il piatto e non sostituirlo con un altro. Se esistono varianti, usa la versione italiana/classica più comune. Rispondi SOLO JSON nel formato {"ingredients":[{"name":string,"quantity":string}]}. Usa nomi e quantità in italiano.',
-      prompt: `Piatto richiesto esattamente: ${dish}\nPersone: ${servings}`,
+        'Sei il motore ricette di Safe Scan Eats. Ricevi il nome libero di QUALSIASI piatto, dolce, torta, ricetta regionale o internazionale e il numero di persone. Crea la lista della spesa essenziale per prepararlo. Non rinominare il piatto e non sostituirlo con un altro. Se esistono varianti, usa la versione italiana/classica più comune. Se viene richiesto di evitare alimenti problematici per sensibilità all istamina, preferisci ingredienti freschi e non stagionati, non fermentati e non conservati, ed evita per quanto possibile salumi, formaggi stagionati, pesce in scatola o affumicato, fermentati, pomodoro, spinaci, melanzane, avocado, cacao/cioccolato, vino e birra. Rispondi SOLO JSON nel formato {"ingredients":[{"name":string,"quantity":string}]}. Usa nomi e quantità in italiano.',
+      prompt: `Piatto richiesto esattamente: ${dish}\nPersone: ${servings}\n${avoidHistamine ? "Profilo: sensibilità all istamina, evita o sostituisci gli ingredienti tipicamente problematici." : ""}`,
     });
 
     const parsed = JSON.parse(
@@ -288,7 +328,9 @@ function mergeItems(existing: ShoppingItem[], additions: Array<{ name: string; q
 }
 
 async function addDishToCloud(householdKey: string, dish: string, servings = 4) {
-  const ingredients = await generateIngredients(dish, servings);
+  const preferences = await getHouseholdPreferences(householdKey);
+  const avoidHistamine = preferences.includes("istamina");
+  const ingredients = await generateIngredients(dish, servings, avoidHistamine);
   if (!ingredients) return { ok: false as const, count: 0 };
 
   const rows = await rpc<Array<Record<string, unknown>>>("safe_scan_get_shopping", {
@@ -329,7 +371,9 @@ async function shoppingHasDish(householdKey: string, dish: string) {
 }
 
 async function replaceDishInCloud(householdKey: string, dish: string, servings = 4) {
-  const ingredients = await generateIngredients(dish, servings);
+  const preferences = await getHouseholdPreferences(householdKey);
+  const avoidHistamine = preferences.includes("istamina");
+  const ingredients = await generateIngredients(dish, servings, avoidHistamine);
   if (!ingredients) return { ok: false as const, count: 0 };
 
   const existing = await loadShoppingFromCloud(householdKey);
@@ -591,9 +635,13 @@ export async function POST(request: Request) {
           return json(buildAlexaResponse(`Ho capito ${dish}, ma non riesco a creare la lista ingredienti in questo momento.`));
         }
 
+        const preferences = await getHouseholdPreferences(household);
+        const histamineNote = preferences.includes("istamina")
+          ? " Ho adattato gli ingredienti per evitare, per quanto possibile, quelli tipicamente problematici per sensibilità all'istamina."
+          : "";
         return json(
           buildAlexaResponse(
-            `Fatto. Ho aggiunto ${result.count} ingredienti per ${dish} per ${servings} ${servings === 1 ? "persona" : "persone"} alla lista della spesa di Safe Scan Eats.`,
+            `Fatto. Ho aggiunto ${result.count} ingredienti per ${dish} per ${servings} ${servings === 1 ? "persona" : "persone"} alla lista della spesa di Safe Scan Eats.${histamineNote}`,
             false,
           ),
         );
