@@ -121,3 +121,25 @@ export async function saveCloudAllergenPreferences(allergens: string[]) {
   if (error) throw error;
   return true;
 }
+
+
+export async function saveCloudProfiles(
+  profiles: Array<{ id: string; name: string; allergens: string[] }>
+) {
+  const client = getClient();
+  const householdKey = getHouseholdKey();
+  if (!client || !householdKey) return false;
+
+  const payload = profiles.map((profile) => ({
+    id: profile.id,
+    name: profile.name.trim() || "Profilo",
+    allergens: Array.from(new Set(profile.allergens)),
+  }));
+
+  const { error } = await client.rpc("safe_scan_set_profiles", {
+    p_household_key: householdKey,
+    p_profiles: payload,
+  });
+  if (error) throw error;
+  return true;
+}
