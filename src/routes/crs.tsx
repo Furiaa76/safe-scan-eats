@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Camera, CreditCard, ExternalLink, Eye, EyeOff, Loader2, Save, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, Camera, CreditCard, ExternalLink, Eye, EyeOff, Images, Loader2, Save, ShieldCheck, Trash2 } from "lucide-react";
 import { readHealthCard } from "@/lib/vision.functions";
 import { fileToDataUrl } from "@/lib/image";
 
@@ -121,6 +121,7 @@ function CrsPage() {
   const scanTimerRef = useRef<number | null>(null);
   const scanInFlightRef = useRef(false);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const libraryInputRef = useRef<HTMLInputElement | null>(null);
   const fiscalRef = useRef("");
   const lastFiveRef = useRef("");
   const holderRef = useRef("");
@@ -362,6 +363,7 @@ function CrsPage() {
       <p className="mt-4 text-sm leading-relaxed text-muted-foreground">Apri lo scanner e inquadra direttamente il RETRO della CRS/Tessera Sanitaria, dove c’è il codice a barre. Safe Scan Eats legge prima il codice a barre per ricavare il codice fiscale e poi prova a leggere il numero identificativo della tessera. Non serve più partire dal fronte.</p>
 
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => { scanFallbackPhoto(e.target.files?.[0]); e.target.value = ""; }} />
+      <input ref={libraryInputRef} type="file" accept="image/*" className="sr-only" onChange={(e) => { scanFallbackPhoto(e.target.files?.[0]); e.target.value = ""; }} />
       <div className="relative mt-4 aspect-[1.58/1] overflow-hidden rounded-3xl border-2 border-primary/40 bg-foreground">
         {scannerOpen ? <>
           <video ref={videoRef} playsInline muted autoPlay className="h-full w-full object-cover" />
@@ -378,7 +380,10 @@ function CrsPage() {
 
       {scannerOpen && <button type="button" onClick={stopScanner} className="mt-3 w-full rounded-2xl border border-border py-3 text-sm font-extrabold text-foreground">Chiudi scanner</button>}
       {!scannerOpen && cardPhoto && <button type="button" onClick={startScanner} className="mt-3 w-full rounded-2xl border border-border py-3 text-sm font-extrabold text-foreground">Scansiona di nuovo</button>}
-      {!scannerOpen && <button type="button" onClick={openNativeCameraFallback} className="mt-2 w-full rounded-2xl border border-border py-3 text-sm font-extrabold text-foreground">Apri fotocamera del telefono</button>}
+      {!scannerOpen && <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <button type="button" onClick={openNativeCameraFallback} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border py-3 text-sm font-extrabold text-foreground"><Camera className="h-4 w-4" />Apri fotocamera del telefono</button>
+        <button type="button" onClick={() => libraryInputRef.current?.click()} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border py-3 text-sm font-extrabold text-foreground"><Images className="h-4 w-4" />Scegli dalla libreria foto</button>
+      </div>}
 
       {scanError && <p className="mt-3 text-sm font-semibold text-danger">{scanError}</p>}
 
