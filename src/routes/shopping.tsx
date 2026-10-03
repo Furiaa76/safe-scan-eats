@@ -20,8 +20,9 @@ import {
   clearCloudShopping,
   linkAlexaPairingCode,
   saveCloudAllergenPreferences,
+  saveCloudProfiles,
 } from "@/lib/cloud-shopping";
-import { useProfile } from "@/lib/store";
+import { useProfile, useProfilesState } from "@/lib/store";
 
 export const Route = createFileRoute("/shopping")({
   component: ShoppingPage,
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/shopping")({
 function ShoppingPage() {
   const items = useShoppingList();
   const profile = useProfile();
+  const profilesState = useProfilesState();
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -88,6 +90,17 @@ function ShoppingPage() {
     if (!cloudReady || !isCloudShoppingConfigured()) return;
     void saveCloudAllergenPreferences(profile?.allergens ?? []).catch(() => {});
   }, [cloudReady, profile?.allergens]);
+
+  useEffect(() => {
+    if (!cloudReady || !isCloudShoppingConfigured()) return;
+    void saveCloudProfiles(
+      profilesState.profiles.map((item) => ({
+        id: item.id,
+        name: item.name,
+        allergens: item.allergens,
+      })),
+    ).catch(() => {});
+  }, [cloudReady, profilesState.profiles]);
 
   useEffect(() => {
     if (!cloudReady || hydrating.current || !isCloudShoppingConfigured()) return;
