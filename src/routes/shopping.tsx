@@ -19,7 +19,9 @@ import {
   saveCloudShopping,
   clearCloudShopping,
   linkAlexaPairingCode,
+  saveCloudAllergenPreferences,
 } from "@/lib/cloud-shopping";
+import { useProfile } from "@/lib/store";
 
 export const Route = createFileRoute("/shopping")({
   component: ShoppingPage,
@@ -27,6 +29,7 @@ export const Route = createFileRoute("/shopping")({
 
 function ShoppingPage() {
   const items = useShoppingList();
+  const profile = useProfile();
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -80,6 +83,11 @@ function ShoppingPage() {
     // Prima sincronizzazione: deve partire una sola volta all'apertura della pagina.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!cloudReady || !isCloudShoppingConfigured()) return;
+    void saveCloudAllergenPreferences(profile?.allergens ?? []).catch(() => {});
+  }, [cloudReady, profile?.allergens]);
 
   useEffect(() => {
     if (!cloudReady || hydrating.current || !isCloudShoppingConfigured()) return;
