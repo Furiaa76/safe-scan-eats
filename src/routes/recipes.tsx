@@ -10,6 +10,8 @@ type Ingredient = { name: string; quantity: string; glutenSwap?: string; lactose
 type Recipe = { id: string; title: string; aliases: string[]; servings: number; ingredients: Ingredient[]; online?: boolean };
 type OnlineMeal = Record<string, string | null>;
 
+const HIDDEN_RECIPES_KEY = "safe-scan-hidden-recipes-v1";
+
 const RECIPES: Recipe[] = [
   {
     id: "lasagne",
@@ -360,18 +362,50 @@ function RecipesPage() {
   const [onlineRecipe, setOnlineRecipe] = useState<Recipe | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchMessage, setSearchMessage] = useState("");
+  const [hiddenRecipeIds, setHiddenRecipeIds] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(HIDDEN_RECIPES_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+    } catch {
+      return [];
+    }
+  });
 
   const selected = onlineRecipe ?? RECIPES.find((r) => r.id === selectedId) ?? null;
   const glutenFree = profile?.allergens.includes("glutine") ?? false;
   const lactoseFree = profile?.allergens.includes("lattosio") ?? false;
 
+  const visibleRecipes = useMemo(
+    () => RECIPES.filter((recipe) => !hiddenRecipeIds.includes(recipe.id)),
+    [hiddenRecipeIds],
+  );
+
   const suggestions = useMemo(() => {
     const q = dishKey(query);
-    if (!q) return RECIPES;
-    return RECIPES.filter((r) =>
+    if (!q) return visibleRecipes;
+    return visibleRecipes.filter((r) =>
       dishKey(r.title).includes(q) || r.aliases.some((a) => dishKey(a).includes(q))
     );
-  }, [query]);
+  }, [query, visibleRecipes]);
+
+  const hideRecipe = (recipe: Recipe) => {
+    const next = Array.from(new Set([...hiddenRecipeIds, recipe.id]));
+    setHiddenRecipeIds(next);
+    localStorage.setItem(HIDDEN_RECIPES_KEY, JSON.stringify(next));
+    if (selectedId === recipe.id) {
+      const replacement = RECIPES.find((item) => !next.includes(item.id));
+      setSelectedId(replacement?.id ?? "");
+      setQuery("");
+      setOnlineRecipe(null);
+      if (replacement) setServings(replacement.servings);
+    }
+  };
+
+  const restoreRecipes = () => {
+    setHiddenRecipeIds([]);
+    localStorage.removeItem(HIDDEN_RECIPES_KEY);
+  };
 
   const activeAllergens = profile?.allergens ?? [];
   const adapted = (selected?.ingredients ?? []).map((item) => {
@@ -479,8 +513,18 @@ function RecipesPage() {
         <button type="button" disabled={searching} onClick={() => void findRecipe()} className="rounded-2xl bg-primary px-4 text-sm font-extrabold text-primary-foreground disabled:opacity-50">{searching ? "Cerco…" : "Cerca"}</button>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        {(query.trim() ? suggestions : RECIPES).map((recipe) => <button key={recipe.id} type="button" onClick={() => choose(recipe)} className={`rounded-full px-3 py-2 text-xs font-extrabold ${recipe.id === selected.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>{recipe.title}</button>)}
+        {(query.trim() ? suggestions : visibleRecipes).map((recipe) => (
+          <div key={recipe.id} className={`flex items-center overflow-hidden rounded-full ${recipe.id === selected?.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
+            <button type="button" onClick={() => choose(recipe)} className="px-3 py-2 text-xs font-extrabold">
+              {recipe.title}
+            </button>
+            <button type="button" onClick={() => hideRecipe(recipe)} aria-label={`Elimina ${recipe.title}`} className="grid h-8 w-8 place-items-center border-l border-current/15 opacity-70 hover:opacity-100">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ))}
       </div>
+      {hiddenRecipeIds.length > 0 && <button type="button" onClick={restoreRecipes} className="mt-3 text-xs font-extrabold text-muted-foreground">Ripristina ricette eliminate ({hiddenRecipeIds.length})</button>}
       {searchMessage && <p className="mt-3 text-sm font-semibold text-muted-foreground">{searchMessage}</p>}
     </section>
 
