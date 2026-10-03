@@ -19,6 +19,7 @@ export type AllergenId =
   | "pesce"
   | "crostacei"
   | "sesamo"
+  | "istamina"
   | "polline-betulla"
   | "polline-graminacee"
   | "polline-ambrosia"
@@ -90,6 +91,20 @@ export const ALLERGENS: Allergen[] = [
     label: "Sesamo",
     icon: Bean,
     keywords: ["sesamo", "semi di sesamo", "tahina"],
+  },
+  {
+    id: "istamina",
+    label: "Istamina (sensibilità)",
+    icon: Bean,
+    keywords: [
+      "salame", "prosciutto crudo", "speck", "bresaola", "carne stagionata",
+      "formaggio stagionato", "parmigiano", "grana", "pecorino", "gorgonzola",
+      "tonno in scatola", "sgombro", "sardine", "acciughe", "alici",
+      "pesce affumicato", "pesce in scatola", "fermentato", "fermentata",
+      "crauti", "kimchi", "salsa di soia", "miso", "aceto", "vino", "birra",
+      "pomodoro", "concentrato di pomodoro", "spinaci", "melanzane", "avocado",
+      "cioccolato", "cacao", "fragole", "agrumi", "banana"
+    ],
   },
   {
     id: "polline-betulla",
