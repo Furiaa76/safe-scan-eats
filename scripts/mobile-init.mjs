@@ -10,6 +10,13 @@ run("npm", ["run", "mobile:assets"]);
 run("npx", ["capacitor-assets", "generate"]);
 run("npx", ["cap", "sync"]);
 
+const androidVariables = "android/variables.gradle";
+if (fs.existsSync(androidVariables)) {
+  let variables = fs.readFileSync(androidVariables, "utf8");
+  variables = variables.replace(/minSdkVersion\s*=\s*\d+/, "minSdkVersion = 26");
+  fs.writeFileSync(androidVariables, variables);
+}
+
 const androidManifest = "android/app/src/main/AndroidManifest.xml";
 if (fs.existsSync(androidManifest)) {
   let manifest = fs.readFileSync(androidManifest, "utf8");

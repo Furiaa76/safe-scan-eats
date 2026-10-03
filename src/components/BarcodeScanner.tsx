@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { Camera, CameraOff, Loader2, X } from "lucide-react";
 
 type Controls = { stop: () => void };
@@ -58,11 +59,41 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
     let cancelled = false;
     (async () => {
       try {
+        setStatus("starting");
+        setError(null);
+
+        if (Capacitor.isNativePlatform()) {
+          const {
+            CapacitorBarcodeScanner,
+            CapacitorBarcodeScannerTypeHint,
+            CapacitorBarcodeScannerCameraDirection,
+          } = await import("@capacitor/barcode-scanner");
+
+          const result = await CapacitorBarcodeScanner.scanBarcode({
+            hint: CapacitorBarcodeScannerTypeHint.ALL,
+            cameraDirection: CapacitorBarcodeScannerCameraDirection.BACK,
+            scanInstructions: "Inquadra il codice a barre del prodotto",
+            scanButton: true,
+            scanText: "Scansiona",
+          });
+
+          if (cancelled) return;
+          const code = result.ScanResult?.trim();
+          if (!code) {
+            setError("Nessun codice rilevato. Riprova inquadrando bene il codice a barre.");
+            setStatus("error");
+            return;
+          }
+          doneRef.current = true;
+          navigator.vibrate?.(80);
+          onDetected(code);
+          return;
+        }
+
         if (!navigator.mediaDevices?.getUserMedia || !window.isSecureContext) {
           throw Object.assign(new Error("unsupported"), { name: "Unsupported" });
         }
-        setStatus("starting");
-        setError(null);
+
         const reader = await makeReader();
         if (cancelled || !videoRef.current || document.visibilityState === "hidden") return;
         const controls = await reader.decodeFromConstraints(
@@ -105,6 +136,8 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
   }, [restartKey]);
 
   useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
         stopCamera();
