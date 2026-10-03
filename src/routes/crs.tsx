@@ -415,8 +415,8 @@ function CrsPage() {
 
     <section className="mt-5 rounded-3xl border border-border bg-card p-5">
       <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-6 w-6 shrink-0 text-primary" /><div><h2 className="font-extrabold text-foreground">Budget celiachia Lombardia</h2><p className="mt-1 text-sm leading-relaxed text-muted-foreground">Nel Fascicolo Sanitario di Regione Lombardia puoi vedere budget residuo, spese e negozi convenzionati.</p></div></div>
-      <a href="https://www.fascicolosanitario.regione.lombardia.it/" target="_blank" rel="noreferrer" className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 font-extrabold text-primary-foreground">Controlla saldo celiachia <ExternalLink className="h-4 w-4" /></a>
-      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Si apre il Fascicolo Sanitario ufficiale di Regione Lombardia. L’accesso avviene sui sistemi regionali con SPID, CIE oppure Tessera Sanitaria + PIN: Safe Scan Eats non salva queste credenziali.</p>
+      <a href="https://www.fascicolosanitario.regione.lombardia.it/fascicolo" target="_blank" rel="noreferrer" className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 font-extrabold text-primary-foreground">Apri saldo celiachia <ExternalLink className="h-4 w-4" /></a>
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Si apre direttamente l’area di accesso del Fascicolo Sanitario ufficiale di Regione Lombardia. Dopo l’autenticazione con SPID, CIE oppure TS-CNS, apri la sezione “Celiachia” per vedere budget residuo e spese. Safe Scan Eats non salva né vede le credenziali.</p>
       <Link to="/stores" className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-border py-3.5 font-extrabold text-foreground">Apri elenco negozi convenzionati <ExternalLink className="h-4 w-4" /></Link>
     </section>
 
