@@ -384,7 +384,7 @@ function RecipesPage() {
   const suggestions = useMemo(() => {
     const q = dishKey(query);
     if (!q) return visibleRecipes;
-    return visibleRecipes.filter((r) =>
+    return RECIPES.filter((r) =>
       dishKey(r.title).includes(q) || r.aliases.some((a) => dishKey(a).includes(q))
     );
   }, [query, visibleRecipes]);
