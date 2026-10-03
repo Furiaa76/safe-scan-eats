@@ -107,3 +107,17 @@ export async function linkAlexaPairingCode(code: string) {
   if (error) throw error;
   return data === true;
 }
+
+
+export async function saveCloudAllergenPreferences(allergens: string[]) {
+  const client = getClient();
+  const householdKey = getHouseholdKey();
+  if (!client || !householdKey) return false;
+
+  const { error } = await client.rpc("safe_scan_set_preferences", {
+    p_household_key: householdKey,
+    p_allergens: Array.from(new Set(allergens)),
+  });
+  if (error) throw error;
+  return true;
+}
