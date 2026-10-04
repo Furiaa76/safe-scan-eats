@@ -39,7 +39,7 @@
           "slots": [
             {
               "name": "profile",
-              "type": "AMAZON.SearchQuery"
+              "type": "AMAZON.FirstName"
             }
           ],
           "samples": [
@@ -47,7 +47,21 @@
             "usa il profilo {profile}",
             "usa {profile}",
             "per {profile}",
-            "scegli {profile}"
+            "scegli {profile}",
+            "scelgo {profile}",
+            "il profilo {profile}"
+          ]
+        },
+        {
+          "name": "SelectProfileNameIntent",
+          "slots": [
+            {
+              "name": "profile",
+              "type": "AMAZON.FirstName"
+            }
+          ],
+          "samples": [
+            "{profile}"
           ]
         },
         {
