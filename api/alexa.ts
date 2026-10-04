@@ -1027,6 +1027,7 @@ export async function POST(request: Request) {
       const householdKey = body.session?.attributes?.["householdKey"];
       const dish = body.session?.attributes?.["dish"];
       const servingsValue = body.session?.attributes?.["servings"];
+      const profileAllergens = body.session?.attributes?.["profileAllergens"];
 
       if (
         pendingAction === "duplicateRecipe" &&
