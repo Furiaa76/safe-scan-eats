@@ -735,7 +735,7 @@ export async function POST(request: Request) {
           const names = profiles.map((profile) => profile.name).join(", ");
           return json(
             buildAlexaResponse(
-              `Per quale profilo vuoi preparare ${dish}? Puoi scegliere: ${names}.`,
+              `Per quale profilo vuoi preparare ${dish}? Puoi scegliere: ${names}. Puoi dire semplicemente il nome.`,
               false,
               {
                 pendingAction: "recipeProfileSelection",
@@ -756,7 +756,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (intent === "SelectProfileIntent") {
+    if (intent === "SelectProfileIntent" || intent === "SelectProfileNameIntent") {
       const pendingAction = body.session?.attributes?.["pendingAction"];
       const householdKey = body.session?.attributes?.["householdKey"];
       const dish = body.session?.attributes?.["dish"];
