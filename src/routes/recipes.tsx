@@ -1,3 +1,4 @@
+import { EXTRA_RECIPES } from "@/lib/recipe-catalog";
 import { useAppLanguage } from "@/lib/language";
 import { PurchaseItemLink } from "@/components/PurchaseItemLink";
 import { translateText } from "@/lib/translations";
@@ -15,7 +16,7 @@ type OnlineMeal = Record<string, string | null>;
 
 const HIDDEN_RECIPES_KEY = "safe-scan-hidden-recipes-v1";
 
-const RECIPES: Recipe[] = [
+const ORIGINAL_RECIPES: Recipe[] = [
   {
     id: "lasagne",
     title: "Lasagne",
@@ -185,6 +186,9 @@ const RECIPES: Recipe[] = [
     ],
   },
 ];
+
+
+const RECIPES: Recipe[] = [...ORIGINAL_RECIPES, ...EXTRA_RECIPES.filter((recipe) => !ORIGINAL_RECIPES.some((original) => original.id === recipe.id))];
 
 
 

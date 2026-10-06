@@ -1,7 +1,11 @@
 export type AppLanguage = "it" | "en";
 
 // Display translations never change ingredient identifiers, profiles or shopping data.
+import { EXTRA_RECIPES, CATALOG_FOOD_EN } from "./recipe-catalog";
+
 export const ENGLISH: Record<string, string> = {
+  ...CATALOG_FOOD_EN,
+  ...Object.fromEntries(EXTRA_RECIPES.map((recipe) => [recipe.title, recipe.englishTitle])),
   "Paese per gli acquisti": "Shopping country",
   "Tocca un prodotto per cercare dove acquistarlo.": "Tap an item to find where to buy it.",
   "Città per la mappa (facoltativa)": "City for the map (optional)",
