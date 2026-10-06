@@ -4227,10 +4227,65 @@ export const EXTRA_RECIPES: CatalogRecipe[] = [
       }
     ],
     "englishTitle": "Margherita pizza"
+  },
+  {
+    "id": "pizzoccheri",
+    "title": "Pizzoccheri",
+    "englishTitle": "Pizzoccheri",
+    "aliases": [
+      "pizzoccheri della valtellina",
+      "pizzoccheri valtellinesi"
+    ],
+    "servings": 4,
+    "ingredients": [
+      {
+        "name": "Pizzoccheri",
+        "quantity": "320 g",
+        "glutenSwap": "Pizzoccheri senza glutine"
+      },
+      {
+        "name": "Patate",
+        "quantity": "300 g"
+      },
+      {
+        "name": "Verza",
+        "quantity": "300 g"
+      },
+      {
+        "name": "Formaggio Casera",
+        "quantity": "200 g",
+        "lactoseSwap": "Alternativa al Casera senza lattosio"
+      },
+      {
+        "name": "Parmigiano grattugiato",
+        "quantity": "80 g"
+      },
+      {
+        "name": "Burro",
+        "quantity": "80 g",
+        "lactoseSwap": "Burro senza lattosio"
+      },
+      {
+        "name": "Aglio",
+        "quantity": "2 spicchi"
+      },
+      {
+        "name": "Salvia",
+        "quantity": "q.b."
+      },
+      {
+        "name": "Sale",
+        "quantity": "q.b."
+      }
+    ]
   }
 ];
 
 export const CATALOG_FOOD_EN: Record<string, string> = {
+  "Verza": "savoy cabbage",
+  "Formaggio Casera": "Casera cheese",
+  "Alternativa al Casera senza lattosio": "lactose-free alternative to Casera cheese",
+  "Pizzoccheri senza glutine": "gluten-free pizzoccheri",
   "Cannelloni": "cannelloni",
   "Ricotta": "ricotta",
   "Spinaci": "spinach",

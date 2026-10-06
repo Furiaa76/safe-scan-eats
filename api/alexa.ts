@@ -4516,6 +4516,57 @@ const EXTRA_RECIPES: Array<{ id: string; title: string; englishTitle: string; al
       }
     ],
     "englishTitle": "Margherita pizza"
+  },
+  {
+    "id": "pizzoccheri",
+    "title": "Pizzoccheri",
+    "englishTitle": "Pizzoccheri",
+    "aliases": [
+      "pizzoccheri della valtellina",
+      "pizzoccheri valtellinesi"
+    ],
+    "servings": 4,
+    "ingredients": [
+      {
+        "name": "Pizzoccheri",
+        "quantity": "320 g",
+        "glutenSwap": "Pizzoccheri senza glutine"
+      },
+      {
+        "name": "Patate",
+        "quantity": "300 g"
+      },
+      {
+        "name": "Verza",
+        "quantity": "300 g"
+      },
+      {
+        "name": "Formaggio Casera",
+        "quantity": "200 g",
+        "lactoseSwap": "Alternativa al Casera senza lattosio"
+      },
+      {
+        "name": "Parmigiano grattugiato",
+        "quantity": "80 g"
+      },
+      {
+        "name": "Burro",
+        "quantity": "80 g",
+        "lactoseSwap": "Burro senza lattosio"
+      },
+      {
+        "name": "Aglio",
+        "quantity": "2 spicchi"
+      },
+      {
+        "name": "Salvia",
+        "quantity": "q.b."
+      },
+      {
+        "name": "Sale",
+        "quantity": "q.b."
+      }
+    ]
   }
 ];
 
@@ -5076,8 +5127,18 @@ export async function POST(request: Request) {
     const isSeparateRecipeAnswer = body.session?.attributes?.["pendingAction"] === "duplicateRecipe" &&
       recognizedIntent === "AddShoppingItemIntent" &&
       /^(?:(?:la|it|the)\s+)?(?:(?:ricetta|recipe)\s+)?(?:separatamente|separately)$/i.test(body.request?.intent?.slots?.["item"]?.value?.trim() ?? "");
+    const rawProfileItem = body.request?.intent?.slots?.["item"]?.value?.trim() ?? "";
+    // Voice recognition can classify an answer to the profile question as a grocery.
+    // Explicit profile expressions must never be written to the shopping list.
+    const isProfileItemAnswer = recognizedIntent === "AddShoppingItemIntent" && (
+      body.session?.attributes?.["pendingAction"] === "recipeProfileSelection" ||
+      /(?:\bcome\s+profilo\b|\bas\s+(?:a\s+)?profile\b|^(?:il\s+)?profilo\s+|^profile\s+)/i.test(rawProfileItem));
+    const profileItemName = rawProfileItem
+      .replace(/^(?:(?:il\s+)?profilo|profile)\s+/i, "")
+      .replace(/\s+(?:come\s+profilo|as\s+(?:a\s+)?profile)\s*$/i, "").trim();
     const intent = isServingsAnswer ? "ChangeServingsIntent" :
-      isSeparateRecipeAnswer ? "AddDuplicateRecipeIntent" : recognizedIntent;
+      isSeparateRecipeAnswer ? "AddDuplicateRecipeIntent" :
+      isProfileItemAnswer ? "SelectProfileIntent" : recognizedIntent;
     console.log("[Alexa] intent", {
       intent,
       recognizedIntent,
@@ -5175,7 +5236,8 @@ export async function POST(request: Request) {
       const servingsValue = body.session?.attributes?.["servings"];
       const spokenProfile = (
         body.request?.intent?.slots?.["profile"]?.value ??
-        body.request?.intent?.slots?.["profilo"]?.value
+        body.request?.intent?.slots?.["profilo"]?.value ??
+        (isProfileItemAnswer ? profileItemName : undefined)
       )?.trim();
 
       if (
@@ -5183,7 +5245,7 @@ export async function POST(request: Request) {
         typeof householdKey !== "string" ||
         typeof dish !== "string"
       ) {
-        return json(buildAlexaResponse("Non c'è una ricetta in attesa di scelta del profilo.", false));
+        return json(buildAlexaResponse("Per scegliere il profilo di una ricetta, prima dimmi: voglio fare i pizzoccheri. Ti chiederò le persone e poi il profilo. Per creare un nuovo profilo usa l'app Safe Scan Eats.", false));
       }
 
       if (!spokenProfile) {
@@ -5563,6 +5625,7 @@ export async function POST(request: Request) {
 // Keep language helpers in the server entry point so deployment needs no local ESM import.
 // Deterministic localisation: no translation service or additional API cost.
 const ENGLISH_TEXT: Record<string, string> = {
+  "Per scegliere il profilo di una ricetta, prima dimmi: voglio fare i pizzoccheri. Ti chiederò le persone e poi il profilo. Per creare un nuovo profilo usa l'app Safe Scan Eats.": "To choose a recipe profile, first say: I want to make pizzoccheri. I will ask how many people and then which profile. To create a new profile, use the Safe Scan Eats app.",
   "Quale piatto vuoi preparare?": "What would you like to cook?",
   "Dimmi un numero intero di persone da uno a venti.": "How many people? Please say a whole number from one to twenty.",
   "Prima collega Alexa alla lista della spesa nell'app Safe Scan Eats.": "First, link Alexa to your shopping list in the Safe Scan Eats app.",
@@ -5608,6 +5671,10 @@ const ENGLISH_ERRORS: Record<string, string> = {
 
 // Generated food translations from src/lib/recipe-catalog.ts.
 const CATALOG_FOOD_EN: Record<string, string> = {
+  "verza": "savoy cabbage",
+  "formaggio casera": "Casera cheese",
+  "alternativa al casera senza lattosio": "lactose-free alternative to Casera cheese",
+  "pizzoccheri senza glutine": "gluten-free pizzoccheri",
   "cannelloni": "cannelloni",
   "ricotta": "ricotta",
   "spinaci": "spinach",
