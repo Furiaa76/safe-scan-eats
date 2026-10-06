@@ -1,4 +1,5 @@
 import { generateText } from "ai";
+import { englishDish, englishItem, localizeAlexaResponse } from "../src/lib/alexa-language";
 // Alexa recipe generation uses Vercel AI SDK OIDC.
 import {
   SkillRequestSignatureVerifier,
@@ -10,6 +11,7 @@ type AlexaRequest = {
   context?: { System?: { user?: { userId?: string } } };
   request?: {
     type?: string;
+    locale?: string;
     intent?: {
       name?: string;
       slots?: Record<string, { value?: string }>;
@@ -83,7 +85,7 @@ function buildAlexaResponse(
   };
 }
 
-function json(data: unknown, status = 200) {
+function rawJson(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
@@ -534,7 +536,9 @@ function parseServings(value: unknown): number | null {
   const words = ["zero", "uno", "due", "tre", "quattro", "cinque", "sei", "sette", "otto", "nove", "dieci", "undici", "dodici", "tredici", "quattordici", "quindici", "sedici", "diciassette", "diciotto", "diciannove", "venti"];
   const text = String(value).trim().toLocaleLowerCase("it-IT");
   const word = text === "una" ? 1 : words.indexOf(text);
-  const count = word >= 0 ? word : Number(text.replace(",", "."));
+  const englishWords = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
+  const englishWord = englishWords.indexOf(text);
+  const count = word >= 0 ? word : englishWord >= 0 ? englishWord : Number(text.replace(",", "."));
   return Number.isInteger(count) && count >= 1 && count <= 20 ? count : null;
 }
 
@@ -769,6 +773,10 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  let english = false;
+  // Locale is local to this request: concurrent Italian and English sessions
+  // cannot change each other's response language.
+  const json = (data: unknown, status = 200) => rawJson(localizeAlexaResponse(data, english), status);
   const rawBody = await request.text();
   const headers = Object.fromEntries(request.headers.entries());
 
@@ -795,6 +803,7 @@ export async function POST(request: Request) {
   }
 
   const alexaUserId = getAlexaUserId(body);
+  english = body.request?.locale?.startsWith("en-") ?? false;
   const type = body.request?.type;
 
   if (type === "LaunchRequest") {
@@ -828,7 +837,7 @@ export async function POST(request: Request) {
       (recognizedIntent === "SelectProfileIntent" || recognizedIntent === "SelectProfileNameIntent");
     const isSeparateRecipeAnswer = body.session?.attributes?.["pendingAction"] === "duplicateRecipe" &&
       recognizedIntent === "AddShoppingItemIntent" &&
-      /^(?:la\s+)?(?:ricetta\s+)?separatamente$/i.test(body.request?.intent?.slots?.["item"]?.value?.trim() ?? "");
+      /^(?:(?:la|it|the)\s+)?(?:(?:ricetta|recipe)\s+)?(?:separatamente|separately)$/i.test(body.request?.intent?.slots?.["item"]?.value?.trim() ?? "");
     const intent = isServingsAnswer ? "ChangeServingsIntent" :
       isSeparateRecipeAnswer ? "AddDuplicateRecipeIntent" : recognizedIntent;
     console.log("[Alexa] intent", {
@@ -852,7 +861,8 @@ export async function POST(request: Request) {
         body.request?.intent?.slots?.["servings"]?.value ??
         body.request?.intent?.slots?.["persone"]?.value
       )?.trim();
-      const suffix = dish?.match(/\s+per\s+(\d+(?:[.,]\d+)?|[a-z]+)\s+person[ae]\s*$/i);
+      if (english && dish) dish = englishDish(dish);
+      const suffix = dish?.match(/\s+(?:per|for)\s+(\d+(?:[.,]\d+)?|[a-z]+)\s+(?:person[ae]|people|persons?|servings?)\s*$/i);
       const requestedServings = servingsRaw ?? suffix?.[1];
       // The old voice model has no number intent. Keep its four-person default
       // until the new model is imported; only the new intent starts the dialog.
@@ -970,10 +980,12 @@ export async function POST(request: Request) {
     }
 
     if (intent === "AddShoppingItemIntent") {
-      const rawItem = (
+      let rawItem = (
         body.request?.intent?.slots?.["item"]?.value ??
         body.request?.intent?.slots?.["prodotto"]?.value
       )?.trim();
+
+      if (english && rawItem) rawItem = englishItem(rawItem);
 
       if (!rawItem) {
         return json(buildAlexaResponse("Che prodotto vuoi aggiungere alla lista?", false));
@@ -1028,10 +1040,12 @@ export async function POST(request: Request) {
     }
 
     if (intent === "RemoveShoppingItemIntent") {
-      const rawItem = (
+      let rawItem = (
         body.request?.intent?.slots?.["item"]?.value ??
         body.request?.intent?.slots?.["prodotto"]?.value
       )?.trim();
+
+      if (english && rawItem) rawItem = englishItem(rawItem);
 
       if (!rawItem) {
         return json(buildAlexaResponse("Quale prodotto vuoi togliere dalla lista?", false));
@@ -1061,10 +1075,12 @@ export async function POST(request: Request) {
     }
 
     if (intent === "MarkShoppingItemPurchasedIntent") {
-      const rawItem = (
+      let rawItem = (
         body.request?.intent?.slots?.["item"]?.value ??
         body.request?.intent?.slots?.["prodotto"]?.value
       )?.trim();
+
+      if (english && rawItem) rawItem = englishItem(rawItem);
 
       if (!rawItem) {
         return json(buildAlexaResponse("Quale prodotto devo segnare come comprato?", false));
@@ -1250,10 +1266,12 @@ export async function POST(request: Request) {
     }
 
     if (intent === "RestoreShoppingItemIntent") {
-      const rawItem = (
+      let rawItem = (
         body.request?.intent?.slots?.["item"]?.value ??
         body.request?.intent?.slots?.["prodotto"]?.value
       )?.trim();
+
+      if (english && rawItem) rawItem = englishItem(rawItem);
 
       if (!rawItem) {
         return json(buildAlexaResponse("Quale prodotto devo rimettere tra quelli da comprare?", false));

@@ -11,7 +11,9 @@ let writes = 0;
 let failWrite = false;
 let signatureOK = true;
 const original = readFileSync(new URL('../api/alexa.ts', import.meta.url), 'utf8');
-const source = stripTypeScriptTypes(original)
+const languageSource = stripTypeScriptTypes(readFileSync(new URL('../src/lib/alexa-language.ts', import.meta.url), 'utf8')).replace(/export function /g, 'function ');
+const source = languageSource + '\n' + stripTypeScriptTypes(original)
+  .replace(/import \{ englishDish, englishItem, localizeAlexaResponse \} from \"\.\.\/src\/lib\/alexa-language\";/, '')
   .replace(/import \{ generateText \} from "ai";/, '')
   .replace(/import \{[\s\S]*?\} from "ask-sdk-express-adapter";/, '')
   .replace(/export async function /g, 'async function ');
@@ -40,11 +42,11 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(source + '\nthis.handler = POST;', sandbox);
-async function say(intent, slots = {}, attributes = {}) {
+async function say(intent, slots = {}, attributes = {}, locale = 'it-IT') {
   const request = new Request('https://example.test/api/alexa', {
     method: 'POST', headers: { signature: 'test-only' },
     body: JSON.stringify({ context: { System: { user: { userId: 'test-user' } } },
-      session: { attributes }, request: { type: 'IntentRequest', intent: { name: intent,
+      session: { attributes }, request: { type: 'IntentRequest', locale, intent: { name: intent,
         slots: Object.fromEntries(Object.entries(slots).map(([name, value]) => [name, { value }])) } } }),
   });
   return await (await sandbox.handler(request)).json();
@@ -202,6 +204,59 @@ items = [];
 const legacyModel = await say('CreateShoppingListIntent', { dish: 'carbonara' });
 assert.match(speech(legacyModel), /per 4 persone/);
 assert.equal(items[0].quantity, '320 g');
+// English uses the same cloud list and request-local language selection.
+items = [untouched];
+profiles = [{ id: 'one', name: 'Fabio', allergens: [] }, { id: 'two', name: 'Laura', allergens: [] }];
+result = await say('CreateRecipeIntent', { dish: 'carbonara' }, {}, 'en-GB');
+assert.match(speech(result), /For how many people/);
+result = await say('SelectProfileNameIntent', { profile: 'four' }, result.sessionAttributes, 'en-GB');
+assert.match(speech(result), /Which profile/);
+result = await say('SelectProfileNameIntent', { profile: 'Fabio' }, result.sessionAttributes, 'en-GB');
+assert.match(speech(result), /4 people.*Fabio/);
+assert.equal(items[1].quantity, '320 g');
+result = await say('CreateRecipeIntent', { dish: 'lasagna for two people' }, result.sessionAttributes, 'en-US');
+assert.match(speech(result), /Which profile/);
+result = await say('SelectProfileNameIntent', { profile: 'Fabio' }, result.sessionAttributes, 'en-US');
+assert.match(speech(result), /replace your last recipe, carbonara, with lasagna/);
+result = await say('ReplaceDuplicateRecipeIntent', {}, result.sessionAttributes, 'en-US');
+assert.match(speech(result), /replaced carbonara with lasagna for 2 people/);
+assert.deepEqual(items[0], untouched);
+result = await say('ChangeServingsIntent', { servings: 'one' }, result.sessionAttributes, 'en-US');
+assert.match(speech(result), /1 person/);
+profiles = [];
+result = await say('ReadShoppingListIntent', {}, {}, 'en-US');
+assert.match(speech(result), /items to buy/);
+assert.match(speech(result), /lasagna sheets/);
+result = await say('AddShoppingItemIntent', { item: 'milk 500 ml' }, {}, 'en-GB');
+assert.match(speech(result), /added milk/);
+assert.ok(items.some((item) => item.name === 'latte'));
+result = await say('RemoveShoppingItemIntent', { item: 'milk' }, {}, 'en-US');
+assert.match(speech(result), /removed milk/);
+assert.ok(items.every((item) => item.name !== 'latte'));
+result = await say('ClearShoppingListIntent', {}, {}, 'en-GB');
+assert.match(speech(result), /clear the entire shopping list/);
+const clearAttrs = result.sessionAttributes;
+result = await say('AMAZON.NoIntent', {}, clearAttrs, 'en-GB');
+assert.match(speech(result), /haven't deleted anything/);
+assert.ok(items.length > 0);
+result = await say('AMAZON.YesIntent', {}, clearAttrs, 'en-GB');
+assert.match(speech(result), /cleared the entire/);
+assert.equal(items.length, 0);
+const [enPrompt, itPrompt] = await Promise.all([
+  say('CreateRecipeIntent', { dish: 'carbonara' }, {}, 'en-US'),
+  say('CreateRecipeIntent', { dish: 'carbonara' }, {}, 'it-IT'),
+]);
+assert.match(speech(enPrompt), /For how many people/);
+assert.match(speech(itPrompt), /Per quante persone/);
+for (const match of original.matchAll(/buildAlexaResponse\(\s*"([^"]+)"/g)) {
+  const translated = vm.runInContext(`englishAlexaText(${JSON.stringify(match[1])})`, sandbox);
+  assert.notEqual(translated, "Sorry, I couldn't complete that request. Please try again.", `Missing translation: ${match[1]}`);
+}
+const englishModel = JSON.parse(readFileSync(new URL('./interaction-model-en.json', import.meta.url), 'utf8'));
+for (const intent of englishModel.interactionModel.languageModel.intents) {
+  const slots = new Set((intent.slots ?? []).map((slot) => slot.name));
+  for (const sample of intent.samples) for (const match of sample.matchAll(/\{([^}]+)\}/g)) assert(slots.has(match[1]));
+}
 signatureOK = false;
 assert.deepEqual(await say('ChangeServingsIntent', { servings: '2' }), { error: 'Alexa request verification failed' });
 
@@ -212,4 +267,4 @@ for (const intent of model.interactionModel.languageModel.intents) {
   const names = new Set((intent.slots ?? []).map((slot) => slot.name));
   for (const sample of intent.samples) for (const match of sample.matchAll(/\{([^}]+)\}/g)) assert(names.has(match[1]));
 }
-console.log('Alexa servings tests passed: prompts, profiles, resizing, duplicate isolation, invalid inputs, failed writes, stale context, signature verification and model slots.');
+console.log('Alexa servings tests passed: prompts, profiles, resizing, duplicate isolation, invalid inputs, failed writes, stale context, signature verification, English/Italian localisation and model slots.');

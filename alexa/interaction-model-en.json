@@ -1,0 +1,200 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "safe scan",
+      "intents": [
+        {
+          "name": "CreateRecipeIntent",
+          "slots": [
+            {
+              "name": "dish",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "I want to make {dish}",
+            "I would like to make {dish}",
+            "I want to cook {dish}",
+            "prepare ingredients for {dish}",
+            "make a shopping list for {dish}",
+            "add ingredients for {dish}",
+            "what do I need for {dish}"
+          ]
+        },
+        {
+          "name": "ChangeServingsIntent",
+          "slots": [
+            {
+              "name": "servings",
+              "type": "AMAZON.NUMBER"
+            },
+            {
+              "name": "previousServings",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "{servings}",
+            "for {servings} people",
+            "for {servings} person",
+            "for {servings} servings",
+            "there are {servings} of us",
+            "make it for {servings} people",
+            "make it for {servings} people instead",
+            "change the servings to {servings}",
+            "not for {previousServings} people but for {servings} people",
+            "change from {previousServings} to {servings} people"
+          ]
+        },
+        {
+          "name": "SelectProfileIntent",
+          "slots": [
+            {
+              "name": "profile",
+              "type": "AMAZON.FirstName"
+            }
+          ],
+          "samples": [
+            "profile {profile}",
+            "use the {profile} profile",
+            "use {profile}",
+            "for {profile}",
+            "choose {profile}"
+          ]
+        },
+        {
+          "name": "SelectProfileNameIntent",
+          "slots": [
+            {
+              "name": "profile",
+              "type": "AMAZON.FirstName"
+            }
+          ],
+          "samples": [
+            "{profile}"
+          ]
+        },
+        {
+          "name": "AddShoppingItemIntent",
+          "slots": [
+            {
+              "name": "item",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "add {item}",
+            "add {item} to the list",
+            "put {item} on the shopping list",
+            "I need to buy {item}"
+          ]
+        },
+        {
+          "name": "ReadShoppingListIntent",
+          "slots": [],
+          "samples": [
+            "read the list",
+            "read the shopping list",
+            "what do I need to buy",
+            "what is on my list"
+          ]
+        },
+        {
+          "name": "RemoveShoppingItemIntent",
+          "slots": [
+            {
+              "name": "item",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "remove {item}",
+            "delete {item}",
+            "remove {item} from the shopping list"
+          ]
+        },
+        {
+          "name": "MarkShoppingItemPurchasedIntent",
+          "slots": [
+            {
+              "name": "item",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "mark {item} as bought",
+            "I bought {item}",
+            "mark {item} as purchased"
+          ]
+        },
+        {
+          "name": "RestoreShoppingItemIntent",
+          "slots": [
+            {
+              "name": "item",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "mark {item} as still needed",
+            "put {item} back on the list",
+            "restore {item}"
+          ]
+        },
+        {
+          "name": "ClearShoppingListIntent",
+          "slots": [],
+          "samples": [
+            "clear the list",
+            "clear the shopping list",
+            "delete the entire list",
+            "empty the shopping list"
+          ]
+        },
+        {
+          "name": "AddDuplicateRecipeIntent",
+          "slots": [],
+          "samples": [
+            "add",
+            "add it",
+            "add it anyway",
+            "add it again",
+            "add separately",
+            "add it separately"
+          ]
+        },
+        {
+          "name": "ReplaceDuplicateRecipeIntent",
+          "slots": [],
+          "samples": [
+            "replace",
+            "replace it",
+            "replace the last recipe",
+            "replace the previous recipe"
+          ]
+        },
+        {
+          "name": "AMAZON.YesIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NoIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        }
+      ],
+      "types": []
+    }
+  }
+}
