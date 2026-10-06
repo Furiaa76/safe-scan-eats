@@ -21,9 +21,9 @@ type ShoppingItem = {
   id: string;
   name: string;
   quantity: string;
-  recipe?: string;
+  recipe?: string | undefined;
   checked: boolean;
-  createdAt?: string;
+  createdAt?: string | undefined;
 };
 
 type AlexaProfile = {
@@ -95,10 +95,10 @@ async function getHouseholdProfiles(householdKey: string): Promise<AlexaProfile[
       .map((profile) => {
         if (!profile || typeof profile !== "object") return null;
         const row = profile as Record<string, unknown>;
-        const name = typeof row.name === "string" ? row.name.trim() : "";
-        const id = typeof row.id === "string" ? row.id : crypto.randomUUID();
-        const allergens = Array.isArray(row.allergens)
-          ? row.allergens.filter((value): value is string => typeof value === "string")
+        const name = typeof row["name"] === "string" ? row["name"].trim() : "";
+        const id = typeof row["id"] === "string" ? row["id"] : crypto.randomUUID();
+        const allergens = Array.isArray(row["allergens"])
+          ? row["allergens"].filter((value): value is string => typeof value === "string")
           : [];
         return name ? { id, name, allergens } : null;
       })
@@ -268,7 +268,7 @@ function scaleRecipeQuantity(quantity: string, servings: number, baseServings = 
   if (servings === baseServings || /q\.b\./i.test(quantity)) return quantity;
   const match = quantity.trim().match(/^(\d+(?:[.,]\d+)?)(.*)$/);
   if (!match) return quantity;
-  const base = Number(match[1].replace(",", "."));
+  const base = Number(match[1]!.replace(",", "."));
   if (!Number.isFinite(base)) return quantity;
   const scaled = Math.round(base * (servings / baseServings) * 10) / 10;
   return `${String(scaled).replace(".", ",")}${match[2]}`.trim();
@@ -336,32 +336,33 @@ function formatQuantity(value: number, unit: string) {
 }
 
 function mergeItems(existing: ShoppingItem[], additions: Array<{ name: string; quantity: string }>, recipe = "") {
-  const next = existing.map((item) => ({ ...item }));
+  const next: ShoppingItem[] = existing.map((item) => ({ ...item }));
   for (const add of additions) {
     const idx = next.findIndex((item) => !item.checked && normalizeName(item.name) === normalizeName(add.name));
-    if (idx >= 0) {
-      const currentQuantity = next[idx].quantity.trim().toLowerCase();
+    const current = next[idx];
+    if (idx >= 0 && current) {
+      const currentQuantity = current.quantity.trim().toLowerCase();
       const incomingQuantity = add.quantity.trim().toLowerCase();
 
       if (currentQuantity === incomingQuantity && currentQuantity === "q.b.") {
         next[idx] = {
-          ...next[idx],
+          ...current,
           recipe: recipe
-            ? (next[idx].recipe ? `${next[idx].recipe} · ${recipe}` : recipe)
-            : next[idx].recipe,
+            ? (current.recipe ? `${current.recipe} · ${recipe}` : recipe)
+            : current.recipe,
         };
         continue;
       }
 
-      const a = parseQuantity(next[idx].quantity);
+      const a = parseQuantity(current.quantity);
       const b = parseQuantity(add.quantity);
       if (a && b && a.unit === b.unit) {
         next[idx] = {
-          ...next[idx],
+          ...current,
           quantity: formatQuantity(a.value + b.value, a.unit),
           recipe: recipe
-            ? (next[idx].recipe ? `${next[idx].recipe} · ${recipe}` : recipe)
-            : next[idx].recipe,
+            ? (current.recipe ? `${current.recipe} · ${recipe}` : recipe)
+            : current.recipe,
         };
         continue;
       }
@@ -393,12 +394,12 @@ async function addDishToCloud(
     p_household_key: householdKey,
   });
   const existing: ShoppingItem[] = (rows ?? []).map((row) => ({
-    id: String(row.id),
-    name: String(row.name ?? ""),
-    quantity: String(row.quantity ?? "1"),
-    recipe: typeof row.recipe === "string" ? row.recipe : undefined,
-    checked: Boolean(row.checked),
-    createdAt: typeof row.created_at === "string" ? row.created_at : undefined,
+    id: String(row["id"]),
+    name: String(row["name"] ?? ""),
+    quantity: String(row["quantity"] ?? "1"),
+    recipe: typeof row["recipe"] === "string" ? row["recipe"] : undefined,
+    checked: Boolean(row["checked"]),
+    createdAt: typeof row["created_at"] === "string" ? row["created_at"] : undefined,
   }));
 
   const recipeLabel = servings === 4 ? dish : `${dish} (${servings} persone)`;
@@ -594,12 +595,12 @@ async function loadShoppingFromCloud(householdKey: string) {
     p_household_key: householdKey,
   });
   return (rows ?? []).map((row) => ({
-    id: String(row.id),
-    name: String(row.name ?? ""),
-    quantity: String(row.quantity ?? "1 pz"),
-    recipe: typeof row.recipe === "string" ? row.recipe : undefined,
-    checked: Boolean(row.checked),
-    createdAt: typeof row.created_at === "string" ? row.created_at : undefined,
+    id: String(row["id"]),
+    name: String(row["name"] ?? ""),
+    quantity: String(row["quantity"] ?? "1 pz"),
+    recipe: typeof row["recipe"] === "string" ? row["recipe"] : undefined,
+    checked: Boolean(row["checked"]),
+    createdAt: typeof row["created_at"] === "string" ? row["created_at"] : undefined,
   })) satisfies ShoppingItem[];
 }
 
@@ -615,8 +616,8 @@ function splitItemAndQuantity(input: string) {
   const match = cleaned.match(/^(.*?)(?:\s+)(\d+(?:[.,]\d+)?\s*(?:kg|g|l|ml|pz|pezzi?|confezioni?)?)$/i);
   if (!match) return { name: cleaned, quantity: "1 pz" };
 
-  const name = match[1].trim();
-  let quantity = match[2].trim().toLowerCase().replace(",", ".");
+  const name = match[1]!.trim();
+  let quantity = match[2]!.trim().toLowerCase().replace(",", ".");
   quantity = quantity
     .replace(/\bpezzi?\b/i, "pz")
     .replace(/\bconfezioni?\b/i, "pz");
