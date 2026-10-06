@@ -564,17 +564,18 @@ async function replaceDishInCloud(
   servings = 4,
   profileAllergens?: string[],
 ) {
+  const existing = await loadShoppingFromCloud(householdKey);
+  const shared = existing.some((item) => recipeMentionsDish(item.recipe, dish) &&
+    (item.recipe ?? "").split("·").some((part) =>
+      cleanDish(part.replace(/\(\d+\s+persone?\)/gi, "")) !== cleanDish(dish)));
+  if (shared) {
+    // Old rows contain only a combined quantity, not each recipe's contribution.
+    return { ok: false as const, reason: "sharedIngredients" as const, count: 0 };
+  }
   const preferences = profileAllergens ?? await getHouseholdPreferences(householdKey);
   const avoidHistamine = preferences.includes("istamina");
   const ingredients = await generateIngredients(dish, servings, avoidHistamine);
-  if (!ingredients) return { ok: false as const, count: 0 };
-
-  const existing = await loadShoppingFromCloud(householdKey);
-  if (existing.some((item) => recipeMentionsDish(item.recipe, dish) && (item.recipe ?? "").includes("·"))) {
-    // Legacy merged rows do not record each recipe's quantity contribution.
-    // Refuse replacement rather than deleting another recipe's ingredients.
-    return { ok: false as const, count: 0 };
-  }
+  if (!ingredients) return { ok: false as const, reason: "generationFailed" as const, count: 0 };
   const kept = existing.filter((item) => !recipeMentionsDish(item.recipe, dish));
   const recipeLabel = servings === 4 ? dish : `${dish} (${servings} persone)`;
   const additions: ShoppingItem[] = ingredients.map((item) => ({
@@ -1156,7 +1157,13 @@ export async function POST(request: Request) {
               : undefined,
           );
           if (!result.ok) {
-            return json(buildAlexaResponse("Non sono riuscito a sostituire la ricetta. Riprova tra poco.", false));
+            return json(buildAlexaResponse(
+              result.reason === "sharedIngredients"
+                ? "Gli ingredienti della vecchia ricetta sono sommati a quelli di altre ricette. Non posso separarli senza cambiare le altre quantità. Non ho modificato nulla. Puoi dire aggiungi per inserire la nuova ricetta separatamente, oppure annulla."
+                : "Non riesco a generare gli ingredienti della nuova versione in questo momento. La lista non è stata modificata. Puoi riprovare dicendo sostituisci, oppure annulla.",
+              false,
+              body.session?.attributes,
+            ));
           }
           return json(
             buildAlexaResponse(
