@@ -764,7 +764,7 @@ async function restoreSingleItemToBuy(householdKey: string, rawItem: string) {
 }
 
 export async function GET() {
-  return json({
+  return rawJson({
     ok: true,
     service: "Safe Scan Eats Alexa endpoint",
     verification: "signature-and-timestamp-enabled",
