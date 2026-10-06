@@ -787,7 +787,7 @@ export async function POST(request: Request) {
       ),
     });
 
-    if (intent === "CreateShoppingListIntent") {
+    if (intent === "CreateShoppingListIntent" || intent === "CreateRecipeIntent") {
       let dish = (
         body.request?.intent?.slots?.["dish"]?.value ??
         body.request?.intent?.slots?.["piatto"]?.value
@@ -799,7 +799,10 @@ export async function POST(request: Request) {
       )?.trim();
       const suffix = dish?.match(/\s+per\s+(\d+(?:[.,]\d+)?|[a-z]+)\s+person[ae]\s*$/i);
       const requestedServings = servingsRaw ?? suffix?.[1];
-      const servings = parseServings(requestedServings);
+      // The old voice model has no number intent. Keep its four-person default
+      // until the new model is imported; only the new intent starts the dialog.
+      const servings = requestedServings === undefined && intent === "CreateShoppingListIntent"
+        ? 4 : parseServings(requestedServings);
       if (suffix) dish = dish!.slice(0, suffix.index).trim();
 
       if (!dish) {

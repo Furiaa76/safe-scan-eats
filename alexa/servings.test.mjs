@@ -52,7 +52,7 @@ async function say(intent, slots = {}, attributes = {}) {
 const speech = (result) => result.response.outputSpeech.text;
 const untouched = { id: 'manual', name: 'Pasta', quantity: '1 kg', checked: false };
 items = [untouched];
-let result = await say('CreateShoppingListIntent', { dish: 'carbonara' });
+let result = await say('CreateRecipeIntent', { dish: 'carbonara' });
 assert.match(speech(result), /Per quante persone/);
 assert.equal(writes, 0);
 result = await say('ChangeServingsIntent', { servings: 'quattro' }, result.sessionAttributes);
@@ -91,12 +91,12 @@ const stale = await say('ChangeServingsIntent', { servings: '2' }, attrs);
 assert.match(speech(stale), /modificata o rimossa/);
 
 items = [];
-result = await say('CreateShoppingListIntent', { dish: 'la carbonara per due persone' });
+result = await say('CreateRecipeIntent', { dish: 'la carbonara per due persone' });
 assert.match(speech(result), /per 2 persone/);
 assert.equal(items[0].quantity, '160 g');
 profiles = [{ id: 'one', name: 'Fabio', allergens: [] }, { id: 'two', name: 'Laura', allergens: [] }];
 items = [];
-result = await say('CreateShoppingListIntent', { dish: 'carbonara' });
+result = await say('CreateRecipeIntent', { dish: 'carbonara' });
 result = await say('ChangeServingsIntent', { servings: '2' }, result.sessionAttributes);
 assert.equal(result.sessionAttributes.pendingAction, 'recipeProfileSelection');
 assert.equal(items.length, 0);
@@ -106,7 +106,7 @@ assert.equal(items[0].quantity, '160 g');
 result = await say('ChangeServingsIntent', { servings: '4' }, result.sessionAttributes);
 assert.equal(items[0].quantity, '320 g');
 profiles = [];
-result = await say('CreateShoppingListIntent', { dish: 'carbonara per due persone' });
+result = await say('CreateRecipeIntent', { dish: 'carbonara per due persone' });
 assert.equal(result.sessionAttributes.pendingAction, 'duplicateRecipe');
 result = await say('AddDuplicateRecipeIntent', {}, result.sessionAttributes);
 assert.equal(items.length, 10);
@@ -114,10 +114,14 @@ result = await say('ChangeServingsIntent', { servings: '1' }, result.sessionAttr
 assert.equal(items[0].quantity, '320 g');
 assert.equal(items[5].quantity, '80 g');
 items = [{ id: 'legacy', name: 'Pasta', quantity: '500 g', recipe: 'carbonara · lasagne', checked: false }];
-result = await say('CreateShoppingListIntent', { dish: 'carbonara per due persone' });
+result = await say('CreateRecipeIntent', { dish: 'carbonara per due persone' });
 result = await say('ReplaceDuplicateRecipeIntent', {}, result.sessionAttributes);
 assert.match(speech(result), /Non sono riuscito/);
 assert.equal(items[0].quantity, '500 g');
+items = [];
+const legacyModel = await say('CreateShoppingListIntent', { dish: 'carbonara' });
+assert.match(speech(legacyModel), /per 4 persone/);
+assert.equal(items[0].quantity, '320 g');
 signatureOK = false;
 assert.deepEqual(await say('ChangeServingsIntent', { servings: '2' }), { error: 'Alexa request verification failed' });
 
