@@ -778,9 +778,15 @@ export async function POST(request: Request) {
   }
 
   if (type === "IntentRequest") {
-    const intent = body.request?.intent?.name;
+    const recognizedIntent = body.request?.intent?.name;
+    // Bare numbers can be classified as profile names by Alexa. The question
+    // currently pending determines what that answer means.
+    const isServingsAnswer = body.session?.attributes?.["pendingAction"] === "recipeServingsSelection" &&
+      (recognizedIntent === "SelectProfileIntent" || recognizedIntent === "SelectProfileNameIntent");
+    const intent = isServingsAnswer ? "ChangeServingsIntent" : recognizedIntent;
     console.log("[Alexa] intent", {
       intent,
+      recognizedIntent,
       slots: Object.fromEntries(
         Object.entries(body.request?.intent?.slots ?? {}).map(([name, slot]) => [
           name,
@@ -838,7 +844,9 @@ export async function POST(request: Request) {
 
     if (intent === "ChangeServingsIntent") {
       const attributes = body.session?.attributes ?? {};
-      const servings = parseServings(body.request?.intent?.slots?.["servings"]?.value);
+      const servings = parseServings(isServingsAnswer
+        ? body.request?.intent?.slots?.["profile"]?.value ?? body.request?.intent?.slots?.["profilo"]?.value
+        : body.request?.intent?.slots?.["servings"]?.value);
       if (servings === null) {
         return json(buildAlexaResponse("Dimmi un numero intero di persone da uno a venti.", false, attributes));
       }
