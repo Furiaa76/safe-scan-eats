@@ -14,8 +14,6 @@ type Ingredient = { name: string; quantity: string; glutenSwap?: string; lactose
 type Recipe = { id: string; title: string; aliases: string[]; servings: number; ingredients: Ingredient[]; online?: boolean };
 type OnlineMeal = Record<string, string | null>;
 
-const HIDDEN_RECIPES_KEY = "safe-scan-hidden-recipes-v1";
-
 const ORIGINAL_RECIPES: Recipe[] = [
   {
     id: "lasagne",
@@ -373,52 +371,17 @@ function RecipesPage() {
   const [searching, setSearching] = useState(false);
   const [searchMessage, setSearchMessage] = useState("");
   const [removedIngredientIndexes, setRemovedIngredientIndexes] = useState<number[]>([]);
-  const [hiddenRecipeIds, setHiddenRecipeIds] = useState<string[]>(() => {
-    try {
-      const raw = localStorage.getItem(HIDDEN_RECIPES_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const selected = onlineRecipe ?? RECIPES.find((r) => r.id === selectedId && !hiddenRecipeIds.includes(r.id)) ?? null;
+  const selected = onlineRecipe ?? RECIPES.find((r) => r.id === selectedId) ?? null;
   const glutenFree = profile?.allergens.includes("glutine") ?? false;
   const lactoseFree = profile?.allergens.includes("lattosio") ?? false;
 
-  const visibleRecipes = useMemo(
-    () => RECIPES.filter((recipe) => !hiddenRecipeIds.includes(recipe.id)),
-    [hiddenRecipeIds],
-  );
-
   const suggestions = useMemo(() => {
     const q = dishKey(query);
-    if (!q) return visibleRecipes;
+    if (!q) return RECIPES;
     return RECIPES.filter((r) =>
       dishKey(r.title).includes(q) || dishKey(translateText(r.title, "en")).includes(q) || r.aliases.some((a) => dishKey(a).includes(q))
     );
-  }, [query, visibleRecipes]);
-
-  const hideRecipe = (recipe: Recipe) => {
-    if (RECIPES.some((item) => item.id === recipe.id)) {
-      const next = Array.from(new Set([...hiddenRecipeIds, recipe.id]));
-      setHiddenRecipeIds(next);
-      localStorage.setItem(HIDDEN_RECIPES_KEY, JSON.stringify(next));
-    }
-    if (selected?.id === recipe.id) {
-      setSelectedId("");
-      setQuery("");
-      setOnlineRecipe(null);
-      setRemovedIngredientIndexes([]);
-      setSearchMessage("");
-    }
-  };
-
-  const restoreRecipes = () => {
-    setHiddenRecipeIds([]);
-    localStorage.removeItem(HIDDEN_RECIPES_KEY);
-  };
+  }, [query]);
 
   const activeAllergens = profile?.allergens ?? [];
   const adapted = (selected?.ingredients ?? []).flatMap((item, index) => {
@@ -434,10 +397,6 @@ function RecipesPage() {
   });
 
   const choose = (recipe: Recipe) => {
-    // Searching an explicitly named recipe makes it available again.
-    const nextHidden = hiddenRecipeIds.filter((id) => id !== recipe.id);
-    setHiddenRecipeIds(nextHidden);
-    localStorage.setItem(HIDDEN_RECIPES_KEY, JSON.stringify(nextHidden));
     setRemovedIngredientIndexes([]);
     setOnlineRecipe(null);
     setSelectedId(recipe.id);
@@ -535,18 +494,14 @@ function RecipesPage() {
         <button type="button" disabled={searching} onClick={() => void findRecipe()} className="rounded-2xl bg-primary px-4 text-sm font-extrabold text-primary-foreground disabled:opacity-50">{t(searching ? "Cerco…" : "Cerca")}</button>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
-        {(query.trim() ? suggestions : visibleRecipes).map((recipe) => (
+        {suggestions.map((recipe) => (
           <div key={recipe.id} className={`flex items-center overflow-hidden rounded-full ${recipe.id === selected?.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
             <button type="button" onClick={() => choose(recipe)} className="px-3 py-2 text-xs font-extrabold">
               {t(recipe.title)}
             </button>
-            <button type="button" onClick={() => hideRecipe(recipe)} aria-label={t(`Elimina ${recipe.title}`)} className="grid h-8 w-8 place-items-center border-l border-current/15 opacity-70 hover:opacity-100">
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
           </div>
         ))}
       </div>
-      {hiddenRecipeIds.length > 0 && <button type="button" onClick={restoreRecipes} className="mt-3 text-xs font-extrabold text-muted-foreground">{t("Ripristina ricette eliminate (")}{hiddenRecipeIds.length}{t(")")}</button>}
       {searchMessage && <p className="mt-3 text-sm font-semibold text-muted-foreground">{t(searchMessage)}</p>}
     </section>
 
@@ -559,7 +514,6 @@ function RecipesPage() {
           <button type="button" onClick={() => setServings((v) => Math.min(12, v + 1))} className="grid h-8 w-8 place-items-center rounded-full bg-card"><Plus className="h-4 w-4" /></button>
         </div>}
       </div>
-      {selected && <button type="button" onClick={() => hideRecipe(selected)} className="mt-3 inline-flex items-center gap-2 rounded-full bg-danger/10 px-4 py-2 text-sm font-extrabold text-danger"><Trash2 className="h-4 w-4" />{t("Elimina ricetta")}</button>}
       {!selected && !searching && <p className="mt-3 text-sm text-muted-foreground">{t("Cerca o scegli una ricetta per iniziare.")}</p>}
       {selected && (glutenFree || lactoseFree) && <p className="mt-3 rounded-2xl bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">{t("Adattata al profilo attivo")}{t(glutenFree ? " · senza glutine" : "")}{t(lactoseFree ? " · senza lattosio" : "")}</p>}
       <div className="mt-4 space-y-2">{adapted.map((item) => <div key={item.ingredientIndex} className="rounded-2xl bg-muted px-3 py-3"><div className="flex items-center gap-3"><div className="min-w-0 flex-1"><PurchaseItemLink name={item.name} from="recipes" className="text-sm font-bold" /></div><span className="shrink-0 text-xs font-semibold text-muted-foreground">{t(item.quantity)}</span><button type="button" onClick={() => setRemovedIngredientIndexes((indexes) => [...indexes, item.ingredientIndex])} aria-label={t(`Elimina ingrediente ${item.name}`)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-danger"><Trash2 className="h-4 w-4" /></button></div>{item.warning && <p className="mt-1 text-xs font-bold text-danger">{t("⚠ ")}{t(item.warning)}</p>}</div>)}</div>
