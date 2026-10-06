@@ -11,9 +11,8 @@ let writes = 0;
 let failWrite = false;
 let signatureOK = true;
 const original = readFileSync(new URL('../api/alexa.ts', import.meta.url), 'utf8');
-const languageSource = stripTypeScriptTypes(readFileSync(new URL('../src/lib/alexa-language.ts', import.meta.url), 'utf8')).replace(/export function /g, 'function ');
-const source = languageSource + '\n' + stripTypeScriptTypes(original)
-  .replace(/import \{ englishDish, englishItem, localizeAlexaResponse \} from \"\.\.\/src\/lib\/alexa-language\";/, '')
+assert.ok(!original.includes('../src/lib/alexa-language'), 'Server entry must not depend on an extensionless local ESM module');
+const source = stripTypeScriptTypes(original)
   .replace(/import \{ generateText \} from "ai";/, '')
   .replace(/import \{[\s\S]*?\} from "ask-sdk-express-adapter";/, '')
   .replace(/export async function /g, 'async function ');
