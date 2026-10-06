@@ -1,3 +1,4 @@
+import { useAppLanguage } from "@/lib/language";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Pencil, Plus, ShoppingCart, Trash2, X } from "lucide-react";
@@ -29,6 +30,8 @@ export const Route = createFileRoute("/shopping")({
 });
 
 function ShoppingPage() {
+  const { t } = useAppLanguage();
+
   const items = useShoppingList();
   const profile = useProfile();
   const profilesState = useProfilesState();
@@ -178,14 +181,13 @@ function ShoppingPage() {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
       <header className="flex items-center gap-3">
-        <Link to="/" aria-label="Torna alla home" className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-secondary-foreground">
+        <Link to="/" aria-label={t("Torna alla home")} className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-secondary-foreground">
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-extrabold text-foreground">Lista della spesa</h1>
+          <h1 className="text-lg font-extrabold text-foreground">{t("Lista della spesa")}</h1>
           <p className="text-xs text-muted-foreground">
-            {pending.length} da comprare · {checked.length} acquistati
-            {cloudState === "synced" ? " · ☁️ sincronizzata" : cloudState === "syncing" ? " · sincronizzo…" : cloudState === "error" ? " · sync non disponibile" : ""}
+            {pending.length} {t(" da comprare · ")}{checked.length} {t("acquistati")}{t(cloudState === "synced" ? " · ☁️ sincronizzata" : cloudState === "syncing" ? " · sincronizzo…" : cloudState === "error" ? " · sync non disponibile" : "")}
           </p>
         </div>
         <ShoppingCart className="h-6 w-6 text-primary" />
@@ -194,12 +196,12 @@ function ShoppingPage() {
       {recipeTitles.length > 0 && (
         <section className="mt-4 rounded-3xl border border-border bg-card p-4">
           <p className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
-            {recipeTitles.length === 1 ? "Ricetta della lista" : "Ricette della lista"}
+            {t(recipeTitles.length === 1 ? "Ricetta della lista" : "Ricette della lista")}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {recipeTitles.map((title) => (
               <span key={title} className="rounded-full bg-primary px-4 py-2 text-base font-black text-primary-foreground">
-                🍽️ {title}
+                {t("🍽️")}{t(title)}
               </span>
             ))}
           </div>
@@ -207,14 +209,14 @@ function ShoppingPage() {
       )}
 
       <section className="mt-5 rounded-3xl border border-border bg-card p-4">
-        <p className="font-extrabold text-foreground">Collega Alexa</p>
-        <p className="mt-1 text-xs text-muted-foreground">Apri la skill “Safe Scan” su Alexa. Se non è ancora collegata, Alexa ti dirà un codice di 6 cifre.</p>
+        <p className="font-extrabold text-foreground">{t("Collega Alexa")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("Apri la skill “Safe Scan” su Alexa. Se non è ancora collegata, Alexa ti dirà un codice di 6 cifre.")}</p>
         <div className="mt-3 flex gap-2">
           <input
             value={alexaCode}
             onChange={(e) => setAlexaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             inputMode="numeric"
-            placeholder="Codice 6 cifre"
+            placeholder={t("Codice 6 cifre")}
             className="min-w-0 flex-1 rounded-2xl border border-border bg-background px-4 py-3 text-center text-lg font-extrabold tracking-[0.25em] outline-none focus:border-primary"
           />
           <button
@@ -223,14 +225,14 @@ function ShoppingPage() {
             disabled={alexaLinking || alexaCode.length !== 6}
             className="rounded-2xl bg-secondary px-4 text-sm font-extrabold text-secondary-foreground disabled:opacity-40"
           >
-            {alexaLinking ? "Collego…" : "Collega"}
+            {t(alexaLinking ? "Collego…" : "Collega")}
           </button>
         </div>
-        {alexaMessage && <p className="mt-2 text-xs font-semibold text-muted-foreground">{alexaMessage}</p>}
+        {alexaMessage && <p className="mt-2 text-xs font-semibold text-muted-foreground">{t(alexaMessage)}</p>}
       </section>
 
       <section className="mt-4 rounded-3xl border border-border bg-card p-4">
-        <p className="font-extrabold text-foreground">Aggiungi un prodotto</p>
+        <p className="font-extrabold text-foreground">{t("Aggiungi un prodotto")}</p>
         <div className="mt-3 grid grid-cols-[minmax(0,1fr)_95px] gap-2">
           <input
             value={name}
@@ -241,13 +243,13 @@ function ShoppingPage() {
                 addManual();
               }
             }}
-            placeholder="Es. Latte"
+            placeholder={t("Es. Latte")}
             className="min-w-0 rounded-2xl border border-border bg-background px-4 py-3 text-base outline-none focus:border-primary"
           />
           <input
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
-            placeholder="Qtà"
+            placeholder={t("Qtà")}
             className="rounded-2xl border border-border bg-background px-3 py-3 text-center text-base outline-none focus:border-primary"
           />
         </div>
@@ -258,33 +260,31 @@ function ShoppingPage() {
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-extrabold text-primary-foreground disabled:opacity-40"
         >
           <Plus className="h-4 w-4" />
-          Aggiungi alla lista
-        </button>
-        <p className="mt-2 text-xs text-muted-foreground">Puoi scrivere quantità come 2, 500 g, 1 kg, 750 ml. I doppioni compatibili vengono sommati automaticamente.</p>
+          {t("Aggiungi alla lista")}</button>
+        <p className="mt-2 text-xs text-muted-foreground">{t("Puoi scrivere quantità come 2, 500 g, 1 kg, 750 ml. I doppioni compatibili vengono sommati automaticamente.")}</p>
       </section>
 
       {items.length === 0 ? (
         <section className="mt-4 rounded-3xl border border-border bg-card p-5 text-center">
           <ShoppingCart className="mx-auto h-8 w-8 text-muted-foreground" />
-          <p className="mt-3 font-extrabold text-foreground">La lista è vuota</p>
-          <p className="mt-1 text-sm text-muted-foreground">Aggiungi prodotti a mano oppure da una ricetta.</p>
+          <p className="mt-3 font-extrabold text-foreground">{t("La lista è vuota")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("Aggiungi prodotti a mano oppure da una ricetta.")}</p>
           <Link to="/recipes" className="mt-4 inline-flex rounded-full bg-secondary px-4 py-2 text-sm font-extrabold text-secondary-foreground">
-            Vai alle ricette
-          </Link>
+            {t("Vai alle ricette")}</Link>
         </section>
       ) : (
         <>
           <section className="mt-4 rounded-3xl border border-border bg-card p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 className="font-extrabold text-foreground">Da comprare</h2>
-                <p className="text-xs text-muted-foreground">{pending.length} prodotti</p>
+                <h2 className="font-extrabold text-foreground">{t("Da comprare")}</h2>
+                <p className="text-xs text-muted-foreground">{pending.length} {t(" prodotti")}</p>
               </div>
               {items.length > 0 && (
                 <button
                   type="button"
                   onClick={() => {
-                    if (!window.confirm("Vuoi svuotare tutta la lista della spesa?")) return;
+                    if (!window.confirm(t("Vuoi svuotare tutta la lista della spesa?"))) return;
                     clearShoppingList();
                     if (isCloudShoppingConfigured()) {
                       setCloudState("syncing");
@@ -295,21 +295,20 @@ function ShoppingPage() {
                   }}
                   className="text-xs font-extrabold text-danger"
                 >
-                  Svuota tutto
-                </button>
+                  {t("Svuota tutto")}</button>
               )}
             </div>
 
             {pending.length === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">Hai già spuntato tutto.</p>
+              <p className="mt-3 text-sm text-muted-foreground">{t("Hai già spuntato tutto.")}</p>
             ) : (
               <>
                 <div className="mt-4 space-y-5">
                 {groupedPending.map(({ category, items: categoryItems }) => (
                   <div key={category.id}>
                     <div className="mb-2 flex items-center gap-2">
-                      <span className="text-lg">{category.emoji}</span>
-                      <h3 className="text-sm font-extrabold text-foreground">{category.label}</h3>
+                      <span className="text-lg">{t(category.emoji)}</span>
+                      <h3 className="text-sm font-extrabold text-foreground">{t(category.label)}</h3>
                       <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold text-secondary-foreground">{categoryItems.length}</span>
                     </div>
                     <div className="space-y-2">
@@ -334,8 +333,7 @@ function ShoppingPage() {
                                   <X className="h-4 w-4" />
                                 </button>
                                 <button type="button" onClick={saveEdit} className="rounded-full bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground">
-                                  Salva
-                                </button>
+                                  {t("Salva")}</button>
                               </div>
                             </div>
                           ) : (
@@ -344,16 +342,16 @@ function ShoppingPage() {
                                 type="button"
                                 onClick={() => toggleShoppingItem(item.id)}
                                 className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-border bg-card"
-                                aria-label="Segna come acquistato"
+                                aria-label={t("Segna come acquistato")}
                               />
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-extrabold text-foreground">{item.name}</p>
-                                <p className="text-xs text-muted-foreground">{item.quantity}{item.recipe ? ` · ${item.recipe}` : ""}</p>
+                                <p className="truncate text-sm font-extrabold text-foreground">{t(item.name)}</p>
+                                <p className="text-xs text-muted-foreground">{t(item.quantity)}{t(item.recipe ? ` · ${item.recipe}` : "")}</p>
                               </div>
-                              <button type="button" onClick={() => beginEdit(item.id, item.name, item.quantity)} className="text-muted-foreground" aria-label="Modifica">
+                              <button type="button" onClick={() => beginEdit(item.id, item.name, item.quantity)} className="text-muted-foreground" aria-label={t("Modifica")}>
                                 <Pencil className="h-4 w-4" />
                               </button>
-                              <button type="button" onClick={() => removeShoppingItem(item.id)} className="text-muted-foreground" aria-label="Elimina">
+                              <button type="button" onClick={() => removeShoppingItem(item.id)} className="text-muted-foreground" aria-label={t("Elimina")}>
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             </div>
@@ -372,12 +370,11 @@ function ShoppingPage() {
             <section className="mt-4 rounded-3xl border border-border bg-card p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-extrabold text-foreground">Acquistati</h2>
-                  <p className="text-xs text-muted-foreground">{checked.length} prodotti</p>
+                  <h2 className="font-extrabold text-foreground">{t("Acquistati")}</h2>
+                  <p className="text-xs text-muted-foreground">{checked.length} {t(" prodotti")}</p>
                 </div>
                 <button type="button" onClick={clearCheckedShoppingItems} className="text-xs font-extrabold text-danger">
-                  Elimina acquistati
-                </button>
+                  {t("Elimina acquistati")}</button>
               </div>
               <div className="mt-3 space-y-2">
                 {checked.map((item) => (
@@ -386,15 +383,15 @@ function ShoppingPage() {
                       type="button"
                       onClick={() => toggleShoppingItem(item.id)}
                       className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-primary bg-primary text-primary-foreground"
-                      aria-label="Rimetti tra i prodotti da comprare"
+                      aria-label={t("Rimetti tra i prodotti da comprare")}
                     >
                       <Check className="h-4 w-4" />
                     </button>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold line-through text-foreground">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.quantity}</p>
+                      <p className="truncate text-sm font-bold line-through text-foreground">{t(item.name)}</p>
+                      <p className="text-xs text-muted-foreground">{t(item.quantity)}</p>
                     </div>
-                    <button type="button" onClick={() => removeShoppingItem(item.id)} className="text-muted-foreground" aria-label="Elimina">
+                    <button type="button" onClick={() => removeShoppingItem(item.id)} className="text-muted-foreground" aria-label={t("Elimina")}>
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>

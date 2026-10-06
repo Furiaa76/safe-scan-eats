@@ -1,3 +1,4 @@
+import { useAppLanguage } from "@/lib/language";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, Link, createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
@@ -30,14 +31,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   }),
   shellComponent: RootShell,
   component: RootComponent,
-  notFoundComponent: () => <div className="flex min-h-screen items-center justify-center bg-background px-4"><div className="text-center"><h1 className="text-6xl font-black">404</h1><p className="mt-2 text-muted-foreground">Pagina non trovata</p><Link to="/" className="mt-5 inline-block rounded-2xl bg-primary px-5 py-3 font-bold text-primary-foreground">Torna alla home</Link></div></div>,
+  notFoundComponent: NotFound,
 });
 
 function RootShell({ children }: { children: ReactNode }) {
-  return <html lang="it"><head><HeadContent /></head><body>{children}<Scripts /></body></html>;
+  const { language } = useAppLanguage();
+
+  return <html lang={language}><head><HeadContent /></head><body>{children}<Scripts /></body></html>;
 }
 
 function RootComponent() {
+
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
@@ -66,3 +70,7 @@ function RootComponent() {
 
   return <QueryClientProvider client={queryClient}><Outlet /></QueryClientProvider>;
 }
+
+function NotFound() {
+  const { t } = useAppLanguage();
+ return <div className="flex min-h-screen items-center justify-center bg-background px-4"><div className="text-center"><h1 className="text-6xl font-black">{t("404")}</h1><p className="mt-2 text-muted-foreground">{t("Pagina non trovata")}</p><Link to="/" className="mt-5 inline-block rounded-2xl bg-primary px-5 py-3 font-bold text-primary-foreground">{t("Torna alla home")}</Link></div></div>; }

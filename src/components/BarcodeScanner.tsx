@@ -1,3 +1,4 @@
+import { useAppLanguage } from "@/lib/language";
 import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Camera, CameraOff, Loader2, X } from "lucide-react";
@@ -39,6 +40,8 @@ async function makeReader() {
 }
 
 export function BarcodeScanner({ onDetected, onClose }: Props) {
+  const { t } = useAppLanguage();
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<Controls | null>(null);
   const doneRef = useRef(false);
@@ -180,10 +183,10 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-foreground" role="dialog" aria-modal="true" aria-label="Scanner codice a barre">
+    <div className="fixed inset-0 z-50 flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-foreground" role="dialog" aria-modal="true" aria-label={t("Scanner codice a barre")}>
       <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-[max(env(safe-area-inset-top),1rem)] landscape:pb-2 landscape:pt-[max(env(safe-area-inset-top),0.5rem)]">
-        <p className="text-base font-extrabold text-primary-foreground">Scansiona codice a barre</p>
-        <button type="button" onClick={close} aria-label="Chiudi scanner" className="grid h-10 w-10 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground">
+        <p className="text-base font-extrabold text-primary-foreground">{t("Scansiona codice a barre")}</p>
+        <button type="button" onClick={close} aria-label={t("Chiudi scanner")} className="grid h-10 w-10 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground">
           <X className="h-5 w-5" />
         </button>
       </div>
@@ -201,7 +204,7 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
           <div className="absolute inset-0 grid place-items-center text-center">
             <div>
               <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary-foreground" />
-              <p className="mt-3 text-sm font-bold text-primary-foreground">{status === "starting" ? "Avvio fotocamera…" : "Leggo il codice…"}</p>
+              <p className="mt-3 text-sm font-bold text-primary-foreground">{t(status === "starting" ? "Avvio fotocamera…" : "Leggo il codice…")}</p>
             </div>
           </div>
         )}
@@ -209,18 +212,17 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
           <div className="absolute inset-0 grid place-items-center overflow-y-auto p-6 text-center">
             <div>
               <CameraOff className="mx-auto h-12 w-12 text-primary-foreground/80" />
-              <p className="mt-4 text-sm font-semibold leading-relaxed text-primary-foreground">{error}</p>
+              <p className="mt-4 text-sm font-semibold leading-relaxed text-primary-foreground">{t(error)}</p>
             </div>
           </div>
         )}
       </div>
 
       <div className="shrink-0 px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-4 landscape:pb-[max(env(safe-area-inset-bottom),0.5rem)] landscape:pt-2">
-        {status === "live" && <p className="mb-3 text-center text-sm font-semibold text-primary-foreground/80 landscape:mb-2">Inquadra il codice a barre dentro il riquadro</p>}
+        {status === "live" && <p className="mb-3 text-center text-sm font-semibold text-primary-foreground/80 landscape:mb-2">{t("Inquadra il codice a barre dentro il riquadro")}</p>}
         <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-extrabold text-primary-foreground landscape:py-3">
           <Camera className="h-5 w-5" />
-          Scatta foto del codice
-          <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => { void onPhoto(e.target.files?.[0]); e.target.value = ""; }} />
+          {t("Scatta foto del codice")}<input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => { void onPhoto(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { z } from "zod";
 const RecipeInput = z.object({
   dish: z.string().min(2).max(120),
   allergens: z.array(z.string()).max(12),
+  language: z.enum(["it", "en"]).default("it"),
 });
 
 export const generateRecipe = createServerFn({ method: "POST" })
@@ -35,7 +36,7 @@ export const generateRecipe = createServerFn({ method: "POST" })
           {
             role: "system",
             content:
-              'Sei un assistente di cucina italiano. Devi creare una lista ingredienti pratica per il piatto richiesto, adattata alle allergie/intolleranze indicate. Rispondi SOLO JSON nel formato {"title":string,"servings":number,"ingredients":[{"name":string,"quantity":string}],"notes":string}. Non dichiarare mai un ingrediente confezionato sicuramente sicuro: quando serve specifica "senza glutine", "senza lattosio" o "verificare etichetta" nel nome o nelle note. Usa nomi e quantità in italiano.',
+              'Sei un assistente di cucina. Devi creare una lista ingredienti pratica per il piatto richiesto, adattata alle allergie/intolleranze indicate. Rispondi SOLO JSON nel formato {"title":string,"servings":number,"ingredients":[{"name":string,"quantity":string}],"notes":string}. Non dichiarare mai un ingrediente confezionato sicuramente sicuro: quando serve specifica "senza glutine", "senza lattosio" o "verificare etichetta" nel nome o nelle note. ' + (data.language === "en" ? 'Write the title, ingredient names, quantity units and notes in English. Translate all safety warnings accurately, including gluten-free, lactose-free and check the label. Use metric quantities.' : 'Usa titolo, nomi, quantità e note in italiano.'),
           },
           {
             role: "user",
@@ -64,7 +65,7 @@ export const generateRecipe = createServerFn({ method: "POST" })
             const item = x as Record<string, unknown>;
             return {
               name: typeof item.name === "string" ? item.name.trim() : "",
-              quantity: typeof item.quantity === "string" ? item.quantity.trim() : "q.b.",
+              quantity: typeof item.quantity === "string" ? item.quantity.trim() : data.language === "en" ? "as needed" : "q.b.",
             };
           })
           .filter((x) => x.name)

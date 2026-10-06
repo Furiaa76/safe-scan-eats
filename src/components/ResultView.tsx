@@ -1,3 +1,4 @@
+import { useAppLanguage } from "@/lib/language";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -77,6 +78,8 @@ export function ResultView({
   analysis: Analysis;
   profile: Profile | null;
 }) {
+  const { t } = useAppLanguage();
+
   const { freeMode } = useProfilesState();
   const style = VERDICT_STYLE[analysis.verdict];
   const allergens = profile?.allergens ?? [];
@@ -101,15 +104,15 @@ export function ResultView({
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col pb-10">
       <div className={`${freeMode ? "bg-secondary text-secondary-foreground" : `${style.bg} ${style.fg}`} px-5 pb-8 pt-6`}>
         <header className="flex items-center gap-3">
-          <Link to="/" aria-label="Torna alla home" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-current/10">
+          <Link to="/" aria-label={t("Torna alla home")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-current/10">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <p className="truncate text-sm font-bold opacity-90">Risultato analisi</p>
+          <p className="truncate text-sm font-bold opacity-90">{t("Risultato analisi")}</p>
         </header>
         <div className="mt-6 flex flex-col items-center text-center">
           {freeMode ? <Info className="h-20 w-20" strokeWidth={1.5} /> : <style.Icon className="h-20 w-20" strokeWidth={1.5} />}
-          <h1 className="mt-3 text-3xl font-black uppercase tracking-wide">{freeMode ? "Informazioni prodotto" : VERDICT_LABEL[analysis.verdict]}</h1>
-          <p className="mt-2 max-w-[300px] text-sm font-semibold opacity-90">{freeMode ? "Modalità libera: nessun profilo applicato. Ti mostro cosa è stato rilevato senza stabilire se il prodotto è adatto a una persona specifica." : style.subtitle}</p>
+          <h1 className="mt-3 text-3xl font-black uppercase tracking-wide">{t(freeMode ? "Informazioni prodotto" : VERDICT_LABEL[analysis.verdict])}</h1>
+          <p className="mt-2 max-w-[300px] text-sm font-semibold opacity-90">{t(freeMode ? "Modalità libera: nessun profilo applicato. Ti mostro cosa è stato rilevato senza stabilire se il prodotto è adatto a una persona specifica." : style.subtitle)}</p>
         </div>
       </div>
 
@@ -126,27 +129,27 @@ export function ResultView({
           </div>
           {product.nutritionGrade && (
             <div className="shrink-0 text-center">
-              <p className="text-[10px] font-bold uppercase text-muted-foreground">Nutri-Score</p>
-              <p className="text-xl font-black text-foreground">{NUTRI_LABEL[product.nutritionGrade]}</p>
+              <p className="text-[10px] font-bold uppercase text-muted-foreground">{t("Nutri-Score")}</p>
+              <p className="text-xl font-black text-foreground">{t(NUTRI_LABEL[product.nutritionGrade])}</p>
             </div>
           )}
         </div>
 
         {freeMode && (
           <section className="mt-5">
-            <h2 className="text-base font-extrabold text-foreground">Allergeni e intolleranze rilevati</h2>
-            {findings.length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{findings.map((label) => <span key={label} className="rounded-full bg-caution-soft px-3 py-2 text-sm font-bold text-caution-foreground">{label}</span>)}</div> : <p className="mt-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">Non risultano allergeni riconosciuti dai dati disponibili. Questo non garantisce l'assenza: controlla sempre l'etichetta.</p>}
-            {product.traceTags.length > 0 && <p className="mt-2 text-xs font-semibold text-muted-foreground">Sono presenti anche indicazioni di possibili tracce: verifica l'etichetta del prodotto.</p>}
+            <h2 className="text-base font-extrabold text-foreground">{t("Allergeni e intolleranze rilevati")}</h2>
+            {findings.length > 0 ? <div className="mt-2 flex flex-wrap gap-2">{findings.map((label) => <span key={label} className="rounded-full bg-caution-soft px-3 py-2 text-sm font-bold text-caution-foreground">{t(label)}</span>)}</div> : <p className="mt-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">{t("Non risultano allergeni riconosciuti dai dati disponibili. Questo non garantisce l'assenza: controlla sempre l'etichetta.")}</p>}
+            {product.traceTags.length > 0 && <p className="mt-2 text-xs font-semibold text-muted-foreground">{t("Sono presenti anche indicazioni di possibili tracce: verifica l'etichetta del prodotto.")}</p>}
           </section>
         )}
 
         {!freeMode && analysis.reasons.length > 0 && (
           <section className="mt-5">
-            <h2 className="text-base font-extrabold text-foreground">Perché?</h2>
+            <h2 className="text-base font-extrabold text-foreground">{t("Perché?")}</h2>
             <div className="mt-2 flex flex-col gap-2">
               {analysis.reasons.map((r, i) => {
                 const cfg = r.level === "avoid" ? { cls: "bg-danger-soft text-danger", Icon: CircleX } : r.level === "warning" ? { cls: "bg-caution-soft text-caution-foreground", Icon: TriangleAlert } : { cls: "bg-muted text-foreground", Icon: Info };
-                return <div key={i} className={`flex items-start gap-3 rounded-2xl p-3.5 ${cfg.cls}`}><cfg.Icon className="mt-0.5 h-5 w-5 shrink-0" /><p className="text-sm font-bold">{r.text}</p></div>;
+                return <div key={i} className={`flex items-start gap-3 rounded-2xl p-3.5 ${cfg.cls}`}><cfg.Icon className="mt-0.5 h-5 w-5 shrink-0" /><p className="text-sm font-bold">{t(r.text)}</p></div>;
               })}
             </div>
           </section>
@@ -154,15 +157,14 @@ export function ResultView({
 
         {shouldAskForFrontPhoto && (
           <section className="mt-5 rounded-2xl border border-caution/40 bg-caution-soft p-4">
-            <h2 className="text-base font-extrabold text-caution-foreground">Dati non sufficienti</h2>
-            <p className="mt-1 text-sm leading-relaxed text-caution-foreground">Per ridurre i dubbi, fotografa il fronte della confezione. L'app proverà a riconoscere dichiarazioni visibili come “senza glutine” o “senza lattosio”.</p>
+            <h2 className="text-base font-extrabold text-caution-foreground">{t("Dati non sufficienti")}</h2>
+            <p className="mt-1 text-sm leading-relaxed text-caution-foreground">{t("Per ridurre i dubbi, fotografa il fronte della confezione. L'app proverà a riconoscere dichiarazioni visibili come “senza glutine” o “senza lattosio”.")}</p>
             <Link
               to="/ingredients"
               search={{ code: product.code || undefined, name: product.name || undefined, brand: product.brand || undefined, image: product.imageUrl, mode: "front" }}
               className="mt-3 flex w-full items-center justify-center rounded-2xl bg-primary px-4 py-3.5 text-base font-extrabold text-primary-foreground"
             >
-              Fai una foto del fronte
-            </Link>
+              {t("Fai una foto del fronte")}</Link>
           </section>
         )}
 
@@ -172,12 +174,12 @@ export function ResultView({
           <div className="flex items-start gap-3">
             {ssnConfirmed ? <CheckCircle2 className="mt-0.5 h-6 w-6 shrink-0 text-safe" /> : <Info className="mt-0.5 h-6 w-6 shrink-0 text-primary" />}
             <div className="min-w-0 flex-1">
-              <h2 className="text-base font-extrabold text-foreground">Celiachia · Servizio Sanitario Nazionale</h2>
+              <h2 className="text-base font-extrabold text-foreground">{t("Celiachia · Servizio Sanitario Nazionale")}</h2>
               <p className={`mt-1 text-sm font-extrabold ${ssnConfirmed ? "text-safe" : "text-foreground"}`}>
-                {ssnConfirmed ? "EROGABILE SSN: SÌ" : registryChecking ? "CONTROLLO REGISTRO SSN…" : registryCheck?.status === "unavailable" ? "REGISTRO SSN TEMPORANEAMENTE NON DISPONIBILE" : "EROGABILITÀ SSN NON CONFERMATA"}
+                {t(ssnConfirmed ? "EROGABILE SSN: SÌ" : registryChecking ? "CONTROLLO REGISTRO SSN…" : registryCheck?.status === "unavailable" ? "REGISTRO SSN TEMPORANEAMENTE NON DISPONIBILE" : "EROGABILITÀ SSN NON CONFERMATA")}
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {ssnConfirmed
+                {t(ssnConfirmed
                   ? registryCheck?.status === "yes"
                     ? "Prodotto trovato automaticamente nel Registro nazionale del Ministero della Salute."
                     : ssn.detail
@@ -185,7 +187,7 @@ export function ResultView({
                     ? "Non l'ho trovato automaticamente nel Registro ufficiale. Non significa necessariamente che non sia erogabile: verifica il nome/formato nel Registro."
                     : registryCheck?.status === "unavailable"
                       ? "Il controllo automatico non è disponibile in questo momento. Questo non indica né che il prodotto sia erogabile né che non lo sia: verifica nel Registro ufficiale o riprova il controllo."
-                      : ssn.detail}
+                      : ssn.detail)}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {registryCheck?.status === "unavailable" && (
@@ -195,7 +197,7 @@ export function ResultView({
                     disabled={registryChecking}
                     className="inline-flex rounded-xl bg-primary px-3 py-2 text-xs font-extrabold text-primary-foreground disabled:opacity-60"
                   >
-                    {registryChecking ? "Controllo…" : "Riprova controllo"}
+                    {t(registryChecking ? "Controllo…" : "Riprova controllo")}
                   </button>
                 )}
                 <a
@@ -204,22 +206,21 @@ export function ResultView({
                   rel="noreferrer"
                   className="inline-flex rounded-xl bg-secondary px-3 py-2 text-xs font-extrabold text-secondary-foreground"
                 >
-                  Apri Registro ufficiale
-                </a>
+                  {t("Apri Registro ufficiale")}</a>
               </div>
             </div>
           </div>
         </section>
 
         <section className="mt-5">
-          <h2 className="text-base font-extrabold text-foreground">Ingredienti</h2>
-          <p className="mt-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">{product.ingredientsText || "Lista ingredienti non disponibile."}</p>
+          <h2 className="text-base font-extrabold text-foreground">{t("Ingredienti")}</h2>
+          <p className="mt-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">{product.ingredientsText || t("Lista ingredienti non disponibile.")}</p>
         </section>
 
         {shouldSuggestAlternatives && <Alternatives product={product} allergens={foodAllergens} customAllergens={customAllergens} />}
-        {product.source === "off" && <p className="mt-4 text-center text-[11px] text-muted-foreground">Dati prodotto: Open Food Facts</p>}
+        {product.source === "off" && <p className="mt-4 text-center text-[11px] text-muted-foreground">{t("Dati prodotto: Open Food Facts")}</p>}
 
-        <Link to="/scan" search={{ mode: "barcode" }} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground"><RotateCcw className="h-5 w-5" />Scansiona un altro prodotto</Link>
+        <Link to="/scan" search={{ mode: "barcode" }} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground"><RotateCcw className="h-5 w-5" />{t("Scansiona un altro prodotto")}</Link>
         <Disclaimer severe={!!profile?.severe} />
       </div>
     </div>
@@ -227,6 +228,8 @@ export function ResultView({
 }
 
 function Alternatives({ product, allergens, customAllergens }: { product: FoodProduct; allergens: AllergenId[]; customAllergens: string[] }) {
+  const { t } = useAppLanguage();
+
   const { data, isFetching } = useQuery({
     queryKey: ["alternatives", product.categoryTag, allergens.join(","), customAllergens.join("|")],
     queryFn: async () => {
@@ -243,19 +246,19 @@ function Alternatives({ product, allergens, customAllergens }: { product: FoodPr
   });
 
   if (isFetching && !data) {
-    return <section className="mt-5"><h2 className="text-base font-extrabold text-foreground">Cerco alternative compatibili…</h2></section>;
+    return <section className="mt-5"><h2 className="text-base font-extrabold text-foreground">{t("Cerco alternative compatibili…")}</h2></section>;
   }
   if (!data || data.length === 0) return null;
 
   return (
     <section className="mt-5">
-      <h2 className="text-base font-extrabold text-foreground">Alternative compatibili per te</h2>
-      <p className="mt-1 text-xs text-muted-foreground">Suggerimenti della stessa categoria con dati ingredienti completi. Verifica comunque sempre l'etichetta.</p>
+      <h2 className="text-base font-extrabold text-foreground">{t("Alternative compatibili per te")}</h2>
+      <p className="mt-1 text-xs text-muted-foreground">{t("Suggerimenti della stessa categoria con dati ingredienti completi. Verifica comunque sempre l'etichetta.")}</p>
       <div className="mt-2 flex flex-col gap-2">
         {data.map((alt) => (
           <Link key={alt.code} to="/product/$code" params={{ code: alt.code }} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors active:bg-secondary">
-            {alt.imageUrl ? <img src={alt.imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain" /> : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-safe-soft"><CheckCircle2 className="h-5 w-5 text-safe" /></div>}
-            <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-foreground">{alt.name}</p><p className="truncate text-xs text-muted-foreground">{alt.brand}</p></div>
+            {alt.imageUrl ? <img src={alt.imageUrl} alt={t("")} className="h-10 w-10 shrink-0 rounded-xl object-contain" /> : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-safe-soft"><CheckCircle2 className="h-5 w-5 text-safe" /></div>}
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-foreground">{t(alt.name)}</p><p className="truncate text-xs text-muted-foreground">{t(alt.brand)}</p></div>
           </Link>
         ))}
       </div>
@@ -264,11 +267,13 @@ function Alternatives({ product, allergens, customAllergens }: { product: FoodPr
 }
 
 export function Disclaimer({ severe }: { severe: boolean }) {
+  const { t } = useAppLanguage();
+
   return (
     <div className="mt-6 rounded-2xl border border-caution/40 bg-caution-soft p-4">
       <div className="flex items-start gap-3">
         <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-caution-foreground" />
-        <p className="text-sm leading-relaxed text-caution-foreground">Safe Scan Eats è uno strumento informativo e <strong>non sostituisce il parere medico</strong>. I dati possono essere incompleti o non aggiornati: verifica sempre l'etichetta.{severe && <> <strong>Hai indicato allergie gravi: controlla l'etichetta e contatta il produttore.</strong></>}</p>
+        <p className="text-sm leading-relaxed text-caution-foreground">{t("Safe Scan Eats è uno strumento informativo e ")}<strong>{t("non sostituisce il parere medico")}</strong>{t(". I dati possono essere incompleti o non aggiornati: verifica sempre l'etichetta.")}{severe && <> <strong>{t("Hai indicato allergie gravi: controlla l'etichetta e contatta il produttore.")}</strong></>}</p>
       </div>
     </div>
   );

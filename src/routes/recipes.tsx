@@ -1,3 +1,5 @@
+import { useAppLanguage } from "@/lib/language";
+import { translateText } from "@/lib/translations";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
@@ -226,6 +228,7 @@ function cleanDishQuery(input: string) {
   return input
     .toLowerCase()
     .replace(/[!?.,]/g, " ")
+    .replace(/\b(i want to make|i want to cook|i would like to make|i would like to cook|make|prepare|cook|tonight|today|tomorrow|for dinner|for lunch)\b/g, " ")
     .replace(/\b(stasera|oggi|domani|per cena|per pranzo)\b/g, " ")
     .replace(/\b(voglio|vorrei|mi piacerebbe|devo)\b/g, " ")
     .replace(/\b(fare|preparare|cucinare|mangiare)\b/g, " ")
@@ -353,6 +356,8 @@ function scaleQuantity(quantity: string, factor: number) {
 }
 
 function RecipesPage() {
+  const { t, language } = useAppLanguage();
+
   const profile = useProfile();
   const shopping = useShoppingList();
   const generateRecipeFn = useServerFn(generateRecipe);
@@ -386,7 +391,7 @@ function RecipesPage() {
     const q = dishKey(query);
     if (!q) return visibleRecipes;
     return RECIPES.filter((r) =>
-      dishKey(r.title).includes(q) || r.aliases.some((a) => dishKey(a).includes(q))
+      dishKey(r.title).includes(q) || dishKey(translateText(r.title, "en")).includes(q) || r.aliases.some((a) => dishKey(a).includes(q))
     );
   }, [query, visibleRecipes]);
 
@@ -431,7 +436,7 @@ function RecipesPage() {
     setRemovedIngredientIndexes([]);
     setOnlineRecipe(null);
     setSelectedId(recipe.id);
-    setQuery(recipe.title);
+    setQuery(t(recipe.title));
     setServings(recipe.servings);
     setSearchMessage("");
   };
@@ -447,10 +452,10 @@ function RecipesPage() {
     try {
       const key = dishKey(cleaned);
       const exact = RECIPES.find((r) =>
-        dishKey(r.title) === key || r.aliases.some((a) => dishKey(a) === key)
+        dishKey(r.title) === key || dishKey(translateText(r.title, "en")) === key || r.aliases.some((a) => dishKey(a) === key)
       );
       const partial = RECIPES.find((r) =>
-        dishKey(r.title).includes(key) || r.aliases.some((a) => dishKey(a).includes(key))
+        dishKey(r.title).includes(key) || dishKey(translateText(r.title, "en")).includes(key) || r.aliases.some((a) => dishKey(a).includes(key))
       );
       if (exact || partial) {
         choose(exact ?? partial!);
@@ -459,6 +464,7 @@ function RecipesPage() {
       try {
         const generated = await generateRecipeFn({ data: {
           dish: cleaned,
+          language,
           allergens: activeAllergens.map((id) => ALLERGENS.find((a) => a.id === id)?.label ?? id),
         }});
         const aiRecipe: Recipe = {
@@ -501,12 +507,12 @@ function RecipesPage() {
 
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
     <header className="flex items-center gap-3">
-      <Link to="/" aria-label="Torna alla home" className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-secondary-foreground"><ArrowLeft className="h-5 w-5" /></Link>
-      <div><h1 className="text-lg font-extrabold text-foreground">Ricette e spesa</h1><p className="text-xs text-muted-foreground">Scegli cosa cucinare e prepara la lista</p></div>
+      <Link to="/" aria-label={t("Torna alla home")} className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-secondary-foreground"><ArrowLeft className="h-5 w-5" /></Link>
+      <div><h1 className="text-lg font-extrabold text-foreground">{t("Ricette e spesa")}</h1><p className="text-xs text-muted-foreground">{t("Scegli cosa cucinare e prepara la lista")}</p></div>
     </header>
 
     <section className="mt-5 rounded-3xl border border-border bg-card p-4">
-      <div className="flex items-center gap-2"><ChefHat className="h-5 w-5 text-primary" /><p className="font-extrabold">Cosa vuoi cucinare?</p></div>
+      <div className="flex items-center gap-2"><ChefHat className="h-5 w-5 text-primary" /><p className="font-extrabold">{t("Cosa vuoi cucinare?")}</p></div>
       <div className="mt-3 flex gap-2">
         <div className="relative min-w-0 flex-1">
           <input
@@ -516,49 +522,49 @@ function RecipesPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void findRecipe(); } }}
-            placeholder="Es. tiramisù"
+            placeholder={t("Es. tiramisù")}
             className="w-full rounded-2xl border border-border bg-background px-4 py-3.5 pr-11 text-base outline-none focus:border-primary"
           />
-          {query && <button type="button" onClick={() => { setQuery(""); setSearchMessage(""); }} aria-label="Cancella ricerca" className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-secondary text-muted-foreground"><X className="h-4 w-4" /></button>}
+          {query && <button type="button" onClick={() => { setQuery(""); setSearchMessage(""); }} aria-label={t("Cancella ricerca")} className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full bg-secondary text-muted-foreground"><X className="h-4 w-4" /></button>}
         </div>
-        <button type="button" disabled={searching} onClick={() => void findRecipe()} className="rounded-2xl bg-primary px-4 text-sm font-extrabold text-primary-foreground disabled:opacity-50">{searching ? "Cerco…" : "Cerca"}</button>
+        <button type="button" disabled={searching} onClick={() => void findRecipe()} className="rounded-2xl bg-primary px-4 text-sm font-extrabold text-primary-foreground disabled:opacity-50">{t(searching ? "Cerco…" : "Cerca")}</button>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         {(query.trim() ? suggestions : visibleRecipes).map((recipe) => (
           <div key={recipe.id} className={`flex items-center overflow-hidden rounded-full ${recipe.id === selected?.id ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
             <button type="button" onClick={() => choose(recipe)} className="px-3 py-2 text-xs font-extrabold">
-              {recipe.title}
+              {t(recipe.title)}
             </button>
-            <button type="button" onClick={() => hideRecipe(recipe)} aria-label={`Elimina ${recipe.title}`} className="grid h-8 w-8 place-items-center border-l border-current/15 opacity-70 hover:opacity-100">
+            <button type="button" onClick={() => hideRecipe(recipe)} aria-label={t(`Elimina ${recipe.title}`)} className="grid h-8 w-8 place-items-center border-l border-current/15 opacity-70 hover:opacity-100">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </div>
         ))}
       </div>
-      {hiddenRecipeIds.length > 0 && <button type="button" onClick={restoreRecipes} className="mt-3 text-xs font-extrabold text-muted-foreground">Ripristina ricette eliminate ({hiddenRecipeIds.length})</button>}
-      {searchMessage && <p className="mt-3 text-sm font-semibold text-muted-foreground">{searchMessage}</p>}
+      {hiddenRecipeIds.length > 0 && <button type="button" onClick={restoreRecipes} className="mt-3 text-xs font-extrabold text-muted-foreground">{t("Ripristina ricette eliminate (")}{hiddenRecipeIds.length}{t(")")}</button>}
+      {searchMessage && <p className="mt-3 text-sm font-semibold text-muted-foreground">{t(searchMessage)}</p>}
     </section>
 
     <section className="mt-4 rounded-3xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-3">
-        <div><p className="text-xs font-bold uppercase text-muted-foreground">Ricetta scelta</p><h2 className="mt-1 text-xl font-black text-foreground">{selected?.title ?? (searching ? "Ricerca in corso…" : "Nessuna ricetta selezionata")}</h2></div>
+        <div><p className="text-xs font-bold uppercase text-muted-foreground">{t("Ricetta scelta")}</p><h2 className="mt-1 text-xl font-black text-foreground">{t(selected?.title ?? (searching ? "Ricerca in corso…" : "Nessuna ricetta selezionata"))}</h2></div>
         {selected && <div className="flex items-center gap-2 rounded-full bg-secondary p-1">
           <button type="button" onClick={() => setServings((v) => Math.max(1, v - 1))} className="grid h-8 w-8 place-items-center rounded-full bg-card"><Minus className="h-4 w-4" /></button>
-          <span className="min-w-10 text-center text-sm font-extrabold">{servings}</span>
+          <span className="min-w-10 text-center text-sm font-extrabold">{t(servings)}</span>
           <button type="button" onClick={() => setServings((v) => Math.min(12, v + 1))} className="grid h-8 w-8 place-items-center rounded-full bg-card"><Plus className="h-4 w-4" /></button>
         </div>}
       </div>
-      {selected && <button type="button" onClick={() => hideRecipe(selected)} className="mt-3 inline-flex items-center gap-2 rounded-full bg-danger/10 px-4 py-2 text-sm font-extrabold text-danger"><Trash2 className="h-4 w-4" />Elimina ricetta</button>}
-      {!selected && !searching && <p className="mt-3 text-sm text-muted-foreground">Cerca o scegli una ricetta per iniziare.</p>}
-      {selected && (glutenFree || lactoseFree) && <p className="mt-3 rounded-2xl bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Adattata al profilo attivo{glutenFree ? " · senza glutine" : ""}{lactoseFree ? " · senza lattosio" : ""}</p>}
-      <div className="mt-4 space-y-2">{adapted.map((item) => <div key={item.ingredientIndex} className="rounded-2xl bg-muted px-3 py-3"><div className="flex items-center gap-3"><span className="min-w-0 flex-1 text-sm font-bold text-foreground">{item.name}</span><span className="shrink-0 text-xs font-semibold text-muted-foreground">{item.quantity}</span><button type="button" onClick={() => setRemovedIngredientIndexes((indexes) => [...indexes, item.ingredientIndex])} aria-label={`Elimina ingrediente ${item.name}`} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-danger"><Trash2 className="h-4 w-4" /></button></div>{item.warning && <p className="mt-1 text-xs font-bold text-danger">⚠ {item.warning}</p>}</div>)}</div>
-      {selected && removedIngredientIndexes.length > 0 && <button type="button" onClick={() => setRemovedIngredientIndexes([])} className="mt-3 text-xs font-extrabold text-muted-foreground">Ripristina ingredienti eliminati ({removedIngredientIndexes.length})</button>}
-      <button type="button" disabled={!selected || adapted.length === 0} onClick={() => addShoppingItems(adapted.filter((item) => !item.warning).map((item) => ({ name: item.name, quantity: item.quantity, recipe: item.recipe })))} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-extrabold text-primary-foreground disabled:opacity-40"><ShoppingCart className="h-5 w-5" />Aggiungi alla lista della spesa</button>
+      {selected && <button type="button" onClick={() => hideRecipe(selected)} className="mt-3 inline-flex items-center gap-2 rounded-full bg-danger/10 px-4 py-2 text-sm font-extrabold text-danger"><Trash2 className="h-4 w-4" />{t("Elimina ricetta")}</button>}
+      {!selected && !searching && <p className="mt-3 text-sm text-muted-foreground">{t("Cerca o scegli una ricetta per iniziare.")}</p>}
+      {selected && (glutenFree || lactoseFree) && <p className="mt-3 rounded-2xl bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">{t("Adattata al profilo attivo")}{t(glutenFree ? " · senza glutine" : "")}{t(lactoseFree ? " · senza lattosio" : "")}</p>}
+      <div className="mt-4 space-y-2">{adapted.map((item) => <div key={item.ingredientIndex} className="rounded-2xl bg-muted px-3 py-3"><div className="flex items-center gap-3"><span className="min-w-0 flex-1 text-sm font-bold text-foreground">{t(item.name)}</span><span className="shrink-0 text-xs font-semibold text-muted-foreground">{t(item.quantity)}</span><button type="button" onClick={() => setRemovedIngredientIndexes((indexes) => [...indexes, item.ingredientIndex])} aria-label={t(`Elimina ingrediente ${item.name}`)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-danger"><Trash2 className="h-4 w-4" /></button></div>{item.warning && <p className="mt-1 text-xs font-bold text-danger">{t("⚠ ")}{t(item.warning)}</p>}</div>)}</div>
+      {selected && removedIngredientIndexes.length > 0 && <button type="button" onClick={() => setRemovedIngredientIndexes([])} className="mt-3 text-xs font-extrabold text-muted-foreground">{t("Ripristina ingredienti eliminati (")}{removedIngredientIndexes.length}{t(")")}</button>}
+      <button type="button" disabled={!selected || adapted.length === 0} onClick={() => addShoppingItems(adapted.filter((item) => !item.warning).map((item) => ({ name: item.name, quantity: item.quantity, recipe: item.recipe })))} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-extrabold text-primary-foreground disabled:opacity-40"><ShoppingCart className="h-5 w-5" />{t("Aggiungi alla lista della spesa")}</button>
     </section>
 
     <section className="mt-4 rounded-3xl border border-border bg-card p-4">
-      <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary" /><h2 className="font-extrabold">Lista della spesa</h2></div>{shopping.length > 0 && <button type="button" onClick={clearShoppingList} className="text-xs font-extrabold text-danger">Svuota</button>}</div>
-      {shopping.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">La lista è vuota. Aggiungi una ricetta per iniziare.</p> : <div className="mt-3 space-y-2">{shopping.map((item) => <div key={item.id} className="flex items-center gap-3 rounded-2xl bg-muted px-3 py-3"><button type="button" onClick={() => toggleShoppingItem(item.id)} className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 ${item.checked ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}>{item.checked && <Check className="h-4 w-4" />}</button><div className="min-w-0 flex-1"><p className={`truncate text-sm font-bold ${item.checked ? "line-through opacity-50" : ""}`}>{item.name}</p><p className="text-xs text-muted-foreground">{item.quantity}{item.recipe ? ` · ${item.recipe}` : ""}</p></div><button type="button" onClick={() => removeShoppingItem(item.id)} aria-label="Rimuovi" className="text-muted-foreground"><Trash2 className="h-4 w-4" /></button></div>)}</div>}
+      <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary" /><h2 className="font-extrabold">{t("Lista della spesa")}</h2></div>{shopping.length > 0 && <button type="button" onClick={clearShoppingList} className="text-xs font-extrabold text-danger">{t("Svuota")}</button>}</div>
+      {shopping.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">{t("La lista è vuota. Aggiungi una ricetta per iniziare.")}</p> : <div className="mt-3 space-y-2">{shopping.map((item) => <div key={item.id} className="flex items-center gap-3 rounded-2xl bg-muted px-3 py-3"><button type="button" onClick={() => toggleShoppingItem(item.id)} className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 ${item.checked ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}>{item.checked && <Check className="h-4 w-4" />}</button><div className="min-w-0 flex-1"><p className={`truncate text-sm font-bold ${item.checked ? "line-through opacity-50" : ""}`}>{t(item.name)}</p><p className="text-xs text-muted-foreground">{t(item.quantity)}{t(item.recipe ? ` · ${item.recipe}` : "")}</p></div><button type="button" onClick={() => removeShoppingItem(item.id)} aria-label={t("Rimuovi")} className="text-muted-foreground"><Trash2 className="h-4 w-4" /></button></div>)}</div>}
     </section>
   </div>;
 }

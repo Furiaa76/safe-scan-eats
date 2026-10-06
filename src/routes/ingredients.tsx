@@ -1,3 +1,4 @@
+import { useAppLanguage } from "@/lib/language";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
@@ -160,6 +161,8 @@ async function localFrontOcr(image: string): Promise<string[]> {
 }
 
 function GuidedFlow() {
+  const { t } = useAppLanguage();
+
   const search = Route.useSearch();
   const navigate = useNavigate();
   const identifyFn = useServerFn(identifyFront);
@@ -242,44 +245,48 @@ function GuidedFlow() {
   });
 
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
-    <header className="flex items-center gap-3"><Link to="/" aria-label="Torna alla home" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-secondary text-secondary-foreground"><ArrowLeft className="h-5 w-5" /></Link><h1 className="truncate text-lg font-extrabold text-foreground">Fotografa il prodotto</h1></header>
+    <header className="flex items-center gap-3"><Link to="/" aria-label={t("Torna alla home")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-secondary text-secondary-foreground"><ArrowLeft className="h-5 w-5" /></Link><h1 className="truncate text-lg font-extrabold text-foreground">{t("Fotografa il prodotto")}</h1></header>
     {step === 0 ? <>
-      <p className="mt-6 text-xl font-extrabold text-foreground">Cosa vuoi fotografare?</p>
-      <p className="mt-1 text-sm text-muted-foreground">Puoi scegliere da dove partire. Se vuoi, puoi sempre passare all’altra foto dopo.</p>
+      <p className="mt-6 text-xl font-extrabold text-foreground">{t("Cosa vuoi fotografare?")}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{t("Puoi scegliere da dove partire. Se vuoi, puoi sempre passare all’altra foto dopo.")}</p>
       <button type="button" onClick={() => { setError(null); setStep(1); }} className="mt-5 flex w-full items-center gap-4 rounded-3xl bg-primary p-5 text-left text-primary-foreground shadow-lg">
         <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-primary-foreground/20"><ScanSearch className="h-8 w-8" /></div>
-        <div><p className="text-lg font-extrabold">Fotografa il fronte</p><p className="mt-1 text-sm opacity-90">Riconosci prodotto e scritte come “senza glutine”</p></div>
+        <div><p className="text-lg font-extrabold">{t("Fotografa il fronte")}</p><p className="mt-1 text-sm opacity-90">{t("Riconosci prodotto e scritte come “senza glutine”")}</p></div>
       </button>
       <button type="button" onClick={() => { setError(null); setStep(2); }} className="mt-3 flex w-full items-center gap-4 rounded-3xl border-2 border-primary bg-card p-5 text-left text-foreground">
         <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-secondary"><Camera className="h-8 w-8 text-primary" /></div>
-        <div><p className="text-lg font-extrabold">Fotografa gli ingredienti</p><p className="mt-1 text-sm text-muted-foreground">Vai direttamente alla lista ingredienti</p></div>
+        <div><p className="text-lg font-extrabold">{t("Fotografa gli ingredienti")}</p><p className="mt-1 text-sm text-muted-foreground">{t("Vai direttamente alla lista ingredienti")}</p></div>
       </button>
     </> : <>
-      <ol className="mt-5 grid grid-cols-2 gap-2">{[{ n: 1, t: "Fronte" }, { n: 2, t: "Etichetta ingredienti" }].map((s) => <li key={s.n} className={`flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-bold ${step === s.n ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-background/30 text-xs">{step > s.n ? <Check className="h-3.5 w-3.5" /> : s.n}</span><span className="truncate">{s.t}</span></li>)}</ol>
-      {search.code && <p className="mt-3 text-xs text-muted-foreground">Codice a barre: <span className="font-mono">{search.code}</span></p>}
+      <ol className="mt-5 grid grid-cols-2 gap-2">{[{ n: 1, t: "Fronte" }, { n: 2, t: "Etichetta ingredienti" }].map((s) => <li key={s.n} className={`flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-bold ${step === s.n ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-background/30 text-xs">{step > s.n ? <Check className="h-3.5 w-3.5" /> : s.n}</span><span className="truncate">{t(s.t)}</span></li>)}</ol>
+      {search.code && <p className="mt-3 text-xs text-muted-foreground">{t("Codice a barre: ")}<span className="font-mono">{t(search.code)}</span></p>}
       {step === 1 ? <>
-      <p className="mt-4 text-base font-extrabold text-foreground">1. Fotografa la PARTE FRONTALE del prodotto</p><p className="mt-1 text-sm text-muted-foreground">Ci serve per capire di quale prodotto si tratta e leggere eventuali dichiarazioni esplicite come “senza glutine”.</p>
-      <PhotoBox photo={front} busy={busy === "front"} busyText="Leggo il prodotto…" hint="Tocca per fotografare il fronte della confezione" icon={<ScanSearch className="h-14 w-14 text-primary-foreground/80" />} onFile={onFront} />
-      {identity && <div className="mt-4 rounded-2xl border border-border bg-card p-4"><p className="text-xs font-bold uppercase text-muted-foreground">{identity.recognized ? "Prodotto riconosciuto" : identity.claims.length ? "Dichiarazioni rilevate" : "Prodotto non riconosciuto"}</p>{identity.recognized && <p className="mt-1 text-base font-extrabold text-foreground">{identity.name}{identity.brand ? ` · ${identity.brand}` : ""}</p>}{identity.category && <p className="text-xs text-muted-foreground">{identity.category}</p>}{identity.claims.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{identity.claims.map((claim) => <span key={claim} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{claim}</span>)}</div>}</div>}
-      <div className="mt-4 grid grid-cols-1 gap-2"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome prodotto (correggi se serve)" className="rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-foreground outline-none focus:border-primary" /><input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Marca" className="rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-foreground outline-none focus:border-primary" /></div>
-      <Note>Se il servizio AI non è disponibile o non trova dichiarazioni sul fronte, l'app usa automaticamente una lettura OCR locale sul dispositivo per cercare scritte come “senza glutine”.</Note>
-      {error && <p className="mt-3 text-sm font-semibold text-danger">{error}</p>}
-      <button type="button" disabled={busy !== null} onClick={() => { setError(null); setStep(2); }} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">{front ? "Avanti: etichetta ingredienti" : "Salta e fotografa l'etichetta"}</button>
+      <p className="mt-4 text-base font-extrabold text-foreground">{t("1. Fotografa la PARTE FRONTALE del prodotto")}</p><p className="mt-1 text-sm text-muted-foreground">{t("Ci serve per capire di quale prodotto si tratta e leggere eventuali dichiarazioni esplicite come “senza glutine”.")}</p>
+      <PhotoBox photo={front} busy={busy === "front"} busyText={t("Leggo il prodotto…")} hint={t("Tocca per fotografare il fronte della confezione")} icon={<ScanSearch className="h-14 w-14 text-primary-foreground/80" />} onFile={onFront} />
+      {identity && <div className="mt-4 rounded-2xl border border-border bg-card p-4"><p className="text-xs font-bold uppercase text-muted-foreground">{t(identity.recognized ? "Prodotto riconosciuto" : identity.claims.length ? "Dichiarazioni rilevate" : "Prodotto non riconosciuto")}</p>{identity.recognized && <p className="mt-1 text-base font-extrabold text-foreground">{t(identity.name)}{t(identity.brand ? ` · ${identity.brand}` : "")}</p>}{identity.category && <p className="text-xs text-muted-foreground">{t(identity.category)}</p>}{identity.claims.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{identity.claims.map((claim) => <span key={claim} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{t(claim)}</span>)}</div>}</div>}
+      <div className="mt-4 grid grid-cols-1 gap-2"><input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Nome prodotto (correggi se serve)")} className="rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-foreground outline-none focus:border-primary" /><input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder={t("Marca")} className="rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-foreground outline-none focus:border-primary" /></div>
+      <Note>{t("Se il servizio AI non è disponibile o non trova dichiarazioni sul fronte, l'app usa automaticamente una lettura OCR locale sul dispositivo per cercare scritte come “senza glutine”.")}</Note>
+      {error && <p className="mt-3 text-sm font-semibold text-danger">{t(error)}</p>}
+      <button type="button" disabled={busy !== null} onClick={() => { setError(null); setStep(2); }} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">{t(front ? "Avanti: etichetta ingredienti" : "Salta e fotografa l'etichetta")}</button>
     </> : <>
-      <p className="mt-4 text-base font-extrabold text-foreground">2. Fotografa l'ETICHETTA INGREDIENTI</p><p className="mt-1 text-sm text-muted-foreground">Inquadra bene tutta la lista, compresa la frase “può contenere tracce di…”.</p>
-      {(name || brand) && <p className="mt-3 flex items-center gap-2 text-sm font-bold text-foreground"><Tag className="h-4 w-4 text-primary" />{[name, brand].filter(Boolean).join(" · ")}</p>}
-      {identity?.claims?.length ? <div className="mt-3 flex flex-wrap gap-2">{identity.claims.map((claim) => <span key={claim} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{claim}</span>)}</div> : null}
-      <PhotoBox photo={label} busy={busy === "label"} busyText="Leggo gli ingredienti…" hint="Tocca per fotografare la lista ingredienti" icon={<Camera className="h-14 w-14 text-primary-foreground/80" />} onFile={onLabel} />
-      {error && <p className="mt-3 text-sm font-semibold text-danger">{error}</p>}
-      <label className="mt-5 text-sm font-extrabold text-foreground" htmlFor="ing">Ingredienti letti (controlla e correggi)</label><textarea id="ing" value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Es. farina di grano tenero, zucchero, burro, uova…" className="mt-2 rounded-2xl border border-border bg-card p-4 text-base text-foreground outline-none focus:border-primary" />
-      <button type="button" disabled={text.trim().length < 3 || busy !== null} onClick={analyze} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">Analizza ingredienti</button><button type="button" onClick={() => setStep(1)} className="mt-2 py-2 text-sm font-bold text-muted-foreground">Torna alla foto frontale</button>
+      <p className="mt-4 text-base font-extrabold text-foreground">{t("2. Fotografa l'ETICHETTA INGREDIENTI")}</p><p className="mt-1 text-sm text-muted-foreground">{t("Inquadra bene tutta la lista, compresa la frase “può contenere tracce di…”.")}</p>
+      {(name || brand) && <p className="mt-3 flex items-center gap-2 text-sm font-bold text-foreground"><Tag className="h-4 w-4 text-primary" />{t([name, brand].filter(Boolean).join(" · "))}</p>}
+      {identity?.claims?.length ? <div className="mt-3 flex flex-wrap gap-2">{identity.claims.map((claim) => <span key={claim} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{t(claim)}</span>)}</div> : null}
+      <PhotoBox photo={label} busy={busy === "label"} busyText={t("Leggo gli ingredienti…")} hint={t("Tocca per fotografare la lista ingredienti")} icon={<Camera className="h-14 w-14 text-primary-foreground/80" />} onFile={onLabel} />
+      {error && <p className="mt-3 text-sm font-semibold text-danger">{t(error)}</p>}
+      <label className="mt-5 text-sm font-extrabold text-foreground" htmlFor="ing">{t("Ingredienti letti (controlla e correggi)")}</label><textarea id="ing" value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder={t("Es. farina di grano tenero, zucchero, burro, uova…")} className="mt-2 rounded-2xl border border-border bg-card p-4 text-base text-foreground outline-none focus:border-primary" />
+      <button type="button" disabled={text.trim().length < 3 || busy !== null} onClick={analyze} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">{t("Analizza ingredienti")}</button><button type="button" onClick={() => setStep(1)} className="mt-2 py-2 text-sm font-bold text-muted-foreground">{t("Torna alla foto frontale")}</button>
     </>}
     </>}
   </div>;
 }
 
 function PhotoBox({ photo, busy, busyText, hint, icon, onFile }: { photo: string | null; busy: boolean; busyText: string; hint: string; icon: React.ReactNode; onFile: (f?: File) => void }) {
-  return <label className="relative mt-4 flex aspect-[4/3] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-3xl bg-foreground">{photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : <>{icon}<p className="mt-3 max-w-[240px] text-center text-sm font-semibold text-primary-foreground/80">{hint}</p></>}{busy && <div className="absolute inset-0 grid place-items-center bg-foreground/70"><div className="text-center"><Loader2 className="mx-auto h-9 w-9 animate-spin text-primary-foreground" /><p className="mt-2 text-sm font-bold text-primary-foreground">{busyText}</p></div></div>}<input type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy} onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} /></label>;
+  const { t } = useAppLanguage();
+
+  return <label className="relative mt-4 flex aspect-[4/3] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-3xl bg-foreground">{photo ? <img src={photo} alt={t("")} className="h-full w-full object-cover" /> : <>{t(icon)}<p className="mt-3 max-w-[240px] text-center text-sm font-semibold text-primary-foreground/80">{t(hint)}</p></>}{busy && <div className="absolute inset-0 grid place-items-center bg-foreground/70"><div className="text-center"><Loader2 className="mx-auto h-9 w-9 animate-spin text-primary-foreground" /><p className="mt-2 text-sm font-bold text-primary-foreground">{t(busyText)}</p></div></div>}<input type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy} onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} /></label>;
 }
 
-function Note({ children }: { children: React.ReactNode }) { return <div className="mt-4 flex items-start gap-2 rounded-2xl bg-muted p-3 text-xs text-muted-foreground"><Info className="mt-0.5 h-4 w-4 shrink-0" /><p>{children}</p></div>; }
+function Note({ children }: { children: React.ReactNode }) {
+  const { t } = useAppLanguage();
+ return <div className="mt-4 flex items-start gap-2 rounded-2xl bg-muted p-3 text-xs text-muted-foreground"><Info className="mt-0.5 h-4 w-4 shrink-0" /><p>{t(children)}</p></div>; }

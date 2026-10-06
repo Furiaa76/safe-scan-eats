@@ -1,3 +1,4 @@
+import { useAppLanguage } from "@/lib/language";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import type { FoodProduct } from "@/lib/off";
@@ -41,6 +42,8 @@ function claimsToLabelTags(claims?: string): string[] {
 }
 
 function AnalysisPage() {
+  const { t } = useAppLanguage();
+
   const { text, code, name, brand, image, claims } = Route.useSearch();
   const profile = useProfile();
   const [photo, setPhoto] = useState<string | undefined>(image);
