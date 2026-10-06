@@ -1,12 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { purchaseCountry } from "./purchase-countries";
 
 const UA = "SafeFoodScan/1.0 (web app informativa)";
 type Raw = Record<string, unknown>;
 
 async function getJson(url: string): Promise<Raw | null> {
   try {
-    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
+    const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" }, signal: AbortSignal.timeout(12000) });
     if (!res.ok) return null;
     return (await res.json()) as Raw;
   } catch {
@@ -68,9 +69,10 @@ function mergeAndRank(groups: Raw[][], query: string): Raw[] {
     .slice(0, 30);
 }
 
-async function searchOne(query: string, fields: string): Promise<Raw[]> {
+async function searchOne(query: string, fields: string, countryTag?: string): Promise<Raw[]> {
   const base = "https://world.openfoodfacts.org/cgi/search.pl?action=process&json=1";
-  const url = `${base}&search_simple=1&search_terms=${encodeURIComponent(query)}&page_size=30&fields=${encodeURIComponent(fields)}`;
+  const countryFilter = countryTag ? `&tagtype_0=countries&tag_contains_0=contains&tag_0=${encodeURIComponent(countryTag)}` : "";
+  const url = `${base}&search_simple=1&search_terms=${encodeURIComponent(query)}&page_size=30&fields=${encodeURIComponent(fields)}${countryFilter}`;
   const primary = await getJson(url);
   if (primary && Array.isArray(primary["products"])) return primary["products"] as Raw[];
 
@@ -82,7 +84,7 @@ async function searchOne(query: string, fields: string): Promise<Raw[]> {
 }
 
 export const offSearch = createServerFn({ method: "GET" })
-  .inputValidator((d) => z.object({ query: z.string().max(120).optional(), category: z.string().max(120).optional(), fields: z.string().max(600) }).parse(d))
+  .inputValidator((d) => z.object({ query: z.string().max(120).optional(), category: z.string().max(120).optional(), country: z.string().regex(/^[a-z]{2}$/).refine((code) => !!purchaseCountry(code)).optional(), fields: z.string().max(600) }).parse(d))
   .handler(async ({ data }) => {
     const base = "https://world.openfoodfacts.org/cgi/search.pl?action=process&json=1";
     const f = `&fields=${encodeURIComponent(data.fields)}`;
@@ -97,7 +99,10 @@ export const offSearch = createServerFn({ method: "GET" })
     const query = data.query?.trim() ?? "";
     if (!query) return { ok: true, json: "[]" };
 
-    const groups = await Promise.all(queryVariants(query).map((q) => searchOne(q, data.fields)));
-    const products = mergeAndRank(groups, query);
+    const countryTag = data.country ? purchaseCountry(data.country)?.tag : undefined;
+    const groups = await Promise.all(queryVariants(query).map((q) => searchOne(q, data.fields, countryTag)));
+    // Fallback searches can return worldwide products: require an explicit country match.
+    const filtered = countryTag ? groups.map((group) => group.filter((product) => strings(product["countries_tags"]).includes(countryTag))) : groups;
+    const products = mergeAndRank(filtered, query);
     return { ok: true, json: JSON.stringify(products) };
   });

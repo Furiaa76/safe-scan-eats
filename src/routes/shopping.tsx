@@ -1,4 +1,5 @@
 import { useAppLanguage } from "@/lib/language";
+import { PurchaseItemLink } from "@/components/PurchaseItemLink";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, Pencil, Plus, ShoppingCart, Trash2, X } from "lucide-react";
@@ -192,6 +193,7 @@ function ShoppingPage() {
         </div>
         <ShoppingCart className="h-6 w-6 text-primary" />
       </header>
+      <p className="mt-3 text-xs text-muted-foreground">{t("Tocca un prodotto per cercare dove acquistarlo.")}</p>
 
       {recipeTitles.length > 0 && (
         <section className="mt-4 rounded-3xl border border-border bg-card p-4">
@@ -345,7 +347,7 @@ function ShoppingPage() {
                                 aria-label={t("Segna come acquistato")}
                               />
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-extrabold text-foreground">{t(item.name)}</p>
+                                <PurchaseItemLink name={item.name} from="shopping" className="text-sm font-extrabold" />
                                 <p className="text-xs text-muted-foreground">{t(item.quantity)}{t(item.recipe ? ` · ${item.recipe}` : "")}</p>
                               </div>
                               <button type="button" onClick={() => beginEdit(item.id, item.name, item.quantity)} className="text-muted-foreground" aria-label={t("Modifica")}>
@@ -388,7 +390,7 @@ function ShoppingPage() {
                       <Check className="h-4 w-4" />
                     </button>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold line-through text-foreground">{t(item.name)}</p>
+                      <PurchaseItemLink name={item.name} from="shopping" className="text-sm font-bold line-through" />
                       <p className="text-xs text-muted-foreground">{t(item.quantity)}</p>
                     </div>
                     <button type="button" onClick={() => removeShoppingItem(item.id)} className="text-muted-foreground" aria-label={t("Elimina")}>

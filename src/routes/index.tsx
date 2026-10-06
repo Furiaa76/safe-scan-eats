@@ -1,4 +1,5 @@
 import { LanguageSelector } from "@/components/LanguageSelector";
+import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
 import { useAppLanguage } from "@/lib/language";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
@@ -124,6 +125,7 @@ function Home({ onAddProfile, onEditProfile }: { onAddProfile: () => void; onEdi
     <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3"><div className="flex min-w-0 items-center gap-3"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"><Salad className="h-5 w-5" /></div><div className="min-w-0"><p className="text-xs font-semibold text-muted-foreground">{t(freeMode ? "Modalità" : "Ciao,")}</p><h1 className="truncate text-xl font-black text-foreground">{t(freeMode ? "Libera" : profile?.name ?? "Profilo")}</h1></div></div><Link to="/history" className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary px-3.5 py-2 text-sm font-bold text-secondary-foreground"><History className="h-4 w-4" />{t("Cronologia")}</Link></header>
 
     <LanguageSelector />
+    <PurchaseCountrySelector />
     <section className="mt-5 rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><Users className="h-4 w-4 text-primary" /><p className="text-sm font-extrabold text-foreground">{t("Profili")}</p></div><button type="button" onClick={onAddProfile} className="flex items-center gap-1 text-xs font-extrabold text-primary"><Plus className="h-4 w-4" />{t("Aggiungi")}</button></div>
       <div className="mt-3 flex flex-wrap gap-2">

@@ -2,6 +2,22 @@ export type AppLanguage = "it" | "en";
 
 // Display translations never change ingredient identifiers, profiles or shopping data.
 export const ENGLISH: Record<string, string> = {
+  "Paese per gli acquisti": "Shopping country",
+  "Tocca un prodotto per cercare dove acquistarlo.": "Tap an item to find where to buy it.",
+  "Città per la mappa (facoltativa)": "City for the map (optional)",
+  "Es. Como": "E.g. Como",
+  "Negozi segnalati nel database": "Shops reported in the database",
+  "Cerca online": "Search online",
+  "Supermercati sulla mappa": "Supermarkets on the map",
+  "Cerca dove acquistare": "Find where to buy",
+  "Dove acquistare": "Where to buy",
+  "Indietro": "Back",
+  "Scegli un prodotto del catalogo oppure cercalo direttamente online.": "Choose a product from the catalogue or search for it directly online.",
+  "Cerca questo ingrediente": "Search for this ingredient",
+  "I negozi sono segnalati dagli utenti del database, anche in sedi o Paesi diversi. Prezzi, spedizione e disponibilità vanno verificati con il venditore. Controlla sempre l’etichetta prima di acquistare.": "Shops are reported by database contributors and may refer to other locations or countries. Check prices, delivery and availability with the seller. Always check the label before buying.",
+  "Nessun prodotto registrato per questo Paese. Puoi usare la ricerca online qui sopra.": "No products registered for this country. You can use the online search above.",
+  "Controlla ingredienti e allergeni": "Check ingredients and allergens",
+  "Negozi non indicati nel database.": "Shops not listed in the database.",
   "Carne e salumi": "Meat and cured meat",
   "Pane e forno": "Bread and bakery",
   "Casa e igiene": "Household and hygiene",
