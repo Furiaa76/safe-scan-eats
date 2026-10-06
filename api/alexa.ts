@@ -32,6 +32,39 @@ type AlexaProfile = {
   allergens: string[];
 };
 
+type RecipeTarget = { dish: string; itemIds: string[] };
+
+function lastRecipeTarget(items: ShoppingItem[], previous: unknown): RecipeTarget | null {
+  const context = previous as { dish?: unknown; itemIds?: unknown } | undefined;
+  if (context && typeof context.dish === "string" && Array.isArray(context.itemIds) &&
+      context.itemIds.length && context.itemIds.every((id) => typeof id === "string")) {
+    const ids = new Set(context.itemIds as string[]);
+    const selected = items.filter((item) => ids.has(item.id));
+    if (selected.length === ids.size && selected.every((item) => recipeMentionsDish(item.recipe, context.dish as string))) {
+      return { dish: context.dish, itemIds: context.itemIds as string[] };
+    }
+    // A stale session must not silently select a different recipe.
+    return null;
+  }
+  const recipes = items.filter((item) => item.recipe);
+  if (!recipes.length) return null;
+  const labels = Array.from(new Set(recipes.flatMap((item) => (item.recipe ?? "").split("·"))
+    .map((label) => cleanDish(label.replace(/\(\d+\s+persone?\)/gi, "")))));
+  let dish: string | undefined = labels.length === 1 ? labels[0] : undefined;
+  if (!dish) {
+    const dated = recipes.filter((item) => Number.isFinite(Date.parse(item.createdAt ?? "")));
+    if (dated.length !== recipes.length) return null;
+    const latest = Math.max(...dated.map((item) => Date.parse(item.createdAt!)));
+    const lastLabels = Array.from(new Set(dated.filter((item) => Date.parse(item.createdAt!) === latest)
+      .flatMap((item) => (item.recipe ?? "").split("·"))
+      .map((label) => cleanDish(label.replace(/\(\d+\s+persone?\)/gi, "")))));
+    if (lastLabels.length !== 1) return null;
+    dish = lastLabels[0];
+  }
+  if (!dish) return null;
+  return { dish, itemIds: recipes.filter((item) => recipeMentionsDish(item.recipe, dish!)).map((item) => item.id) };
+}
+
 const SUPABASE_URL = "https://mqrmdynpcextvjgkkyfj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_umpU64DAPwgRiT56fEzvtw_pIo2Wh20";
 
@@ -431,13 +464,18 @@ async function addRecipeForProfile(
   dish: string,
   servings: number,
   profile: AlexaProfile | null,
+  previous?: unknown,
 ) {
-  const alreadyPresent = await shoppingHasDish(householdKey, dish);
-  if (alreadyPresent) {
+  const existing = await loadShoppingFromCloud(householdKey);
+  const alreadyPresent = existing.some((item) => recipeMentionsDish(item.recipe, dish));
+  const replacementTarget = !alreadyPresent ? lastRecipeTarget(existing, previous) : null;
+  if (alreadyPresent || replacementTarget) {
     return {
       duplicate: true as const,
       response: buildAlexaResponse(
-        `${dish} è già presente nella lista. Vuoi aggiungerla a quella esistente oppure sostituirla?`,
+        alreadyPresent
+          ? `${dish} è già presente nella lista. Vuoi aggiungerla a quella esistente oppure sostituirla?`
+          : `Vuoi aggiungere ${dish} oppure sostituire l'ultima ricetta, ${replacementTarget!.dish}, con ${dish}? Rispondi aggiungi oppure sostituisci.`,
         false,
         {
           pendingAction: "duplicateRecipe",
@@ -446,6 +484,7 @@ async function addRecipeForProfile(
           servings,
           profileName: profile?.name ?? "",
           profileAllergens: profile?.allergens ?? [],
+          ...(replacementTarget ? { replacementTarget } : {}),
         },
       ),
     };
@@ -487,12 +526,7 @@ function recipeMentionsDish(recipe: string | undefined, dish: string) {
   return recipe
     .split("·")
     .map((part) => cleanDish(part.replace(/\(\d+\s+persone?\)/gi, "")))
-    .some((part) => part === wanted || part.includes(wanted) || wanted.includes(part));
-}
-
-async function shoppingHasDish(householdKey: string, dish: string) {
-  const items = await loadShoppingFromCloud(householdKey);
-  return items.some((item) => recipeMentionsDish(item.recipe, dish));
+    .some((part) => part === wanted);
 }
 
 function parseServings(value: unknown): number | null {
@@ -508,16 +542,17 @@ async function continueRecipeRequest(
   householdKey: string,
   dish: string,
   servings: number,
+  previous?: unknown,
 ) {
   const profiles = await getHouseholdProfiles(householdKey);
   if (profiles.length > 1) {
     return buildAlexaResponse(
       `Per quale profilo vuoi preparare ${dish}? Puoi scegliere: ${profiles.map((profile) => profile.name).join(", ")}.`,
       false,
-      { pendingAction: "recipeProfileSelection", dish, servings },
+      { pendingAction: "recipeProfileSelection", dish, servings, ...(previous ? { lastRecipe: previous } : {}) },
     );
   }
-  return (await addRecipeForProfile(householdKey, dish, servings, profiles[0] ?? null)).response;
+  return (await addRecipeForProfile(householdKey, dish, servings, profiles[0] ?? null, previous)).response;
 }
 
 async function changeLastRecipeServings(
@@ -563,11 +598,18 @@ async function replaceDishInCloud(
   dish: string,
   servings = 4,
   profileAllergens?: string[],
+  target?: RecipeTarget,
 ) {
   const existing = await loadShoppingFromCloud(householdKey);
-  const shared = existing.some((item) => recipeMentionsDish(item.recipe, dish) &&
+  const oldDish = target?.dish ?? dish;
+  const targetIds = target ? new Set(target.itemIds) : null;
+  const selected = existing.filter((item) => targetIds ? targetIds.has(item.id) : recipeMentionsDish(item.recipe, oldDish));
+  if (targetIds && (selected.length !== targetIds.size || selected.some((item) => !recipeMentionsDish(item.recipe, oldDish)))) {
+    return { ok: false as const, reason: "staleTarget" as const, count: 0 };
+  }
+  const shared = selected.some((item) =>
     (item.recipe ?? "").split("·").some((part) =>
-      cleanDish(part.replace(/\(\d+\s+persone?\)/gi, "")) !== cleanDish(dish)));
+      cleanDish(part.replace(/\(\d+\s+persone?\)/gi, "")) !== cleanDish(oldDish)));
   if (shared) {
     // Old rows contain only a combined quantity, not each recipe's contribution.
     return { ok: false as const, reason: "sharedIngredients" as const, count: 0 };
@@ -576,7 +618,8 @@ async function replaceDishInCloud(
   const avoidHistamine = preferences.includes("istamina");
   const ingredients = await generateIngredients(dish, servings, avoidHistamine);
   if (!ingredients) return { ok: false as const, reason: "generationFailed" as const, count: 0 };
-  const kept = existing.filter((item) => !recipeMentionsDish(item.recipe, dish));
+  const selectedIds = new Set(selected.map((item) => item.id));
+  const kept = existing.filter((item) => !selectedIds.has(item.id));
   const recipeLabel = servings === 4 ? dish : `${dish} (${servings} persone)`;
   const additions: ShoppingItem[] = ingredients.map((item) => ({
     ...item, id: crypto.randomUUID(), recipe: recipeLabel,
@@ -783,7 +826,11 @@ export async function POST(request: Request) {
     // currently pending determines what that answer means.
     const isServingsAnswer = body.session?.attributes?.["pendingAction"] === "recipeServingsSelection" &&
       (recognizedIntent === "SelectProfileIntent" || recognizedIntent === "SelectProfileNameIntent");
-    const intent = isServingsAnswer ? "ChangeServingsIntent" : recognizedIntent;
+    const isSeparateRecipeAnswer = body.session?.attributes?.["pendingAction"] === "duplicateRecipe" &&
+      recognizedIntent === "AddShoppingItemIntent" &&
+      /^(?:la\s+)?(?:ricetta\s+)?separatamente$/i.test(body.request?.intent?.slots?.["item"]?.value?.trim() ?? "");
+    const intent = isServingsAnswer ? "ChangeServingsIntent" :
+      isSeparateRecipeAnswer ? "AddDuplicateRecipeIntent" : recognizedIntent;
     console.log("[Alexa] intent", {
       intent,
       recognizedIntent,
@@ -832,10 +879,11 @@ export async function POST(request: Request) {
           return json(buildAlexaResponse(
             requestedServings ? "Dimmi un numero intero di persone da uno a venti." : `Per quante persone vuoi preparare ${dish}?`,
             false,
-            { pendingAction: "recipeServingsSelection", dish },
+            { pendingAction: "recipeServingsSelection", dish,
+              ...(body.session?.attributes?.["lastRecipe"] ? { lastRecipe: body.session.attributes["lastRecipe"] } : {}) },
           ));
         }
-        return json(await continueRecipeRequest(household, dish, servings));
+        return json(await continueRecipeRequest(household, dish, servings, body.session?.attributes?.["lastRecipe"]));
       } catch (error) {
         console.error("[Alexa] shopping add failed", error);
         return json(buildAlexaResponse("Ho avuto un problema nell'aggiornare la lista della spesa. Riprova tra poco."));
@@ -854,7 +902,7 @@ export async function POST(request: Request) {
         const household = await getHouseholdKey(alexaUserId);
         if (!household) return json(buildAlexaResponse("Prima collega Alexa alla lista della spesa nell'app Safe Scan Eats."));
         if (attributes["pendingAction"] === "recipeServingsSelection" && typeof attributes["dish"] === "string") {
-          return json(await continueRecipeRequest(household, attributes["dish"], servings));
+          return json(await continueRecipeRequest(household, attributes["dish"], servings, attributes["lastRecipe"]));
         }
         if (attributes["pendingAction"] === "recipeProfileSelection" || attributes["pendingAction"] === "duplicateRecipe") {
           return json(buildAlexaResponse(
@@ -913,7 +961,7 @@ export async function POST(request: Request) {
           );
         }
 
-        const result = await addRecipeForProfile(householdKey, dish, servings, profile);
+        const result = await addRecipeForProfile(householdKey, dish, servings, profile, body.session?.attributes?.["lastRecipe"]);
         return json(result.response);
       } catch (error) {
         console.error("[Alexa] profile selection failed", error);
@@ -1145,6 +1193,7 @@ export async function POST(request: Request) {
       const dish = body.session?.attributes?.["dish"];
       const servingsValue = body.session?.attributes?.["servings"];
       const profileAllergens = body.session?.attributes?.["profileAllergens"];
+      const replacementTarget = body.session?.attributes?.["replacementTarget"] as RecipeTarget | undefined;
 
       if (
         pendingAction === "duplicateRecipe" &&
@@ -1156,6 +1205,11 @@ export async function POST(request: Request) {
             ? servingsValue
             : 4;
         try {
+          if (replacementTarget && (typeof replacementTarget.dish !== "string" ||
+              !Array.isArray(replacementTarget.itemIds) || !replacementTarget.itemIds.length ||
+              !replacementTarget.itemIds.every((id) => typeof id === "string"))) {
+            return json(buildAlexaResponse("Non riesco a individuare la ricetta da sostituire. Non ho modificato la lista.", false));
+          }
           const result = await replaceDishInCloud(
             householdKey,
             dish,
@@ -1163,19 +1217,25 @@ export async function POST(request: Request) {
             Array.isArray(profileAllergens)
               ? profileAllergens.filter((value): value is string => typeof value === "string")
               : undefined,
+            replacementTarget,
           );
+          console.log("[Alexa] recipe replacement result", { outcome: result.ok ? "success" : result.reason });
           if (!result.ok) {
             return json(buildAlexaResponse(
               result.reason === "sharedIngredients"
                 ? "Gli ingredienti della vecchia ricetta sono sommati a quelli di altre ricette. Non posso separarli senza cambiare le altre quantità. Non ho modificato nulla. Puoi dire aggiungi per inserire la nuova ricetta separatamente, oppure annulla."
-                : "Non riesco a generare gli ingredienti della nuova versione in questo momento. La lista non è stata modificata. Puoi riprovare dicendo sostituisci, oppure annulla.",
+                : result.reason === "staleTarget"
+                  ? "La ricetta da sostituire è stata modificata o rimossa. Non ho cambiato la lista. Chiedimi di nuovo quale ricetta vuoi preparare."
+                  : "Non riesco a generare gli ingredienti della nuova versione in questo momento. La lista non è stata modificata. Puoi riprovare dicendo sostituisci, oppure annulla.",
               false,
               body.session?.attributes,
             ));
           }
           return json(
             buildAlexaResponse(
-              `Fatto. Ho sostituito ${dish} con la versione per ${servings} ${servings === 1 ? "persona" : "persone"}.`,
+              replacementTarget
+                ? `Fatto. Ho sostituito ${replacementTarget.dish} con ${dish} per ${servings} ${servings === 1 ? "persona" : "persone"}.`
+                : `Fatto. Ho sostituito ${dish} con la versione per ${servings} ${servings === 1 ? "persona" : "persone"}.`,
               false,
               { lastRecipe: result.lastRecipe },
             ),

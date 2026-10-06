@@ -28,7 +28,7 @@ const sandbox = {
     if (name === 'safe_scan_alexa_household') value = 'test-household';
     else if (name === 'safe_scan_get_profiles') value = profiles;
     else if (name === 'safe_scan_get_preferences') value = [];
-    else if (name === 'safe_scan_get_shopping') value = structuredClone(items);
+    else if (name === 'safe_scan_get_shopping') value = structuredClone(items.map((item) => ({ ...item, created_at: item.createdAt })));
     else if (name === 'safe_scan_replace_shopping') {
       if (failWrite) return new Response('test failure', { status: 500 });
       writes++;
@@ -147,6 +147,57 @@ assert.equal(items.length, 6);
 assert.equal(items[1].quantity, '160 g');
 result = await say('ChangeServingsIntent', { servings: '1' }, result.sessionAttributes);
 assert.equal(items[1].quantity, '80 g');
+// Replacing with a different dish must remove only the selected last recipe.
+items = [untouched];
+result = await say('CreateRecipeIntent', { dish: 'carbonara per quattro persone' });
+const carbonaraIds = items.slice(1).map((item) => item.id);
+profiles = [{ id: 'one', name: 'Fabio', allergens: [] }, { id: 'two', name: 'Laura', allergens: [] }];
+result = await say('CreateRecipeIntent', { dish: 'lasagne' }, result.sessionAttributes);
+result = await say('ChangeServingsIntent', { servings: '2' }, result.sessionAttributes);
+result = await say('SelectProfileNameIntent', { profile: 'Fabio' }, result.sessionAttributes);
+assert.match(speech(result), /sostituire l'ultima ricetta, carbonara, con lasagne/);
+assert.deepEqual(Array.from(result.sessionAttributes.replacementTarget.itemIds), carbonaraIds);
+const beforeDifferent = structuredClone(items);
+failWrite = true;
+const failedReplacement = await say('ReplaceDuplicateRecipeIntent', {}, result.sessionAttributes);
+assert.match(speech(failedReplacement), /problema/);
+assert.deepEqual(items, beforeDifferent);
+failWrite = false;
+result = await say('ReplaceDuplicateRecipeIntent', {}, result.sessionAttributes);
+assert.match(speech(result), /sostituito carbonara con lasagne per 2 persone/);
+assert.deepEqual(items[0], untouched);
+assert.ok(items.slice(1).every((item) => item.recipe === 'lasagne (2 persone)'));
+assert.ok(items.every((item) => !carbonaraIds.includes(item.id)));
+result = await say('ChangeServingsIntent', { servings: '3' }, result.sessionAttributes);
+assert.match(speech(result), /per 3 persone/);
+profiles = [];
+// Outside a conversation the cloud timestamps select the most recent recipe.
+const lasagneIds = items.slice(1).map((item) => item.id);
+items.push({ id: 'older', name: 'Riso', quantity: '100 g', recipe: 'risotto', checked: true, createdAt: '2020-01-01T00:00:00.000Z' });
+result = await say('CreateRecipeIntent', { dish: 'carbonara per due persone' });
+assert.equal(result.sessionAttributes.replacementTarget.dish, 'lasagne');
+assert.deepEqual(Array.from(result.sessionAttributes.replacementTarget.itemIds), lasagneIds);
+const staleReplacementAttrs = result.sessionAttributes;
+items = items.filter((item) => item.id !== lasagneIds[0]);
+const beforeStaleReplacement = structuredClone(items);
+result = await say('ReplaceDuplicateRecipeIntent', {}, staleReplacementAttrs);
+assert.match(speech(result), /modificata o rimossa/);
+assert.deepEqual(items, beforeStaleReplacement);
+// Adding instead keeps every previous row.
+items = [untouched];
+result = await say('CreateRecipeIntent', { dish: 'carbonara per quattro persone' });
+const previousItems = structuredClone(items);
+result = await say('CreateRecipeIntent', { dish: 'lasagne per due persone' }, result.sessionAttributes);
+result = await say('AddShoppingItemIntent', { item: 'la separatamente' }, result.sessionAttributes);
+assert.deepEqual(items.slice(0, previousItems.length), previousItems);
+assert.ok(items.every((item) => item.name !== 'la separatamente'));
+// A shared legacy row remains protected when replacing with a different dish.
+items = [{ id: 'shared', name: 'Pasta', quantity: '640 g', recipe: 'carbonara · lasagne', checked: false }];
+const explicitShared = { pendingAction: 'duplicateRecipe', householdKey: 'test-household', dish: 'tiramisu', servings: 2,
+  replacementTarget: { dish: 'carbonara', itemIds: ['shared'] } };
+result = await say('ReplaceDuplicateRecipeIntent', {}, explicitShared);
+assert.match(speech(result), /sommati a quelli di altre ricette/);
+assert.equal(items[0].quantity, '640 g');
 items = [];
 const legacyModel = await say('CreateShoppingListIntent', { dish: 'carbonara' });
 assert.match(speech(legacyModel), /per 4 persone/);
