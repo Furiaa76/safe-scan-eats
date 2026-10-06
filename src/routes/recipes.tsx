@@ -362,6 +362,7 @@ function RecipesPage() {
   const [onlineRecipe, setOnlineRecipe] = useState<Recipe | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchMessage, setSearchMessage] = useState("");
+  const [removedIngredientIndexes, setRemovedIngredientIndexes] = useState<number[]>([]);
   const [hiddenRecipeIds, setHiddenRecipeIds] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem(HIDDEN_RECIPES_KEY);
@@ -372,7 +373,7 @@ function RecipesPage() {
     }
   });
 
-  const selected = onlineRecipe ?? RECIPES.find((r) => r.id === selectedId) ?? null;
+  const selected = onlineRecipe ?? RECIPES.find((r) => r.id === selectedId && !hiddenRecipeIds.includes(r.id)) ?? null;
   const glutenFree = profile?.allergens.includes("glutine") ?? false;
   const lactoseFree = profile?.allergens.includes("lattosio") ?? false;
 
@@ -390,15 +391,17 @@ function RecipesPage() {
   }, [query, visibleRecipes]);
 
   const hideRecipe = (recipe: Recipe) => {
-    const next = Array.from(new Set([...hiddenRecipeIds, recipe.id]));
-    setHiddenRecipeIds(next);
-    localStorage.setItem(HIDDEN_RECIPES_KEY, JSON.stringify(next));
-    if (selectedId === recipe.id) {
-      const replacement = RECIPES.find((item) => !next.includes(item.id));
-      setSelectedId(replacement?.id ?? "");
+    if (RECIPES.some((item) => item.id === recipe.id)) {
+      const next = Array.from(new Set([...hiddenRecipeIds, recipe.id]));
+      setHiddenRecipeIds(next);
+      localStorage.setItem(HIDDEN_RECIPES_KEY, JSON.stringify(next));
+    }
+    if (selected?.id === recipe.id) {
+      setSelectedId("");
       setQuery("");
       setOnlineRecipe(null);
-      if (replacement) setServings(replacement.servings);
+      setRemovedIngredientIndexes([]);
+      setSearchMessage("");
     }
   };
 
@@ -408,17 +411,24 @@ function RecipesPage() {
   };
 
   const activeAllergens = profile?.allergens ?? [];
-  const adapted = (selected?.ingredients ?? []).map((item) => {
+  const adapted = (selected?.ingredients ?? []).flatMap((item, index) => {
+    if (removedIngredientIndexes.includes(index)) return [];
     const safe = safeIngredientName(item, activeAllergens);
-    return {
+    return [{
+      ingredientIndex: index,
       name: safe.name,
-      quantity: scaleQuantity(item.quantity, servings / selected.servings),
+      quantity: scaleQuantity(item.quantity, servings / (selected?.servings ?? 4)),
       recipe: selected?.title ?? query.trim(),
       warning: safe.warning,
-    };
+    }];
   });
 
   const choose = (recipe: Recipe) => {
+    // Searching an explicitly named recipe makes it available again.
+    const nextHidden = hiddenRecipeIds.filter((id) => id !== recipe.id);
+    setHiddenRecipeIds(nextHidden);
+    localStorage.setItem(HIDDEN_RECIPES_KEY, JSON.stringify(nextHidden));
+    setRemovedIngredientIndexes([]);
     setOnlineRecipe(null);
     setSelectedId(recipe.id);
     setQuery(recipe.title);
@@ -433,6 +443,7 @@ function RecipesPage() {
     setSearchMessage("");
     setOnlineRecipe(null);
     setSelectedId("");
+    setRemovedIngredientIndexes([]);
     try {
       const key = dishKey(cleaned);
       const exact = RECIPES.find((r) =>
@@ -530,16 +541,19 @@ function RecipesPage() {
 
     <section className="mt-4 rounded-3xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-3">
-        <div><p className="text-xs font-bold uppercase text-muted-foreground">Ricetta scelta</p><h2 className="mt-1 text-xl font-black text-foreground">{selected?.title ?? (searching ? "Ricerca in corso…" : "Nessuna ricetta trovata")}</h2></div>
-        <div className="flex items-center gap-2 rounded-full bg-secondary p-1">
+        <div><p className="text-xs font-bold uppercase text-muted-foreground">Ricetta scelta</p><h2 className="mt-1 text-xl font-black text-foreground">{selected?.title ?? (searching ? "Ricerca in corso…" : "Nessuna ricetta selezionata")}</h2></div>
+        {selected && <div className="flex items-center gap-2 rounded-full bg-secondary p-1">
           <button type="button" onClick={() => setServings((v) => Math.max(1, v - 1))} className="grid h-8 w-8 place-items-center rounded-full bg-card"><Minus className="h-4 w-4" /></button>
           <span className="min-w-10 text-center text-sm font-extrabold">{servings}</span>
           <button type="button" onClick={() => setServings((v) => Math.min(12, v + 1))} className="grid h-8 w-8 place-items-center rounded-full bg-card"><Plus className="h-4 w-4" /></button>
-        </div>
+        </div>}
       </div>
-      {(glutenFree || lactoseFree) && <p className="mt-3 rounded-2xl bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Adattata al profilo attivo{glutenFree ? " · senza glutine" : ""}{lactoseFree ? " · senza lattosio" : ""}</p>}
-      <div className="mt-4 space-y-2">{adapted.map((item) => <div key={item.name} className="rounded-2xl bg-muted px-3 py-3"><div className="flex items-center justify-between gap-3"><span className="text-sm font-bold text-foreground">{item.name}</span><span className="shrink-0 text-xs font-semibold text-muted-foreground">{item.quantity}</span></div>{item.warning && <p className="mt-1 text-xs font-bold text-danger">⚠ {item.warning}</p>}</div>)}</div>
-      <button type="button" disabled={!selected || adapted.length === 0} onClick={() => addShoppingItems(adapted.filter((item) => !item.warning))} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-extrabold text-primary-foreground disabled:opacity-40"><ShoppingCart className="h-5 w-5" />Aggiungi alla lista della spesa</button>
+      {selected && <button type="button" onClick={() => hideRecipe(selected)} className="mt-3 inline-flex items-center gap-2 rounded-full bg-danger/10 px-4 py-2 text-sm font-extrabold text-danger"><Trash2 className="h-4 w-4" />Elimina ricetta</button>}
+      {!selected && !searching && <p className="mt-3 text-sm text-muted-foreground">Cerca o scegli una ricetta per iniziare.</p>}
+      {selected && (glutenFree || lactoseFree) && <p className="mt-3 rounded-2xl bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground">Adattata al profilo attivo{glutenFree ? " · senza glutine" : ""}{lactoseFree ? " · senza lattosio" : ""}</p>}
+      <div className="mt-4 space-y-2">{adapted.map((item) => <div key={item.ingredientIndex} className="rounded-2xl bg-muted px-3 py-3"><div className="flex items-center gap-3"><span className="min-w-0 flex-1 text-sm font-bold text-foreground">{item.name}</span><span className="shrink-0 text-xs font-semibold text-muted-foreground">{item.quantity}</span><button type="button" onClick={() => setRemovedIngredientIndexes((indexes) => [...indexes, item.ingredientIndex])} aria-label={`Elimina ingrediente ${item.name}`} className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-danger"><Trash2 className="h-4 w-4" /></button></div>{item.warning && <p className="mt-1 text-xs font-bold text-danger">⚠ {item.warning}</p>}</div>)}</div>
+      {selected && removedIngredientIndexes.length > 0 && <button type="button" onClick={() => setRemovedIngredientIndexes([])} className="mt-3 text-xs font-extrabold text-muted-foreground">Ripristina ingredienti eliminati ({removedIngredientIndexes.length})</button>}
+      <button type="button" disabled={!selected || adapted.length === 0} onClick={() => addShoppingItems(adapted.filter((item) => !item.warning).map((item) => ({ name: item.name, quantity: item.quantity, recipe: item.recipe })))} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-extrabold text-primary-foreground disabled:opacity-40"><ShoppingCart className="h-5 w-5" />Aggiungi alla lista della spesa</button>
     </section>
 
     <section className="mt-4 rounded-3xl border border-border bg-card p-4">
