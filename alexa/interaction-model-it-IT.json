@@ -35,6 +35,36 @@
           ]
         },
         {
+          "name": "ChangeServingsIntent",
+          "slots": [
+            {
+              "name": "servings",
+              "type": "AMAZON.NUMBER"
+            },
+            {
+              "name": "previousServings",
+              "type": "AMAZON.NUMBER"
+            }
+          ],
+          "samples": [
+            "{servings}",
+            "per {servings} persone",
+            "per {servings} persona",
+            "siamo in {servings}",
+            "siamo {servings}",
+            "falla per {servings} persone",
+            "fallo per {servings} persone",
+            "anzi per {servings} persone",
+            "anzi falla per {servings} persone",
+            "modifica per {servings} persone",
+            "cambia le porzioni a {servings}",
+            "modifica le porzioni per {servings} persone",
+            "non per {previousServings} persone ma per {servings} persone",
+            "modifica non per {previousServings} persone ma per {servings} persone",
+            "modifica da {previousServings} a {servings} persone"
+          ]
+        },
+        {
           "name": "SelectProfileIntent",
           "slots": [
             {
