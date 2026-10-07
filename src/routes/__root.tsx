@@ -1,3 +1,4 @@
+import { AppStatistics } from "@/components/AppStatistics";
 import { Capacitor } from "@capacitor/core";
 import { useAppLanguage } from "@/lib/language";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -75,7 +76,7 @@ function RootComponent() {
     // Il ritorno alla home avviene solo su un nuovo avvio standalone.
   }, []);
 
-  return <QueryClientProvider client={queryClient}><Outlet /></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><Outlet /><AppStatistics /></QueryClientProvider>;
 }
 
 function NotFound() {
