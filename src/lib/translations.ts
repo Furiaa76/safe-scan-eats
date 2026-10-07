@@ -4,6 +4,13 @@ export type AppLanguage = "it" | "en";
 import { EXTRA_RECIPES, CATALOG_FOOD_EN } from "./recipe-catalog";
 
 export const ENGLISH: Record<string, string> = {
+  "Aggiungi Safe Scan alla Home": "Add Safe Scan to your Home Screen",
+  "Apri l’app dalla sua icona, senza passare dagli store.": "Open the app from its icon, without using an app store.",
+  "Su iPhone: apri questo sito in Safari, tocca Condividi, poi Aggiungi alla schermata Home e Aggiungi.": "On iPhone: open this site in Safari, tap Share, then Add to Home Screen and Add.",
+  "Nel menu del browser scegli Installa app oppure Aggiungi alla schermata Home.": "In your browser menu, choose Install app or Add to Home Screen.",
+  "Per cercare prodotti e usare Alexa serve una connessione Internet. I profili salvati nell’app precedente non vengono trasferiti automaticamente.": "Searching for products and using Alexa requires an internet connection. Profiles saved in the previous app are not transferred automatically.",
+  "Installa app": "Install app",
+
   ...CATALOG_FOOD_EN,
   ...Object.fromEntries(EXTRA_RECIPES.map((recipe) => [recipe.title, recipe.englishTitle])),
   "Paese per gli acquisti": "Shopping country",

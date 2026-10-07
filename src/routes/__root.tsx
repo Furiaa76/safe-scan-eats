@@ -1,3 +1,4 @@
+import { Capacitor } from "@capacitor/core";
 import { useAppLanguage } from "@/lib/language";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, Link, createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
@@ -23,6 +24,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png", sizes: "180x180" },
       { rel: "icon", href: "/app-icon.svg", type: "image/svg+xml" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
@@ -43,6 +45,11 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
 
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform() || !("serviceWorker" in navigator)) return;
+    void navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).catch(() => { /* Browser use remains available if installation is unsupported. */ });
+  }, []);
 
   useEffect(() => {
     const isStandalone =
