@@ -4601,10 +4601,12 @@ async function generateIngredients(dish: string, servings = 4, avoidHistamine = 
     const scaled = builtIn.map((item) => {
       const options = item as { name: string; quantity: string; glutenSwap?: string; lactoseSwap?: string };
       let name = options.name;
-      if (preferences.includes("glutine") && options.glutenSwap) name = options.glutenSwap;
-      if (preferences.includes("lattosio") && options.lactoseSwap) {
-        name = options.lactoseSwap;
-        if (preferences.includes("glutine") && options.glutenSwap) name += " e senza glutine";
+      const glutenSwap = options.glutenSwap ?? (/\b(pasta|spaghetti|penne|bucatini|sfoglia|farina|pangrattato|savoiardi|besciamella)\b/i.test(name) ? `${name} senza glutine` : undefined);
+      const lactoseSwap = options.lactoseSwap ?? (/\b(latte|burro|panna|mascarpone|mozzarella|besciamella|ricotta|pecorino|parmigiano)\b/i.test(name) ? `${name} senza lattosio` : undefined);
+      if (preferences.includes("glutine") && glutenSwap) name = glutenSwap;
+      if (preferences.includes("lattosio") && lactoseSwap) {
+        name = lactoseSwap;
+        if (preferences.includes("glutine") && glutenSwap) name += " e senza glutine";
       }
       return { name, quantity: scaleRecipeQuantity(item.quantity, servings) };
     });
@@ -4616,7 +4618,7 @@ async function generateIngredients(dish: string, servings = 4, avoidHistamine = 
       model: "google/gemini-3.6-flash",
       system:
         'Sei il motore ricette di Safe Scan Eats. Ricevi il nome libero di QUALSIASI piatto, dolce, torta, ricetta regionale o internazionale e il numero di persone. Crea la lista della spesa essenziale per prepararlo. Non rinominare il piatto e non sostituirlo con un altro. Se esistono varianti, usa la versione italiana/classica più comune. Se viene richiesto di evitare alimenti problematici per sensibilità all istamina, preferisci ingredienti freschi e non stagionati, non fermentati e non conservati, ed evita per quanto possibile salumi, formaggi stagionati, pesce in scatola o affumicato, fermentati, pomodoro, spinaci, melanzane, avocado, cacao/cioccolato, vino e birra. Rispondi SOLO JSON nel formato {"ingredients":[{"name":string,"quantity":string}]}. Usa nomi e quantità in italiano.',
-      prompt: `Piatto richiesto esattamente: ${dish}\nPersone: ${servings}\n${avoidHistamine ? "Profilo: sensibilità all istamina, evita o sostituisci gli ingredienti tipicamente problematici." : ""}`,
+      prompt: `Piatto richiesto esattamente: ${dish}\nPersone: ${servings}\nAllergeni/intolleranze da evitare: ${preferences.join(", ") || "nessuno"}. Sostituisci gli ingredienti incompatibili e indica esplicitamente senza glutine o senza lattosio nei nomi quando richiesto.\n${avoidHistamine ? "Profilo: sensibilità all istamina, evita o sostituisci gli ingredienti tipicamente problematici." : ""}`,
     });
 
     const parsed = JSON.parse(

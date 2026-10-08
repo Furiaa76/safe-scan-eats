@@ -42,6 +42,15 @@ export function onlinePurchaseUrl(query: string, location: PurchaseLocation, lan
   return `https://www.google.com/search?${params}`;
 }
 
+export function ingredientPurchaseQuery(name: string, allergens: readonly string[]) {
+  let query = name;
+  if (allergens.includes("glutine") && !/senza glutine|gluten[ -]?free/i.test(query) &&
+    /\b(pasta|spaghetti|penne|bucatini|sfoglia|lasagne|farina|pangrattato|savoiardi|besciamella|pane|biscotti)\b/i.test(query)) query += " senza glutine";
+  if (allergens.includes("lattosio") && !/senza lattosio|lactose[ -]?free/i.test(query) &&
+    /\b(latte|burro|panna|mascarpone|mozzarella|besciamella|ricotta|pecorino|parmigiano)\b/i.test(query)) query += " senza lattosio";
+  return query;
+}
+
 export function shopMapUrl(store: string | undefined, location: PurchaseLocation) {
   const country = purchaseCountry(location.country) ?? purchaseCountry("it")!;
   const query = [store?.slice(0, 160) || "supermarkets grocery stores", location.city, country.en].filter(Boolean).join(", ");

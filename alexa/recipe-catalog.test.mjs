@@ -122,3 +122,17 @@ profileTest=await say('AddShoppingItemIntent',{item:'milk as a profile'},{},'en-
 assert.match(speech(profileTest),/To choose a recipe profile/);
 assert.equal(JSON.stringify(items),previous);
 console.log('Profile/grocery confusion regression passed in Italian and English.');
+
+items=[];
+let lasagneTest=await say('CreateRecipeIntent',{dish:'lasagne'});
+lasagneTest=await say('ChangeServingsIntent',{servings:'quattro'},lasagneTest.sessionAttributes);
+lasagneTest=await say('SelectProfileIntent',{profile:'Laura'},lasagneTest.sessionAttributes);
+assert.match(speech(lasagneTest),/8 ingredienti.*4 persone.*Laura/);
+assert.ok(items.some(i=>i.name==='Sfoglia per lasagne senza glutine' && i.quantity==='250 g'));
+assert.ok(items.some(i=>i.name==='Besciamella senza glutine' && i.quantity==='500 ml'));
+assert.ok(!items.some(i=>['Sfoglia per lasagne','Besciamella'].includes(i.name)));
+for (const [dish, expected] of [['carbonara','Pasta senza glutine'],['tiramisu','Savoiardi senza glutine'],['arancini','Farina senza glutine']]) {
+  const generated=await sandbox.generate(dish,4,false,['glutine']);
+  assert.ok(generated.some(i=>i.name===expected),dish);
+}
+console.log('Laura lasagne full-dialog regression and base-recipe substitutions passed.');

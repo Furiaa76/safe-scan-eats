@@ -7,7 +7,7 @@ import { ArrowLeft, Loader2, Package, Search } from "lucide-react";
 import { searchProducts } from "@/lib/off";
 import { useProfile, useProfilesState } from "@/lib/store";
 import { analyzeFood, VERDICT_LABEL } from "@/lib/verdict";
-import { usePurchaseLocation } from "@/lib/purchase";
+import { ingredientPurchaseQuery, usePurchaseLocation } from "@/lib/purchase";
 import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
 import { PurchaseLinks } from "@/components/PurchaseLinks";
 
@@ -30,11 +30,12 @@ function SearchPage() {
   const profile = useProfile();
   const { freeMode } = useProfilesState();
   const navigate = useNavigate({ from: "/search" });
-  const catalogQuery = buy && location.country !== "it" ? translateText(q, "en") : q;
+  const ingredientQuery = buy ? ingredientPurchaseQuery(q, profile?.allergens ?? []) : q;
+  const catalogQuery = buy && location.country !== "it" ? translateText(ingredientQuery, "en") : ingredientQuery;
   const [value, setValue] = useState(catalogQuery);
   useEffect(() => setValue(catalogQuery), [catalogQuery]);
   const { data, isFetching, isError } = useQuery({
-    queryKey: ["off-search", q, buy ? location.country : "world", language],
+    queryKey: ["off-search", catalogQuery, buy ? location.country : "world", language],
     queryFn: () => searchProducts(catalogQuery, buy ? location.country : undefined, language),
     enabled: q.trim().length >= 2,
     staleTime: 1000 * 60 * 5,
@@ -62,7 +63,7 @@ function SearchPage() {
     </form>
 
     {buy && q.trim().length >= 2 && <section className="mt-4 rounded-2xl bg-secondary/50 p-4">
-      <h2 className="font-extrabold text-foreground">{t("Cerca questo ingrediente")}: {t(q)}</h2>
+      <h2 className="font-extrabold text-foreground">{t("Cerca questo ingrediente")}: {t(ingredientQuery)}</h2>
       <PurchaseLinks query={catalogQuery} />
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{t("I negozi sono segnalati dagli utenti del database, anche in sedi o Paesi diversi. Prezzi, spedizione e disponibilità vanno verificati con il venditore. Controlla sempre l’etichetta prima di acquistare.")}</p>
     </section>}
