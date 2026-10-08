@@ -65,8 +65,32 @@ function mergeAndRank(groups: Raw[][], query: string): Raw[] {
     }
   }
   return [...merged.values()]
+    .filter((product) => matchesProductQuery(product, query))
     .sort((a, b) => glutenFreeScore(b, query) - glutenFreeScore(a, query))
     .slice(0, 30);
+}
+
+function matchesProductQuery(product: Raw, query: string): boolean {
+  const q = normalize(query);
+  const names = normalize([
+    product["product_name_it"], product["product_name_en"], product["product_name"],
+    product["generic_name_it"], product["generic_name_en"], product["brands"], product["code"],
+  ].map(text).join(" "));
+  const glutenFree = /senza\s+glutine|gluten[ -]?free/.test(q);
+  if (glutenFree) {
+    const labels = strings(product["labels_tags"]).map(normalize);
+    if (!/senza\s+glutine|gluten[ -]?free/.test(names) &&
+      !labels.some((label) => /gluten-free|senza-glutine/.test(label))) return false;
+  }
+  const terms = q.replace(/senza\s+glutine|gluten[ -]?free/g, " ")
+    .split(/[^a-z0-9]+/).filter((term) => term.length > 2 &&
+      !["per", "con", "del", "della", "delle", "senza"].includes(term));
+  return terms.every((term) => {
+    // Lasagne sheets are often catalogued simply as "Lasagne".
+    if (term === "sfoglia" && /lasagn/.test(q)) return true;
+    const stem = term.length > 4 ? term.replace(/[aeio]$/, "") : term;
+    return names.split(/[^a-z0-9]+/).some((word) => word.startsWith(stem));
+  });
 }
 
 async function searchOne(query: string, fields: string, countryTag?: string): Promise<Raw[]> {
