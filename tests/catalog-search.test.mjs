@@ -6,8 +6,8 @@ import ts from 'typescript';
 const source = readFileSync(new URL('../src/lib/off-search.functions.ts', import.meta.url), 'utf8');
 function catalog(fetch) {
  const js = ts.transpileModule(source.replace(/^import .*;\n/gm, '').replace('export const offSearch', 'const offSearch'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText.replace(/export \{\};?/, '');
- const context = vm.createContext({ fetch, AbortSignal, console, purchaseCountry: () => ({ tag: 'en:italy' }), createServerFn: () => ({ inputValidator() { return this; }, handler(fn) { return fn; } }) });
- vm.runInContext(js + '\nglobalThis.api = { offSearch, queryVariants, matchesProductQuery, completeIngredients };', context);
+ const context = vm.createContext({ fetch, AbortSignal, console, foodCategories: JSON.parse(readFileSync(new URL('../src/lib/food-search-categories.json', import.meta.url), 'utf8')), purchaseCountry: () => ({ tag: 'en:italy' }), createServerFn: () => ({ inputValidator() { return this; }, handler(fn) { return fn; } }) });
+ vm.runInContext(js + '\nglobalThis.api = { offSearch, queryVariants, matchesProductQuery, completeIngredients, ingredientCategories };', context);
  return context.api;
 }
 const unavailable = () => Promise.resolve({ ok: false });
@@ -90,4 +90,24 @@ test('recipe sheets use category and gluten declarations rather than broad text 
  assert.ok(query.includes('categories_tags:"en:lasagna-sheets"'));
  assert.ok(query.includes('labels_tags:"en:no-gluten"'));
  assert.ok(query.includes('countries_tags:"en:italy"'));
+});
+test('shared taxonomy resolves different ingredients and equivalent spellings', () => {
+ const api = catalog(unavailable);
+ const cases = {
+  'pane grattugiato senza glutine': 'en:bread-crumbs', 'pangrattato': 'en:bread-crumbs',
+  'pan grattato': 'en:bread-crumbs', 'farina senza glutine': 'en:flours',
+  'latte senza lattosio': 'en:milks', 'burro': 'en:butters', 'zucchero a velo': 'en:powdered-sugars',
+  'riso': 'en:rices', 'spaghetti senza glutine': 'en:spaghetti', 'biscotti': 'en:biscuits',
+  'mozzarella': 'en:mozzarella', 'uova': 'en:eggs', 'mascarpone': 'en:mascarpone',
+  'pasta senza glutine': 'en:pastas'
+ };
+ for (const [query, tag] of Object.entries(cases)) assert.ok(api.ingredientCategories(query).includes(tag), query);
+});
+test('category matches accept branded names but still reject gluten and lactose without declarations', () => {
+ const api = catalog(unavailable);
+ const product = { product_name: 'PanGrati', categories_tags: ['en:bread-crumbs'], labels_tags: ['en:no-gluten'] };
+ assert.equal(api.matchesProductQuery(product, 'pane grattugiato senza glutine'), true);
+ assert.equal(api.matchesProductQuery({ ...product, labels_tags: [] }, 'pane grattugiato senza glutine'), false);
+ assert.equal(api.matchesProductQuery({ product_name: 'Brand', categories_tags: ['en:milks'] }, 'latte senza lattosio'), false);
+ assert.equal(api.matchesProductQuery(product, 'pane grattugiato marca inesistente senza glutine'), false);
 });

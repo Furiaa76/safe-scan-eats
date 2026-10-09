@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { purchaseCountry } from "./purchase-countries";
+import foodCategories from "./food-search-categories.json";
 
 const UA = "SafeFoodScan/1.0 (web app informativa)";
 type Raw = Record<string, unknown>;
@@ -18,12 +19,36 @@ async function getJson(url: string): Promise<Raw | null> {
 const text = (v: unknown) => (typeof v === "string" ? v : "");
 const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+const normalizeFoodName = (value: string) => normalize(value).replace(/\b(?:pane\s+grattugiato|pane\s+grattato|pan\s+grattato)\b/g, "pangrattato");
+// Names from the official Open Food Facts category taxonomy (Italian preferred
+// over English homonyms), snapshot 2026-10-09. No product safety data is invented.
+const categoryNames: Record<string, string[]> = foodCategories;
+const categoryKey = (value: string) => normalizeFoodName(value).replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+const singularKey = (value: string) => value.split(" ").map((word) => word.length > 4 ? word.replace(/[aeio]$/, "") : word).join(" ");
+const categoryStems = new Map<string, Set<string>>();
+for (const [name, tags] of Object.entries(categoryNames)) {
+  const key = singularKey(name);
+  const values = categoryStems.get(key) ?? new Set<string>();
+  tags.forEach((tag) => values.add(tag));
+  categoryStems.set(key, values);
+}
+function ingredientCategories(query: string): string[] {
+  const q = categoryKey(query.replace(/senza\s+(glutine|lattosio)|(?:gluten|lactose)[ -]?free/gi, " "));
+  if (/sfoglia/.test(q) && /lasagn/.test(q)) return ["en:lasagna-sheets"];
+  const exact = categoryNames[q];
+  if (exact) return exact;
+  const stems = categoryStems.get(singularKey(q));
+  // Ambiguous stemming must fall back to ordinary text search.
+  return stems?.size === 1 ? [...stems] : [];
+}
 
 function queryVariants(query: string): string[] {
   const q = query.trim();
   const n = normalize(q);
   const variants = new Set<string>([q]);
-  const base = q.replace(/senza\s+(glutine|lattosio)|(?:gluten|lactose)[ -]?free/gi, " ").replace(/\s+/g, " ").trim();
+  const canonical = normalizeFoodName(q);
+  if (canonical !== n) variants.add(canonical);
+  const base = canonical.replace(/senza\s+(glutine|lattosio)|(?:gluten|lactose)[ -]?free/gi, " ").replace(/\s+/g, " ").trim();
   if (base !== q && base) variants.add(base);
   if (/\blasagn[ae]\b/i.test(base)) {
     variants.add("lasagne");
@@ -77,8 +102,8 @@ function mergeAndRank(groups: Raw[][], query: string): Raw[] {
 }
 
 function matchesProductQuery(product: Raw, query: string): boolean {
-  const q = normalize(query);
-  const names = normalize([
+  const q = normalizeFoodName(query);
+  const names = normalizeFoodName([
     product["product_name_it"], product["product_name_en"], product["product_name"],
     product["generic_name_it"], product["generic_name_en"], product["brands"], product["code"],
   ].map(text).join(" "));
@@ -93,6 +118,7 @@ function matchesProductQuery(product: Raw, query: string): boolean {
   }
   if (lactoseFree && !/senza\s+lattosio|lactose[ -]?free/.test(names) &&
     !strings(product["labels_tags"]).some((label) => /lactose-free|no-lactose|senza-lattosio/.test(normalize(label)))) return false;
+  if (ingredientCategories(query).some((tag) => strings(product["categories_tags"]).includes(tag))) return true;
   const terms = q.replace(/senza\s+(glutine|lattosio)|(?:gluten|lactose)[ -]?free/g, " ")
     .split(/[^a-z0-9]+/).filter((term) => term.length > 2 &&
       !["per", "con", "del", "della", "delle", "senza"].includes(term));
@@ -133,11 +159,13 @@ async function completeIngredients(product: Raw, fields: string): Promise<Raw> {
     ? { ...product, ...fullProduct as Raw } : product;
 }
 
-async function searchLasagneSheets(query: string, fields: string, countryTag?: string): Promise<Raw[]> {
+async function searchIngredientCategories(query: string, fields: string, countryTag?: string): Promise<Raw[]> {
   const q = normalize(query);
-  if (!/sfoglia/.test(q) || !/lasagn/.test(q)) return [];
-  const filters = ['categories_tags:"en:lasagna-sheets"'];
+  const categories = ingredientCategories(query);
+  if (!categories.length) return [];
+  const filters = [`(${categories.map((tag) => `categories_tags:"${tag}"`).join(" OR ")})`];
   if (/senza\s+glutine|gluten[ -]?free/.test(q)) filters.push('(labels_tags:"en:no-gluten" OR labels_tags:"en:gluten-free")');
+  if (/senza\s+lattosio|lactose[ -]?free/.test(q)) filters.push('(labels_tags:"en:no-lactose" OR labels_tags:"en:lactose-free")');
   if (countryTag) filters.push(`countries_tags:"${countryTag}"`);
   const result = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(filters.join(" AND "))}&page_size=100&fields=${encodeURIComponent(fields)}`);
   return result && Array.isArray(result["hits"]) ? (result["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] })) : [];
@@ -162,7 +190,7 @@ export const offSearch = createServerFn({ method: "GET" })
     const countryTag = data.country ? purchaseCountry(data.country)?.tag : undefined;
     // Recipe ingredients name a product type, not necessarily the catalog's
     // product name. Use its category and declarations before broad full text.
-    const sheets = await searchLasagneSheets(query, data.fields, countryTag);
+    const sheets = await searchIngredientCategories(query, data.fields, countryTag);
     const sheetCandidates = mergeAndRank([countryTag ? sheets.filter((p) => strings(p["countries_tags"]).includes(countryTag)) : sheets], query);
     if (sheetCandidates.length) {
       const products = await Promise.all(sheetCandidates.map((p) => completeIngredients(p, data.fields)));
