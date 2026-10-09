@@ -77,3 +77,17 @@ test('successful alternative search does not wait for the legacy endpoint', asyn
  assert.equal(JSON.parse(result.json).length, 1);
  assert.ok(urls.every(url => !url.includes('cgi/search')));
 });
+test('recipe sheets use category and gluten declarations rather than broad text results', async () => {
+ const urls = [];
+ const api = catalog(async (url) => {
+  urls.push(url);
+  return { ok: true, json: async () => ({ hits: [{ code: '8021228901643', product_name: 'Sfoglia fresca senza glutine', countries_tags: ['en:italy'], labels_tags: ['en:no-gluten'], ingredients_text: 'amido di mais, uova' }] }) };
+ });
+ const result = await api.offSearch({ data: { query: 'sfoglia per lasagne senza glutine', fields: 'code', country: 'it' } });
+ assert.equal(JSON.parse(result.json)[0].code, '8021228901643');
+ assert.equal(urls.length, 1);
+ const query = new URL(urls[0]).searchParams.get('q');
+ assert.ok(query.includes('categories_tags:"en:lasagna-sheets"'));
+ assert.ok(query.includes('labels_tags:"en:no-gluten"'));
+ assert.ok(query.includes('countries_tags:"en:italy"'));
+});

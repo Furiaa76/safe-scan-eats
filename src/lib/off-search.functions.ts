@@ -133,6 +133,16 @@ async function completeIngredients(product: Raw, fields: string): Promise<Raw> {
     ? { ...product, ...fullProduct as Raw } : product;
 }
 
+async function searchLasagneSheets(query: string, fields: string, countryTag?: string): Promise<Raw[]> {
+  const q = normalize(query);
+  if (!/sfoglia/.test(q) || !/lasagn/.test(q)) return [];
+  const filters = ['categories_tags:"en:lasagna-sheets"'];
+  if (/senza\s+glutine|gluten[ -]?free/.test(q)) filters.push('(labels_tags:"en:no-gluten" OR labels_tags:"en:gluten-free")');
+  if (countryTag) filters.push(`countries_tags:"${countryTag}"`);
+  const result = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(filters.join(" AND "))}&page_size=100&fields=${encodeURIComponent(fields)}`);
+  return result && Array.isArray(result["hits"]) ? (result["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] })) : [];
+}
+
 export const offSearch = createServerFn({ method: "GET" })
   .inputValidator((d) => z.object({ query: z.string().max(120).optional(), category: z.string().max(120).optional(), country: z.string().regex(/^[a-z]{2}$/).refine((code) => !!purchaseCountry(code)).optional(), fields: z.string().max(600) }).parse(d))
   .handler(async ({ data }) => {
@@ -150,6 +160,14 @@ export const offSearch = createServerFn({ method: "GET" })
     if (!query) return { ok: true, json: "[]" };
 
     const countryTag = data.country ? purchaseCountry(data.country)?.tag : undefined;
+    // Recipe ingredients name a product type, not necessarily the catalog's
+    // product name. Use its category and declarations before broad full text.
+    const sheets = await searchLasagneSheets(query, data.fields, countryTag);
+    const sheetCandidates = mergeAndRank([countryTag ? sheets.filter((p) => strings(p["countries_tags"]).includes(countryTag)) : sheets], query);
+    if (sheetCandidates.length) {
+      const products = await Promise.all(sheetCandidates.map((p) => completeIngredients(p, data.fields)));
+      return { ok: true, json: JSON.stringify(products) };
+    }
     const groups = await Promise.all(queryVariants(query).map((q) => searchOne(q, data.fields, countryTag)));
     // A service failure is not evidence that no matching products exist.
     if (groups.every((group) => group === null)) return { ok: false, json: "[]" };
