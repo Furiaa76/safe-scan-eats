@@ -40,3 +40,20 @@ test('failed ingredient lookup leaves data incomplete rather than inventing comp
  const result = await catalog(unavailable).completeIngredients({ code: '12345678' }, 'ingredients_text');
  assert.equal(result.ingredients_text, undefined);
 });
+test('recognizes the canonical no-gluten label used by the catalog', () => {
+ assert.equal(catalog(unavailable).matchesProductQuery({ product_name: 'Lasagne', labels_tags: ['en:no-gluten'] }, 'sfoglia per lasagne senza glutine'), true);
+});
+test('alternative searches filter by country before choosing the first page', async () => {
+ const urls = [];
+ const api = catalog(async (url) => { urls.push(url); return { ok: true, json: async () => url.includes('cgi/search') ? { products: [] } : { hits: [] } }; });
+ await api.offSearch({ data: { query: 'lasagne', fields: 'code', country: 'it' } });
+ assert.ok(urls.some(url => url.includes('search.openfoodfacts.org') && new URL(url).searchParams.get('q').includes('AND countries_tags:"en:italy"')));
+});
+test('recipe lasagne sheets match fresh sheets and canonical gluten-free labels', () => {
+ const api = catalog(unavailable);
+ const query = 'sfoglia er lasagne senza glutine';
+ assert.ok(api.queryVariants(query).includes('sfoglia fresca'));
+ assert.equal(api.matchesProductQuery({ product_name: 'Sfoglia fresca senza glutine', labels_tags: ['en:no-gluten'] }, query), true);
+ assert.equal(api.matchesProductQuery({ product_name: 'Lasagne alla bolognese senza glutine', labels_tags: ['en:no-gluten'] }, query), false);
+ assert.equal(api.matchesProductQuery({ product_name: 'Pasta sfoglia fresca senza glutine', labels_tags: ['en:no-gluten'] }, query), false);
+});

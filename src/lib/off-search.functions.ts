@@ -25,7 +25,10 @@ function queryVariants(query: string): string[] {
   const variants = new Set<string>([q]);
   const base = q.replace(/senza\s+(glutine|lattosio)|(?:gluten|lactose)[ -]?free/gi, " ").replace(/\s+/g, " ").trim();
   if (base !== q && base) variants.add(base);
-  if (/\blasagn[ae]\b/i.test(base)) variants.add("lasagne");
+  if (/\blasagn[ae]\b/i.test(base)) {
+    variants.add("lasagne");
+    if (/\bsfoglia\b/i.test(base)) variants.add("sfoglia fresca");
+  }
 
   if (n.includes("schar")) {
     variants.add("Schär");
@@ -81,10 +84,12 @@ function matchesProductQuery(product: Raw, query: string): boolean {
   ].map(text).join(" "));
   const glutenFree = /senza\s+glutine|gluten[ -]?free/.test(q);
   const lactoseFree = /senza\s+lattosio|lactose[ -]?free/.test(q);
+  const lasagneSheets = /sfoglia/.test(q) && /lasagn/.test(q);
+  if (lasagneSheets && /bolognese|ragu|pasta sfoglia/.test(names)) return false;
   if (glutenFree) {
     const labels = strings(product["labels_tags"]).map(normalize);
     if (!/senza\s+glutine|gluten[ -]?free/.test(names) &&
-      !labels.some((label) => /gluten-free|senza-glutine/.test(label))) return false;
+      !labels.some((label) => /gluten-free|no-gluten|senza-glutine/.test(label))) return false;
   }
   if (lactoseFree && !/senza\s+lattosio|lactose[ -]?free/.test(names) &&
     !strings(product["labels_tags"]).some((label) => /lactose-free|no-lactose|senza-lattosio/.test(normalize(label)))) return false;
@@ -94,6 +99,7 @@ function matchesProductQuery(product: Raw, query: string): boolean {
   return terms.every((term) => {
     // Lasagne sheets are often catalogued simply as "Lasagne".
     if (term === "sfoglia" && /lasagn/.test(q)) return true;
+    if (/^lasagn/.test(term) && lasagneSheets && /sfoglia fresca/.test(names)) return true;
     const stem = term.length > 4 ? term.replace(/[aeio]$/, "") : term;
     return names.split(/[^a-z0-9]+/).some((word) => word.startsWith(stem));
   });
@@ -104,13 +110,15 @@ async function searchOne(query: string, fields: string, countryTag?: string): Pr
   const countryFilter = countryTag ? `&tagtype_0=countries&tag_contains_0=contains&tag_0=${encodeURIComponent(countryTag)}` : "";
   const url = `${base}&search_simple=1&search_terms=${encodeURIComponent(query)}&page_size=30&fields=${encodeURIComponent(fields)}${countryFilter}`;
   const primary = await getJson(url);
-  if (primary && Array.isArray(primary["products"])) return primary["products"] as Raw[];
+  if (primary && Array.isArray(primary["products"]) && primary["products"].length) return primary["products"] as Raw[];
 
-  const alt = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(query)}&page_size=100&fields=${encodeURIComponent(fields)}`);
+  const escapedQuery = query.replace(/[+\-!(){}\[\]^"~*?:\\/]/g, " ").trim();
+  const searchText = countryTag ? `(${escapedQuery}) AND countries_tags:"${countryTag}"` : escapedQuery;
+  const alt = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(searchText)}&page_size=100&fields=${encodeURIComponent(fields)}`);
   if (alt && Array.isArray(alt["hits"])) {
     return (alt["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] }));
   }
-  return null;
+  return primary && Array.isArray(primary["products"]) ? [] : null;
 }
 
 async function completeIngredients(product: Raw, fields: string): Promise<Raw> {
