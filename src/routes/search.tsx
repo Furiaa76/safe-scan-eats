@@ -34,11 +34,12 @@ function SearchPage() {
   const catalogQuery = buy && location.country !== "it" ? translateText(ingredientQuery, "en") : ingredientQuery;
   const [value, setValue] = useState(catalogQuery);
   useEffect(() => setValue(catalogQuery), [catalogQuery]);
-  const { data, isFetching, isError } = useQuery({
+  const { data, isFetching, isError, refetch } = useQuery({
     queryKey: ["off-search", catalogQuery, buy ? location.country : "world", language],
     queryFn: () => searchProducts(catalogQuery, buy ? location.country : undefined, language),
     enabled: q.trim().length >= 2,
     staleTime: 1000 * 60 * 5,
+    retry: false,
   });
   const back = buy ? from === "recipes" ? "/recipes" : "/shopping" : "/";
   const filterByProfile = !!(buy && profile && !freeMode);
@@ -58,12 +59,17 @@ function SearchPage() {
     <form className="mt-5 flex gap-2" onSubmit={(event) => {
       event.preventDefault();
       const query = value.trim().slice(0, 120);
+      if (query.length < 2 || isFetching) return;
+      const ingredient = buy ? ingredientPurchaseQuery(query, profile?.allergens ?? []) : query;
+      const nextCatalogQuery = buy && location.country !== "it" ? translateText(ingredient, "en") : ingredient;
       if (!buy && /^\d{8,14}$/.test(query)) void navigate({ to: "/product/$code", params: { code: query } });
+      else if (nextCatalogQuery === catalogQuery) void refetch();
       else void navigate({ search: { q: query, ...(buy ? { buy: true } : {}), ...(from ? { from } : {}) } });
     }}>
       <input type="search" value={value} onChange={(event) => setValue(event.target.value)} maxLength={120}
         placeholder={t("Nome, marca o codice a barre")} className="min-w-0 flex-1 rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-foreground outline-none focus:border-primary" enterKeyHint="search" />
-      <button type="submit" aria-label={t("Cerca")} className="grid w-14 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"><Search className="h-5 w-5" /></button>
+      <button type="submit" disabled={isFetching || value.trim().length < 2} aria-label={t(isFetching ? "Cerco…" : "Cerca")} aria-busy={isFetching}
+        className="grid w-14 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground disabled:opacity-50">{isFetching ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}</button>
     </form>
 
     {buy && !filterByProfile && q.trim().length >= 2 && <section className="mt-4 rounded-2xl bg-secondary/50 p-4">
