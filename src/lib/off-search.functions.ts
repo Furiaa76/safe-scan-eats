@@ -111,16 +111,15 @@ async function searchOne(query: string, fields: string, countryTag?: string): Pr
   const url = `${base}&search_simple=1&search_terms=${encodeURIComponent(query)}&page_size=30&fields=${encodeURIComponent(fields)}${countryFilter}`;
   const escapedQuery = query.replace(/[+\-!(){}\[\]^"~*?:\\/]/g, " ").trim();
   const searchText = countryTag ? `(${escapedQuery}) AND countries_tags:"${countryTag}"` : escapedQuery;
-  // The legacy search can return a full page of unrelated products. Always
-  // include the alternative index instead of treating that page as exhaustive.
-  const [primary, alt] = await Promise.all([
-    getJson(url),
-    getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(searchText)}&page_size=100&fields=${encodeURIComponent(fields)}`),
-  ]);
-  const primaryProducts = primary && Array.isArray(primary["products"]) ? primary["products"] as Raw[] : [];
-  if (alt && Array.isArray(alt["hits"])) {
-    return [...primaryProducts, ...(alt["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] }))];
+  // Prefer the index that finds recipe products. Do not make a successful
+  // result wait for the legacy endpoint's twelve-second timeout.
+  const alt = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(searchText)}&page_size=100&fields=${encodeURIComponent(fields)}`);
+  if (alt && Array.isArray(alt["hits"]) && alt["hits"].length) {
+    return (alt["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] }));
   }
+  const primary = await getJson(url);
+  const primaryProducts = primary && Array.isArray(primary["products"]) ? primary["products"] as Raw[] : [];
+  if (alt && Array.isArray(alt["hits"]) && !primary) return [];
   return primary && Array.isArray(primary["products"]) ? primaryProducts : null;
 }
 

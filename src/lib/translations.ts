@@ -18,6 +18,7 @@ export const ENGLISH: Record<string, string> = {
   "Città per la mappa (facoltativa)": "City for the map (optional)",
   "Es. Como": "E.g. Como",
   "Negozi segnalati nel database": "Shops reported in the database",
+  "La segnalazione non conferma la disponibilità nella singola sede. Contatta il negozio prima di andare.": "A report does not confirm availability at a particular branch. Contact the shop before visiting.",
   "Cerca online": "Search online",
   "Supermercati sulla mappa": "Supermarkets on the map",
   "Cerca dove acquistare": "Find where to buy",

@@ -44,6 +44,9 @@ function SearchPage() {
   const back = buy ? from === "recipes" ? "/recipes" : "/shopping" : "/";
   const filterByProfile = !!(buy && profile && !freeMode);
   const visibleProducts = compatiblePurchaseProducts(data ?? [], filterByProfile ? profile : null);
+  const typedIngredient = buy ? ingredientPurchaseQuery(value.trim(), profile?.allergens ?? []) : value.trim();
+  const typedCatalogQuery = buy && location.country !== "it" ? translateText(typedIngredient, "en") : typedIngredient;
+  const searchingTypedQuery = isFetching && typedCatalogQuery === catalogQuery;
 
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
     <header className="flex items-center gap-3">
@@ -59,7 +62,7 @@ function SearchPage() {
     <form className="mt-5 flex gap-2" onSubmit={(event) => {
       event.preventDefault();
       const query = value.trim().slice(0, 120);
-      if (query.length < 2 || isFetching) return;
+      if (query.length < 2 || searchingTypedQuery) return;
       const ingredient = buy ? ingredientPurchaseQuery(query, profile?.allergens ?? []) : query;
       const nextCatalogQuery = buy && location.country !== "it" ? translateText(ingredient, "en") : ingredient;
       if (!buy && /^\d{8,14}$/.test(query)) void navigate({ to: "/product/$code", params: { code: query } });
@@ -68,8 +71,8 @@ function SearchPage() {
     }}>
       <input type="search" value={value} onChange={(event) => setValue(event.target.value)} maxLength={120}
         placeholder={t("Nome, marca o codice a barre")} className="min-w-0 flex-1 rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-foreground outline-none focus:border-primary" enterKeyHint="search" />
-      <button type="submit" disabled={isFetching || value.trim().length < 2} aria-label={t(isFetching ? "Cerco…" : "Cerca")} aria-busy={isFetching}
-        className="grid w-14 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground disabled:opacity-50">{isFetching ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}</button>
+      <button type="submit" disabled={searchingTypedQuery || value.trim().length < 2} aria-label={t(searchingTypedQuery ? "Cerco…" : "Cerca")} aria-busy={searchingTypedQuery}
+        className="grid w-14 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground disabled:opacity-50">{searchingTypedQuery ? <Loader2 className="h-5 w-5 animate-spin" /> : <Search className="h-5 w-5" />}</button>
     </form>
 
     {buy && !filterByProfile && q.trim().length >= 2 && <section className="mt-4 rounded-2xl bg-secondary/50 p-4">

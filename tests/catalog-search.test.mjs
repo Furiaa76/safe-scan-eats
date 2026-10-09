@@ -65,3 +65,15 @@ test('an unrelated legacy result page cannot hide matching alternative results',
  assert.equal(res.ok, true);
  assert.equal(JSON.parse(res.json)[0].code, '8021228901643');
 });
+test('successful alternative search does not wait for the legacy endpoint', async () => {
+ const urls = [];
+ const api = catalog(async (url) => {
+  urls.push(url);
+  if (url.includes('cgi/search')) throw new Error('legacy should not be called');
+  return { ok: true, json: async () => ({ hits: [{ code: '8021228901643', product_name: 'Lasagne senza glutine', ingredients_text: 'riso', countries_tags: ['en:italy'] }] }) };
+ });
+ const result = await api.offSearch({ data: { query: 'lasagne', fields: 'code', country: 'it' } });
+ assert.equal(result.ok, true);
+ assert.equal(JSON.parse(result.json).length, 1);
+ assert.ok(urls.every(url => !url.includes('cgi/search')));
+});

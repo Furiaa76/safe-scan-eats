@@ -9,12 +9,11 @@ export function PurchaseLinks({ query, stores = [] }: { query: string; stores?: 
       <p className="text-xs font-bold text-muted-foreground">{t("Negozi segnalati nel database")}</p>
       <div className="mt-2 flex flex-wrap gap-2">{stores.map((store) => <a key={store} href={shopMapUrl(store, location)} target="_blank" rel="noopener noreferrer"
         className="rounded-full bg-secondary px-3 py-2 text-xs font-bold text-secondary-foreground">📍 {store}</a>)}</div>
+      <p className="mt-2 text-xs text-muted-foreground">{t("La segnalazione non conferma la disponibilità nella singola sede. Contatta il negozio prima di andare.")}</p>
     </div>}
     <div className="flex flex-wrap gap-2">
       <a href={onlinePurchaseUrl(query, location, language)} target="_blank" rel="noopener noreferrer"
         className="rounded-xl bg-primary px-4 py-3 text-sm font-extrabold text-primary-foreground">{t("Cerca online")}</a>
-      <a href={shopMapUrl(undefined, location)} target="_blank" rel="noopener noreferrer"
-        className="rounded-xl border border-primary px-4 py-3 text-sm font-extrabold text-primary">{t("Supermercati sulla mappa")}</a>
     </div>
   </div>;
 }
