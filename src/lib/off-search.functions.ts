@@ -109,16 +109,19 @@ async function searchOne(query: string, fields: string, countryTag?: string): Pr
   const base = "https://world.openfoodfacts.org/cgi/search.pl?action=process&json=1";
   const countryFilter = countryTag ? `&tagtype_0=countries&tag_contains_0=contains&tag_0=${encodeURIComponent(countryTag)}` : "";
   const url = `${base}&search_simple=1&search_terms=${encodeURIComponent(query)}&page_size=30&fields=${encodeURIComponent(fields)}${countryFilter}`;
-  const primary = await getJson(url);
-  if (primary && Array.isArray(primary["products"]) && primary["products"].length) return primary["products"] as Raw[];
-
   const escapedQuery = query.replace(/[+\-!(){}\[\]^"~*?:\\/]/g, " ").trim();
   const searchText = countryTag ? `(${escapedQuery}) AND countries_tags:"${countryTag}"` : escapedQuery;
-  const alt = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(searchText)}&page_size=100&fields=${encodeURIComponent(fields)}`);
+  // The legacy search can return a full page of unrelated products. Always
+  // include the alternative index instead of treating that page as exhaustive.
+  const [primary, alt] = await Promise.all([
+    getJson(url),
+    getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(searchText)}&page_size=100&fields=${encodeURIComponent(fields)}`),
+  ]);
+  const primaryProducts = primary && Array.isArray(primary["products"]) ? primary["products"] as Raw[] : [];
   if (alt && Array.isArray(alt["hits"])) {
-    return (alt["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] }));
+    return [...primaryProducts, ...(alt["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] }))];
   }
-  return primary && Array.isArray(primary["products"]) ? [] : null;
+  return primary && Array.isArray(primary["products"]) ? primaryProducts : null;
 }
 
 async function completeIngredients(product: Raw, fields: string): Promise<Raw> {

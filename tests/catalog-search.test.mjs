@@ -57,3 +57,11 @@ test('recipe lasagne sheets match fresh sheets and canonical gluten-free labels'
  assert.equal(api.matchesProductQuery({ product_name: 'Lasagne alla bolognese senza glutine', labels_tags: ['en:no-gluten'] }, query), false);
  assert.equal(api.matchesProductQuery({ product_name: 'Pasta sfoglia fresca senza glutine', labels_tags: ['en:no-gluten'] }, query), false);
 });
+test('an unrelated legacy result page cannot hide matching alternative results', async () => {
+ const api = catalog(async (url) => ({ ok: true, json: async () => url.includes('cgi/search')
+  ? { products: [{ code: '11111111', product_name: 'Pane senza glutine' }] }
+  : { hits: [{ code: '8021228901643', product_name: 'Sfoglia fresca senza glutine', labels_tags: ['en:no-gluten'], countries_tags: ['en:italy'], ingredients_text: 'amido di mais, uova, riso' }] } }));
+ const res = await api.offSearch({ data: { query: 'sfoglia per lasagne senza glutine', fields: 'code', country: 'it' } });
+ assert.equal(res.ok, true);
+ assert.equal(JSON.parse(res.json)[0].code, '8021228901643');
+});
