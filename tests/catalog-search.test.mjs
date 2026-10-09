@@ -7,7 +7,7 @@ const source = readFileSync(new URL('../src/lib/off-search.functions.ts', import
 function catalog(fetch) {
  const js = ts.transpileModule(source.replace(/^import .*;\n/gm, '').replace('export const offSearch', 'const offSearch'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText.replace(/export \{\};?/, '');
  const context = vm.createContext({ fetch, AbortSignal, console, purchaseCountry: () => ({ tag: 'en:italy' }), createServerFn: () => ({ inputValidator() { return this; }, handler(fn) { return fn; } }) });
- vm.runInContext(js + '\nglobalThis.api = { offSearch, queryVariants, matchesProductQuery };', context);
+ vm.runInContext(js + '\nglobalThis.api = { offSearch, queryVariants, matchesProductQuery, completeIngredients };', context);
  return context.api;
 }
 const unavailable = () => Promise.resolve({ ok: false });
@@ -28,4 +28,15 @@ test('lasagne search retries shorter names but rejects ordinary wheat products',
 });
 test('lactose-free declaration in labels counts without requiring it in product name', () => {
  assert.equal(catalog(unavailable).matchesProductQuery({ product_name: 'Latte', labels_tags: ['en:lactose-free'] }, 'latte senza lattosio'), true);
+});
+
+test('search results missing ingredients are completed from the barcode record', async () => {
+ const api = catalog(async () => ({ ok: true, json: async () => ({ status: 1, product: { code: '12345678', ingredients_text: 'riso, acqua' } }) }));
+ const result = await api.completeIngredients({ code: '12345678', product_name: 'Lasagne' }, 'code,ingredients_text');
+ assert.equal(result.ingredients_text, 'riso, acqua');
+ assert.equal(result.product_name, 'Lasagne');
+});
+test('failed ingredient lookup leaves data incomplete rather than inventing compatibility', async () => {
+ const result = await catalog(unavailable).completeIngredients({ code: '12345678' }, 'ingredients_text');
+ assert.equal(result.ingredients_text, undefined);
 });

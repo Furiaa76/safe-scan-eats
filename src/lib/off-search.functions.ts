@@ -106,11 +106,21 @@ async function searchOne(query: string, fields: string, countryTag?: string): Pr
   const primary = await getJson(url);
   if (primary && Array.isArray(primary["products"])) return primary["products"] as Raw[];
 
-  const alt = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(query)}&page_size=30&fields=${encodeURIComponent(fields)}`);
+  const alt = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(query)}&page_size=100&fields=${encodeURIComponent(fields)}`);
   if (alt && Array.isArray(alt["hits"])) {
     return (alt["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] }));
   }
   return null;
+}
+
+async function completeIngredients(product: Raw, fields: string): Promise<Raw> {
+  if (["ingredients_text", "ingredients_text_it", "ingredients_text_en"].some((key) => text(product[key]).trim().length > 3)) return product;
+  const code = text(product["code"]);
+  if (!/^\d{8,14}$/.test(code)) return product;
+  const details = await getJson(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=${encodeURIComponent(fields)}`);
+  const fullProduct = details?.["product"];
+  return details?.["status"] === 1 && fullProduct && typeof fullProduct === "object"
+    ? { ...product, ...fullProduct as Raw } : product;
 }
 
 export const offSearch = createServerFn({ method: "GET" })
@@ -136,6 +146,8 @@ export const offSearch = createServerFn({ method: "GET" })
     const availableGroups = groups.filter((group): group is Raw[] => group !== null);
     // Fallback searches can return worldwide products: require an explicit country match.
     const filtered = countryTag ? availableGroups.map((group) => group.filter((product) => strings(product["countries_tags"]).includes(countryTag))) : availableGroups;
-    const products = mergeAndRank(filtered, query);
+    const candidates = mergeAndRank(filtered, query);
+    // Search-a-licious omits ingredient text. Fetch full records before judging compatibility.
+    const products = await Promise.all(candidates.map((product) => completeIngredients(product, data.fields)));
     return { ok: true, json: JSON.stringify(products) };
   });
