@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Package, Search } from "lucide-react";
 import { searchProducts } from "@/lib/off";
 import { useProfile, useProfilesState } from "@/lib/store";
-import { analyzeFood, VERDICT_LABEL } from "@/lib/verdict";
+import { analyzeFood, compatiblePurchaseProducts, VERDICT_LABEL } from "@/lib/verdict";
 import { ingredientPurchaseQuery, usePurchaseLocation } from "@/lib/purchase";
 import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
 import { PurchaseLinks } from "@/components/PurchaseLinks";
@@ -41,6 +41,8 @@ function SearchPage() {
     staleTime: 1000 * 60 * 5,
   });
   const back = buy ? from === "recipes" ? "/recipes" : "/shopping" : "/";
+  const filterByProfile = !!(buy && profile && !freeMode);
+  const visibleProducts = compatiblePurchaseProducts(data ?? [], filterByProfile ? profile : null);
 
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
     <header className="flex items-center gap-3">
@@ -48,7 +50,9 @@ function SearchPage() {
       <h1 className="text-lg font-extrabold text-foreground">{t(buy ? "Dove acquistare" : "Cerca prodotto")}</h1>
     </header>
     {buy && <>
-      <p className="mt-3 text-sm text-muted-foreground">{t("Scegli un prodotto del catalogo oppure cercalo direttamente online.")}</p>
+      <p className="mt-3 text-sm text-muted-foreground">{filterByProfile
+        ? t("Mostriamo solo i prodotti compatibili con il profilo attivo secondo i dati disponibili. I prodotti con avvisi o dati incompleti sono esclusi.")
+        : t("Scegli un prodotto del catalogo oppure cercalo direttamente online.")}</p>
       <PurchaseCountrySelector withCity />
     </>}
     <form className="mt-5 flex gap-2" onSubmit={(event) => {
@@ -62,7 +66,7 @@ function SearchPage() {
       <button type="submit" aria-label={t("Cerca")} className="grid w-14 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"><Search className="h-5 w-5" /></button>
     </form>
 
-    {buy && q.trim().length >= 2 && <section className="mt-4 rounded-2xl bg-secondary/50 p-4">
+    {buy && !filterByProfile && q.trim().length >= 2 && <section className="mt-4 rounded-2xl bg-secondary/50 p-4">
       <h2 className="font-extrabold text-foreground">{t("Cerca questo ingrediente")}: {t(ingredientQuery)}</h2>
       <PurchaseLinks query={catalogQuery} />
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{t("I negozi sono segnalati dagli utenti del database, anche in sedi o Paesi diversi. Prezzi, spedizione e disponibilità vanno verificati con il venditore. Controlla sempre l’etichetta prima di acquistare.")}</p>
@@ -71,11 +75,11 @@ function SearchPage() {
     <div className="mt-5 flex flex-col gap-3">
       {isFetching && <div className="flex items-center justify-center gap-2 py-6 text-sm font-bold text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />{t("Cerco…")}</div>}
       {isError && <p className="py-4 text-center text-sm text-muted-foreground">{t("Ricerca non riuscita. Controlla la connessione e riprova.")}</p>}
-      {!isFetching && data?.length === 0 && <div className="py-4 text-center">
-        <p className="text-sm text-muted-foreground">{t(buy ? "Nessun prodotto registrato per questo Paese. Puoi usare la ricerca online qui sopra." : "Nessun prodotto trovato.")}</p>
+      {!isFetching && !isError && data && visibleProducts.length === 0 && <div className="py-4 text-center">
+        <p className="text-sm text-muted-foreground">{t(filterByProfile ? "Nessun prodotto compatibile trovato per il profilo attivo. Prova un altro nome o una marca." : buy ? "Nessun prodotto registrato per questo Paese. Puoi usare la ricerca online qui sopra." : "Nessun prodotto trovato.")}</p>
         {!buy && <Link to="/ingredients" search={{}} className="mt-4 inline-block rounded-2xl bg-primary px-6 py-3 text-base font-extrabold text-primary-foreground">{t("Fotografa ingredienti")}</Link>}
       </div>}
-      {!isFetching && data?.map((product) => {
+      {!isFetching && visibleProducts.map((product) => {
         const verdict = buy && profile && !freeMode ? analyzeFood(product, profile.allergens, profile.customAllergens).verdict : null;
         return <article key={product.code} className="rounded-2xl border border-border bg-card p-4">
           <Link to="/product/$code" params={{ code: product.code }} className="flex items-center gap-3">
@@ -87,10 +91,11 @@ function SearchPage() {
             <Link to="/product/$code" params={{ code: product.code }} className="mt-2 inline-block text-xs font-bold text-primary underline">{t("Controlla ingredienti e allergeni")}</Link>
             {!(product.stores?.length) && <p className="mt-3 text-xs text-muted-foreground">{t("Negozi non indicati nel database.")}</p>}
             <PurchaseLinks query={[product.name, product.brand, product.code].filter(Boolean).join(" ")} stores={product.stores ?? []} />
+            {filterByProfile && <p className="mt-3 text-xs text-muted-foreground">{t("La ricerca esterna può mostrare altri prodotti non filtrati. Verifica che nome, marca e codice corrispondano e controlla l’etichetta.")}</p>}
           </>}
         </article>;
       })}
-      {!!data?.length && <p className="mt-2 text-center text-[11px] text-muted-foreground">{t("Dati prodotto: Open Food Facts")}</p>}
+      {!!visibleProducts.length && <p className="mt-2 text-center text-[11px] text-muted-foreground">{t("Dati prodotto: Open Food Facts")}</p>}
     </div>
   </div>;
 }

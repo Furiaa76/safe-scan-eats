@@ -424,6 +424,9 @@ export const ENGLISH: Record<string, string> = {
   "Può contenere tracce di latte/lattosio": "May contain traces of milk/lactose",
   "Lista ingredienti non disponibile: l'analisi usa solo gli allergeni dichiarati": "Ingredient list unavailable: the analysis only uses declared allergens",
   "Dati incompleti: ingredienti e allergeni non disponibili": "Incomplete data: ingredients and allergens unavailable",
+  "Mostriamo solo i prodotti compatibili con il profilo attivo secondo i dati disponibili. I prodotti con avvisi o dati incompleti sono esclusi.": "Only products compatible with the active profile according to available data are shown. Products with warnings or incomplete data are excluded.",
+  "Nessun prodotto compatibile trovato per il profilo attivo. Prova un altro nome o una marca.": "No compatible products found for the active profile. Try another name or brand.",
+  "La ricerca esterna può mostrare altri prodotti non filtrati. Verifica che nome, marca e codice corrispondano e controlla l’etichetta.": "External search may show other unfiltered products. Check that the name, brand and barcode match and check the label.",
   "Non hai selezionato allergeni nel tuo profilo": "You have not selected any allergens in your profile"
 };
 

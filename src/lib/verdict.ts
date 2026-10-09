@@ -120,7 +120,7 @@ const lower = (a: AllergenId) => allergenById(a).label.toLowerCase();
 function customAllergenHit(text: string, rawTerm: string): boolean {
   const term = rawTerm.trim().toLocaleLowerCase("it-IT");
   if (term.length < 2) return false;
-  const escaped = term.replace(/[.*+?^$()|[\]\\{}]/g, "\\export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[]): Analysis {");
+  const escaped = term.replace(/[.*+?^$()|[\]\\{}]/g, "\\$&");
   return new RegExp(`(^|[^a-zàèéìòù])${escaped}([^a-zàèéìòù]|$)`, "i").test(text);
 }
 
@@ -259,3 +259,7 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
   warning: "Attenzione",
   avoid: "Da evitare",
 };
+
+export function compatiblePurchaseProducts(products: FoodProduct[], profile: { allergens: AllergenId[]; customAllergens?: string[] } | null) {
+  return profile ? products.filter((product) => analyzeFood(product, profile.allergens, profile.customAllergens).verdict === "compatible") : products;
+}
