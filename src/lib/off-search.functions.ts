@@ -23,6 +23,9 @@ function queryVariants(query: string): string[] {
   const q = query.trim();
   const n = normalize(q);
   const variants = new Set<string>([q]);
+  const base = q.replace(/senza\s+(glutine|lattosio)|(?:gluten|lactose)[ -]?free/gi, " ").replace(/\s+/g, " ").trim();
+  if (base !== q && base) variants.add(base);
+  if (/\blasagn[ae]\b/i.test(base)) variants.add("lasagne");
 
   if (n.includes("schar")) {
     variants.add("Schär");
@@ -77,12 +80,15 @@ function matchesProductQuery(product: Raw, query: string): boolean {
     product["generic_name_it"], product["generic_name_en"], product["brands"], product["code"],
   ].map(text).join(" "));
   const glutenFree = /senza\s+glutine|gluten[ -]?free/.test(q);
+  const lactoseFree = /senza\s+lattosio|lactose[ -]?free/.test(q);
   if (glutenFree) {
     const labels = strings(product["labels_tags"]).map(normalize);
     if (!/senza\s+glutine|gluten[ -]?free/.test(names) &&
       !labels.some((label) => /gluten-free|senza-glutine/.test(label))) return false;
   }
-  const terms = q.replace(/senza\s+glutine|gluten[ -]?free/g, " ")
+  if (lactoseFree && !/senza\s+lattosio|lactose[ -]?free/.test(names) &&
+    !strings(product["labels_tags"]).some((label) => /lactose-free|no-lactose|senza-lattosio/.test(normalize(label)))) return false;
+  const terms = q.replace(/senza\s+(glutine|lattosio)|(?:gluten|lactose)[ -]?free/g, " ")
     .split(/[^a-z0-9]+/).filter((term) => term.length > 2 &&
       !["per", "con", "del", "della", "delle", "senza"].includes(term));
   return terms.every((term) => {
@@ -93,7 +99,7 @@ function matchesProductQuery(product: Raw, query: string): boolean {
   });
 }
 
-async function searchOne(query: string, fields: string, countryTag?: string): Promise<Raw[]> {
+async function searchOne(query: string, fields: string, countryTag?: string): Promise<Raw[] | null> {
   const base = "https://world.openfoodfacts.org/cgi/search.pl?action=process&json=1";
   const countryFilter = countryTag ? `&tagtype_0=countries&tag_contains_0=contains&tag_0=${encodeURIComponent(countryTag)}` : "";
   const url = `${base}&search_simple=1&search_terms=${encodeURIComponent(query)}&page_size=30&fields=${encodeURIComponent(fields)}${countryFilter}`;
@@ -104,7 +110,7 @@ async function searchOne(query: string, fields: string, countryTag?: string): Pr
   if (alt && Array.isArray(alt["hits"])) {
     return (alt["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] }));
   }
-  return [];
+  return null;
 }
 
 export const offSearch = createServerFn({ method: "GET" })
@@ -125,8 +131,11 @@ export const offSearch = createServerFn({ method: "GET" })
 
     const countryTag = data.country ? purchaseCountry(data.country)?.tag : undefined;
     const groups = await Promise.all(queryVariants(query).map((q) => searchOne(q, data.fields, countryTag)));
+    // A service failure is not evidence that no matching products exist.
+    if (groups.every((group) => group === null)) return { ok: false, json: "[]" };
+    const availableGroups = groups.filter((group): group is Raw[] => group !== null);
     // Fallback searches can return worldwide products: require an explicit country match.
-    const filtered = countryTag ? groups.map((group) => group.filter((product) => strings(product["countries_tags"]).includes(countryTag))) : groups;
+    const filtered = countryTag ? availableGroups.map((group) => group.filter((product) => strings(product["countries_tags"]).includes(countryTag))) : availableGroups;
     const products = mergeAndRank(filtered, query);
     return { ok: true, json: JSON.stringify(products) };
   });
