@@ -91,3 +91,12 @@ test('recipe ingredient checks support every selectable profile without crashing
  vm.runInContext(code+';globalThis.check=containsAllergen;',context);
  for(const allergen of ALLERGENS) assert.doesNotThrow(()=>context.check('riso',allergen.id),allergen.id);
 });
+
+test('foreign or unknown ingredient languages cannot become compatible for a restricted profile',()=>{
+ for(const language of ['fr','de','unknown']){
+  const p=product('foreign','lait, noix, eau',{source:'off',ingredientsLanguage:language});
+  assert.equal(analyzeFood(p,['frutta-guscio']).verdict,'warning');
+  assert.equal(purchaseProductGroups([p],{allergens:['frutta-guscio']}).compatible.length,0);
+ }
+ assert.equal(analyzeFood(product('known','rice, water',{source:'off',ingredientsLanguage:'en'}),['frutta-guscio']).verdict,'compatible');
+});

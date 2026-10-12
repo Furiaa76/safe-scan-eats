@@ -250,7 +250,12 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
     }
   }
 
-  const incomplete = !hasIngredients;
+  const unsupportedLanguage = p.source === "off" && p.ingredientsLanguage !== undefined && !["it", "en"].includes(p.ingredientsLanguage);
+  if (unsupportedLanguage && (userAllergens.length > 0 || customAllergens.length > 0)) {
+    warn = true;
+    reasons.push({ level: "warning", text: "Lingua degli ingredienti non verificabile dall'app: controlla l'etichetta originale." });
+  }
+  const incomplete = !hasIngredients || unsupportedLanguage;
   if (incomplete) {
     warn = true;
     reasons.push({

@@ -8,6 +8,7 @@ export interface FoodProduct {
   brand: string;
   imageUrl?: string | undefined;
   ingredientsText: string;
+  ingredientsLanguage?: string;
   allergenTags: string[];
   traceTags: string[];
   labelTags: string[];
@@ -20,7 +21,7 @@ export interface FoodProduct {
 
 const BASE = "https://world.openfoodfacts.org";
 const FIELDS = [
-  "code","product_name","product_name_it","product_name_en","generic_name_it","generic_name_en","brands","image_front_small_url","image_front_url","ingredients_text","ingredients_text_it","ingredients_text_en","allergens_tags","traces_tags","labels_tags","nutrition_grades","categories_tags","stores","stores_tags","countries_tags",
+  "code","product_name","product_name_it","product_name_en","generic_name_it","generic_name_en","brands","image_front_small_url","image_front_url","ingredients_text","ingredients_text_it","ingredients_text_en","allergens_tags","traces_tags","labels_tags","nutrition_grades","categories_tags","stores","stores_tags","countries_tags","ingredients_lc",
 ].join(",");
 
 type Raw = Record<string, unknown>;
@@ -35,7 +36,8 @@ function map(raw: Raw, code?: string, language: AppLanguage = "it"): FoodProduct
     name: str(raw[`product_name_${language}`]) || str(raw["product_name"]) || str(raw[`generic_name_${language}`]) || (language === "en" ? "Unnamed product" : "Prodotto senza nome"),
     brand: str(raw["brands"]).split(",")[0]?.trim() ?? "",
     imageUrl: str(raw["image_front_small_url"]) || str(raw["image_front_url"]) || undefined,
-    ingredientsText: str(raw[`ingredients_text_${language}`]) || str(raw["ingredients_text"]),
+    ingredientsText: str(raw[`ingredients_text_${language}`]) || str(raw["ingredients_text_it"]) || str(raw["ingredients_text_en"]) || str(raw["ingredients_text"]),
+    ingredientsLanguage: str(raw[`ingredients_text_${language}`]) ? language : str(raw["ingredients_text_it"]) ? "it" : str(raw["ingredients_text_en"]) ? "en" : str(raw["ingredients_lc"]) || "unknown",
     allergenTags: arr(raw["allergens_tags"]),
     traceTags: arr(raw["traces_tags"]),
     labelTags: arr(raw["labels_tags"]),
