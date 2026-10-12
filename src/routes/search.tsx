@@ -1,12 +1,12 @@
 import { useAppLanguage } from "@/lib/language";
 import { translateText } from "@/lib/translations";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Loader2, Package, Search } from "lucide-react";
-import { searchProducts } from "@/lib/off";
+import { searchProductPage } from "@/lib/off";
 import { useProfile, useProfilesState } from "@/lib/store";
-import { analyzeFood, compatiblePurchaseProducts, VERDICT_LABEL } from "@/lib/verdict";
+import { analyzeFood, purchaseProductGroups, VERDICT_LABEL } from "@/lib/verdict";
 import { ingredientPurchaseQuery, usePurchaseLocation } from "@/lib/purchase";
 import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
 import { PurchaseLinks } from "@/components/PurchaseLinks";
@@ -32,18 +32,24 @@ function SearchPage() {
   const navigate = useNavigate({ from: "/search" });
   const ingredientQuery = buy ? ingredientPurchaseQuery(q, profile?.allergens ?? []) : q;
   const catalogQuery = buy && location.country !== "it" ? translateText(ingredientQuery, "en") : ingredientQuery;
+  const [worldwide, setWorldwide] = useState(false);
+  const searchCountry = buy && !worldwide ? location.country : undefined;
   const [value, setValue] = useState(catalogQuery);
   useEffect(() => setValue(catalogQuery), [catalogQuery]);
-  const { data, isFetching, isError, refetch } = useQuery({
-    queryKey: ["off-search", catalogQuery, buy ? location.country : "world", language],
-    queryFn: () => searchProducts(catalogQuery, buy ? location.country : undefined, language),
+  const { data, isFetching, isError, refetch, hasNextPage, fetchNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ["off-search", catalogQuery, searchCountry ?? "world", language],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => searchProductPage(catalogQuery, searchCountry, language, pageParam),
+    getNextPageParam: (lastPage, _pages, page) => lastPage.hasMore ? page + 1 : undefined,
     enabled: q.trim().length >= 2,
     staleTime: 1000 * 60 * 5,
     retry: false,
   });
   const back = buy ? from === "recipes" ? "/recipes" : "/shopping" : "/";
   const filterByProfile = !!(buy && profile && !freeMode);
-  const visibleProducts = compatiblePurchaseProducts(data ?? [], filterByProfile ? profile : null);
+  const products = Array.from(new Map((data?.pages.flatMap((page) => page.products) ?? []).map((product) => [product.code, product])).values());
+  const groups = purchaseProductGroups(products, filterByProfile ? profile : null);
+  const visibleProducts = [...groups.compatible, ...groups.review];
   const typedIngredient = buy ? ingredientPurchaseQuery(value.trim(), profile?.allergens ?? []) : value.trim();
   const typedCatalogQuery = buy && location.country !== "it" ? translateText(typedIngredient, "en") : typedIngredient;
   const searchingTypedQuery = isFetching && typedCatalogQuery === catalogQuery;
@@ -55,9 +61,14 @@ function SearchPage() {
     </header>
     {buy && <>
       <p className="mt-3 text-sm text-muted-foreground">{filterByProfile
-        ? t("Mostriamo solo i prodotti compatibili con il profilo attivo secondo i dati disponibili. I prodotti con avvisi o dati incompleti sono esclusi.")
+        ? t("I risultati compatibili sono separati da quelli da verificare. I prodotti con allergeni rilevati sono esclusi dalle proposte di acquisto.")
         : t("Scegli un prodotto del catalogo oppure cercalo direttamente online.")}</p>
       <PurchaseCountrySelector withCity />
+      <label className="mt-3 flex items-center gap-2 text-sm text-foreground">
+        <input type="checkbox" checked={worldwide} onChange={(event) => setWorldwide(event.target.checked)} />
+        {t("Cerca anche nei cataloghi di altri Paesi")}
+      </label>
+      {worldwide && <p className="mt-1 text-xs text-muted-foreground">{t("I prodotti esteri possono avere formulazioni diverse e non essere venduti nel tuo Paese. Controlla la confezione esatta.")}</p>}
     </>}
     <form className="mt-5 flex gap-2" onSubmit={(event) => {
       event.preventDefault();
@@ -92,9 +103,15 @@ function SearchPage() {
         <h2 className="font-extrabold text-foreground">{t("Confronta prodotti e marchi")}</h2>
         <p className="mt-1 text-xs text-muted-foreground">{t("Mostriamo le alternative trovate nel catalogo per questo ingrediente. Il numero dipende dai dati disponibili e dal profilo attivo.")}</p>
       </div>}
-      {!isFetching && visibleProducts.map((product) => {
+      {(!isFetching || isFetchingNextPage) && visibleProducts.map((product, index) => {
         const verdict = buy && profile && !freeMode ? analyzeFood(product, profile.allergens, profile.customAllergens).verdict : null;
-        return <article key={product.code} className="rounded-2xl border border-border bg-card p-4">
+        const review = verdict === "warning";
+        return <div key={product.code}>
+          {filterByProfile && index === groups.compatible.length && groups.review.length > 0 && <div className="mb-3 mt-5 rounded-xl bg-caution-soft p-3">
+            <h2 className="font-extrabold text-caution-foreground">{t("Da verificare: dati mancanti o avvisi")}</h2>
+            <p className="mt-1 text-xs text-caution-foreground">{t("Questi prodotti non sono indicati come compatibili. Apri la scheda e controlla gli ingredienti e le tracce sulla confezione.")}</p>
+          </div>}
+          <article className="rounded-2xl border border-border bg-card p-4">
           <Link to="/product/$code" params={{ code: product.code }} className="flex items-center gap-3">
             {product.imageUrl ? <img src={product.imageUrl} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-xl object-contain" /> : <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-secondary"><Package className="h-5 w-5 text-primary" /></div>}
             <div className="min-w-0 flex-1"><p className="text-sm font-extrabold text-foreground">{product.name}</p><p className="mt-1 text-xs text-muted-foreground">{product.brand || product.code}</p></div>
@@ -102,12 +119,15 @@ function SearchPage() {
           {verdict && <p className={`mt-3 text-sm font-extrabold ${verdict === "avoid" ? "text-danger" : verdict === "warning" ? "text-caution-foreground" : "text-safe"}`}>{t(VERDICT_LABEL[verdict])}</p>}
           {buy && <>
             <Link to="/product/$code" params={{ code: product.code }} className="mt-2 inline-block text-xs font-bold text-primary underline">{t("Controlla ingredienti e allergeni")}</Link>
-            {!(product.stores?.length) && <p className="mt-3 text-xs text-muted-foreground">{t("Negozi non indicati nel database.")}</p>}
-            <PurchaseLinks query={[product.name, product.brand, product.code].filter(Boolean).join(" ")} stores={product.stores ?? []} />
+            {!review && !(product.stores?.length) && <p className="mt-3 text-xs text-muted-foreground">{t("Negozi non indicati nel database.")}</p>}
+            {review && <p className="mt-2 text-xs text-caution-foreground">{t(analyzeFood(product, profile?.allergens ?? [], profile?.customAllergens).reasons.find((reason) => reason.level === "warning")?.text ?? "Controlla ingredienti e allergeni")}</p>}
+            {!review && <PurchaseLinks query={[product.name, product.brand, product.code].filter(Boolean).join(" ")} stores={product.stores ?? []} />}
             {filterByProfile && <p className="mt-3 text-xs text-muted-foreground">{t("La ricerca esterna può mostrare altri prodotti non filtrati. Verifica che nome, marca e codice corrispondano e controlla l’etichetta.")}</p>}
           </>}
-        </article>;
+        </article></div>;
       })}
+      {hasNextPage && <button type="button" disabled={isFetching} onClick={() => void fetchNextPage()}
+        className="rounded-2xl bg-secondary px-4 py-3 font-extrabold text-secondary-foreground disabled:opacity-50">{t(isFetchingNextPage ? "Cerco…" : "Mostra altri prodotti")}</button>}
       {!!visibleProducts.length && <p className="mt-2 text-center text-[11px] text-muted-foreground">{t("Dati prodotto: Open Food Facts")}</p>}
     </div>
   </div>;

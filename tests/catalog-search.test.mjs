@@ -145,3 +145,20 @@ test('besciamella finds its sauce category and alternative catalog spellings', (
  assert.equal(api.matchesProductQuery({ product_name: 'Bechamel Sauce', labels_tags: ['en:no-gluten'] }, 'besciamella senza glutine'), true);
  assert.equal(api.matchesProductQuery({ product_name: 'Lasagne', ingredients_text: 'besciamella' }, 'besciamella'), false);
 });
+
+test('catalog pages expose more results and forward the next page to both searches', async () => {
+ const urls=[];
+ const api=catalog(async (url)=>{
+  urls.push(url);
+  const page=Number(new URL(url).searchParams.get('page') ?? 1);
+  const count=page===1?60:2;
+  return {ok:true,json:async()=>({hits:Array.from({length:count},(_,i)=>({code:String(page*10000000+i),product_name:'Riso',ingredients_text:'riso, acqua',countries_tags:['en:italy']}))})};
+ });
+ const first=await api.offSearch({data:{query:'riso',fields:'code',country:'it',page:1}});
+ const second=await api.offSearch({data:{query:'riso',fields:'code',country:'it',page:2}});
+ assert.equal(first.hasMore,true);
+ assert.equal(second.hasMore,false);
+ assert.equal(JSON.parse(second.json).length,2);
+ assert.ok(urls.some(url=>new URL(url).searchParams.get('page')==='2'));
+ assert.ok(urls.filter(url=>new URL(url).searchParams.get('page')==='2').every(url=>new URL(url).searchParams.get('page_size')==='60'));
+});

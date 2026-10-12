@@ -102,7 +102,7 @@ function mergeAndRank(groups: Raw[][], query: string): Raw[] {
   return [...merged.values()]
     .filter((product) => matchesProductQuery(product, query))
     .sort((a, b) => glutenFreeScore(b, query) - glutenFreeScore(a, query))
-    .slice(0, 60);
+    ;
 }
 
 function matchesProductQuery(product: Raw, query: string): boolean {
@@ -135,15 +135,15 @@ function matchesProductQuery(product: Raw, query: string): boolean {
   });
 }
 
-async function searchOne(query: string, fields: string, countryTag?: string): Promise<Raw[] | null> {
+async function searchOne(query: string, fields: string, countryTag?: string, page = 1): Promise<Raw[] | null> {
   const base = "https://world.openfoodfacts.org/cgi/search.pl?action=process&json=1";
   const countryFilter = countryTag ? `&tagtype_0=countries&tag_contains_0=contains&tag_0=${encodeURIComponent(countryTag)}` : "";
-  const url = `${base}&search_simple=1&search_terms=${encodeURIComponent(query)}&page_size=30&fields=${encodeURIComponent(fields)}${countryFilter}`;
+  const url = `${base}&search_simple=1&search_terms=${encodeURIComponent(query)}&page_size=60&page=${page}&fields=${encodeURIComponent(fields)}${countryFilter}`;
   const escapedQuery = query.replace(/[+\-!(){}\[\]^"~*?:\\/]/g, " ").trim();
   const searchText = countryTag ? `(${escapedQuery}) AND countries_tags:"${countryTag}"` : escapedQuery;
   // Prefer the index that finds recipe products. Do not make a successful
   // result wait for the legacy endpoint's twelve-second timeout.
-  const alt = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(searchText)}&page_size=100&fields=${encodeURIComponent(fields)}`);
+  const alt = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(searchText)}&page_size=60&page=${page}&fields=${encodeURIComponent(fields)}`);
   if (alt && Array.isArray(alt["hits"]) && alt["hits"].length) {
     return (alt["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] }));
   }
@@ -163,7 +163,7 @@ async function completeIngredients(product: Raw, fields: string): Promise<Raw> {
     ? { ...product, ...fullProduct as Raw } : product;
 }
 
-async function searchIngredientCategories(query: string, fields: string, countryTag?: string): Promise<Raw[]> {
+async function searchIngredientCategories(query: string, fields: string, countryTag?: string, page = 1): Promise<Raw[]> {
   const q = normalize(query);
   const categories = ingredientCategories(query);
   if (!categories.length) return [];
@@ -171,12 +171,12 @@ async function searchIngredientCategories(query: string, fields: string, country
   if (/senza\s+glutine|gluten[ -]?free/.test(q)) filters.push('(labels_tags:"en:no-gluten" OR labels_tags:"en:gluten-free")');
   if (/senza\s+lattosio|lactose[ -]?free/.test(q)) filters.push('(labels_tags:"en:no-lactose" OR labels_tags:"en:lactose-free")');
   if (countryTag) filters.push(`countries_tags:"${countryTag}"`);
-  const result = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(filters.join(" AND "))}&page_size=100&fields=${encodeURIComponent(fields)}`);
+  const result = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(filters.join(" AND "))}&page_size=60&page=${page}&fields=${encodeURIComponent(fields)}`);
   return result && Array.isArray(result["hits"]) ? (result["hits"] as Raw[]).map((h) => ({ ...h, brands: Array.isArray(h["brands"]) ? (h["brands"] as string[]).join(", ") : h["brands"] })) : [];
 }
 
 export const offSearch = createServerFn({ method: "GET" })
-  .inputValidator((d) => z.object({ query: z.string().max(120).optional(), category: z.string().max(120).optional(), country: z.string().regex(/^[a-z]{2}$/).refine((code) => !!purchaseCountry(code)).optional(), fields: z.string().max(600) }).parse(d))
+  .inputValidator((d) => z.object({ page: z.number().int().min(1).max(10).optional(), query: z.string().max(120).optional(), category: z.string().max(120).optional(), country: z.string().regex(/^[a-z]{2}$/).refine((code) => !!purchaseCountry(code)).optional(), fields: z.string().max(600) }).parse(d))
   .handler(async ({ data }) => {
     const base = "https://world.openfoodfacts.org/cgi/search.pl?action=process&json=1";
     const f = `&fields=${encodeURIComponent(data.fields)}`;
@@ -197,8 +197,8 @@ export const offSearch = createServerFn({ method: "GET" })
     // Merge category and name searches: a category may contain only one brand,
     // while other relevant products have not yet been categorised in the catalog.
     const [categoryProducts, groups] = await Promise.all([
-      searchIngredientCategories(query, data.fields, countryTag),
-      Promise.all(queryVariants(query).map((q) => searchOne(q, data.fields, countryTag))),
+      searchIngredientCategories(query, data.fields, countryTag, data.page ?? 1),
+      Promise.all(queryVariants(query).map((q) => searchOne(q, data.fields, countryTag, data.page ?? 1))),
     ]);
     // A service failure is not evidence that no matching products exist.
     if (!categoryProducts.length && groups.every((group) => group === null)) return { ok: false, json: "[]" };
@@ -208,5 +208,5 @@ export const offSearch = createServerFn({ method: "GET" })
     const candidates = mergeAndRank(filtered, query);
     // Search-a-licious omits ingredient text. Fetch full records before judging compatibility.
     const products = await Promise.all(candidates.map((product) => completeIngredients(product, data.fields)));
-    return { ok: true, json: JSON.stringify(products) };
+    return { ok: true, json: JSON.stringify(products), hasMore: (data.page ?? 1) < 10 && availableGroups.some((group) => group.length >= 60) };
   });

@@ -60,7 +60,7 @@ export const ALLERGENS: Allergen[] = [
     id: "frutta-guscio",
     label: "Frutta a guscio",
     icon: Nut,
-    keywords: ["mandorle", "nocciole", "noci", "pistacchi", "anacardi", "noci pecan", "macadamia"],
+    keywords: ["mandorla", "mandorle", "nocciola", "nocciole", "noce", "noci", "pistacchio", "pistacchi", "anacardo", "anacardi", "noci pecan", "macadamia", "noci del brasile"],
   },
   {
     id: "uova",
@@ -78,13 +78,13 @@ export const ALLERGENS: Allergen[] = [
     id: "pesce",
     label: "Pesce",
     icon: Fish,
-    keywords: ["pesce", "acciughe", "sardine", "tonno", "salmone"],
+    keywords: ["pesce", "acciuga", "acciughe", "sardina", "sardine", "tonno", "salmone", "merluzzo", "sgombro", "alici", "trota"],
   },
   {
     id: "crostacei",
     label: "Crostacei",
     icon: Shell,
-    keywords: ["gamberi", "gamberetti", "scampi", "aragosta", "granchio"],
+    keywords: ["gambero", "gamberi", "gamberetto", "gamberetti", "scampo", "scampi", "aragosta", "granchio", "crostacei"],
   },
   {
     id: "sesamo",
