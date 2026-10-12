@@ -20,6 +20,8 @@ export const ENGLISH: Record<string, string> = {
   "Negozi segnalati nel database": "Shops reported in the database",
   "La segnalazione non conferma la disponibilità nella singola sede. Contatta il negozio prima di andare.": "A report does not confirm availability at a particular branch. Contact the shop before visiting.",
   "Cerca online": "Search online",
+  "cerca a": "search in",
+  "catalogo verificato": "verified catalog",
   "verificato": "verified",
   "segnalato": "reported",
   "Supermercato da verificare": "Supermarket to verify",

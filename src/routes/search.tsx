@@ -115,10 +115,10 @@ function SearchPage() {
             <p className="mt-1 text-xs text-caution-foreground">{t("Questi prodotti non sono indicati come compatibili. Apri la scheda e controlla gli ingredienti e le tracce sulla confezione.")}</p>
           </div>}
           <article className="rounded-2xl border border-border bg-card p-4">
-          <Link to="/product/$code" params={{ code: product.code }} className="flex items-center gap-3">
-            {product.imageUrl ? <img src={product.imageUrl} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-xl object-contain" /> : <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-secondary"><Package className="h-5 w-5 text-primary" /></div>}
-            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><p className="text-sm font-extrabold text-foreground">{product.name}</p><ProductRetailers product={product} /></div><p className="mt-1 text-xs text-muted-foreground">{product.brand || product.code}</p></div>
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link to="/product/$code" params={{ code: product.code }} aria-label={product.name} className="shrink-0">{product.imageUrl ? <img src={product.imageUrl} alt="" loading="lazy" className="h-14 w-14 rounded-xl object-contain" /> : <span className="grid h-14 w-14 place-items-center rounded-xl bg-secondary"><Package className="h-5 w-5 text-primary" /></span>}</Link>
+            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><Link to="/product/$code" params={{ code: product.code }} className="text-sm font-extrabold text-foreground">{product.name}</Link><ProductRetailers product={product} /></div><p className="mt-1 text-xs text-muted-foreground">{product.brand || product.code}</p></div>
+          </div>
           {verdict && <p className={`mt-3 text-sm font-extrabold ${verdict === "avoid" ? "text-danger" : verdict === "warning" ? "text-caution-foreground" : "text-safe"}`}>{t(VERDICT_LABEL[verdict])}</p>}
           {analysis?.reasons.filter((reason) => reason.sourceUrl && reason.verifiedAt).map((reason) => <div key={reason.sourceUrl + reason.text} className="mt-2 text-xs text-muted-foreground"><p>{t(reason.text)}</p><a href={reason.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-primary underline">{t("Consulta la fonte della dichiarazione")}</a></div>)}
           {buy && <>

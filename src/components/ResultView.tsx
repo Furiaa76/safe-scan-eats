@@ -257,10 +257,10 @@ function Alternatives({ product, allergens, customAllergens }: { product: FoodPr
       <p className="mt-1 text-xs text-muted-foreground">{t("Suggerimenti della stessa categoria secondo ingredienti e dichiarazioni disponibili. Verifica comunque sempre l'etichetta.")}</p>
       <div className="mt-2 flex flex-col gap-2">
         {data.map((alt) => (
-          <Link key={alt.code} to="/product/$code" params={{ code: alt.code }} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors active:bg-secondary">
+          <div key={alt.code} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5">
             {alt.imageUrl ? <img src={alt.imageUrl} alt={t("")} className="h-10 w-10 shrink-0 rounded-xl object-contain" /> : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-safe-soft"><CheckCircle2 className="h-5 w-5 text-safe" /></div>}
-            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><p className="text-sm font-bold text-foreground">{t(alt.name)}</p><ProductRetailers product={alt} /></div><p className="truncate text-xs text-muted-foreground">{t(alt.brand)}</p></div>
-          </Link>
+            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><Link to="/product/$code" params={{ code: alt.code }} className="text-sm font-bold text-foreground">{t(alt.name)}</Link><ProductRetailers product={alt} /></div><p className="truncate text-xs text-muted-foreground">{t(alt.brand)}</p></div>
+          </div>
         ))}
       </div>
     </section>

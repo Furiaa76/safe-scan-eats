@@ -32,3 +32,10 @@ test('generic recipe ingredients retain their restrictions and supermarket maps 
  assert.equal(url.searchParams.get('query'),'supermarkets grocery stores, Como, Italy');
  assert.equal(new URL(shopMapUrl('Esselunga',{country:'it',city:'Como'})).searchParams.get('query'),'Esselunga, Como, Italy');
 });
+
+test('supermarket links follow cities and countries beyond Italy',()=>{
+ for(const [country,city,countryName] of [['fr','Paris','France'],['de','Berlin','Germany'],['us','New York','United States']]){
+  const url=new URL(shopMapUrl('Carrefour',{country,city}));
+  assert.equal(url.searchParams.get('query'),`Carrefour, ${city}, ${countryName}`);
+ }
+});
