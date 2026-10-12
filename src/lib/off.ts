@@ -63,10 +63,14 @@ export async function fetchProduct(code: string): Promise<FoodProduct | null> {
   return map(json.product, code);
 }
 
-export async function searchProducts(query: string, country?: string, language: AppLanguage = "it"): Promise<FoodProduct[]> {
-  const res = await offSearch({ data: { query, fields: FIELDS, ...(country ? { country } : {}) } });
+export async function searchProductPage(query: string, country?: string, language: AppLanguage = "it", page = 1): Promise<{ products: FoodProduct[]; hasMore: boolean }> {
+  const res = await offSearch({ data: { query, fields: FIELDS, page, ...(country ? { country } : {}) } });
   if (!res.ok) throw new OffError("Ricerca non disponibile");
-  return (JSON.parse(res.json) as Raw[]).map((p) => map(p, undefined, language)).filter((p) => p.code);
+  return { products: (JSON.parse(res.json) as Raw[]).map((p) => map(p, undefined, language)).filter((p) => p.code), hasMore: "hasMore" in res && res.hasMore === true };
+}
+
+export async function searchProducts(query: string, country?: string, language: AppLanguage = "it"): Promise<FoodProduct[]> {
+  return (await searchProductPage(query, country, language)).products;
 }
 
 export async function productsInCategory(categoryTag: string): Promise<FoodProduct[]> {

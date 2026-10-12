@@ -55,13 +55,13 @@ const FALSE_FRIENDS = [
 const EN_KEYWORDS: Record<AllergenId, string[]> = {
   glutine: ["gluten", "wheat", "barley", "rye", "oats", "spelt"],
   lattosio: ["lactose", "whey powder", "milk powder", "buttermilk"],
-  arachidi: ["peanut"],
-  "frutta-guscio": ["almond", "hazelnut", "walnut", "cashew", "pistachio", "pecan"],
+  arachidi: ["peanut", "peanuts"],
+  "frutta-guscio": ["almond", "hazelnut", "walnut", "cashew", "pistachio", "pecan", "macadamia", "brazil nut"],
   uova: ["egg"],
-  soia: ["soy", "soja"],
-  pesce: ["fish", "anchov", "tuna", "salmon"],
+  soia: ["soy", "soya", "soja", "soybean", "soybeans"],
+  pesce: ["fish", "anchovy", "anchovies", "tuna", "salmon", "sardine", "cod", "haddock", "mackerel"],
   crostacei: ["shrimp", "prawn", "crab", "lobster", "crustacean"],
-  sesamo: ["sesame"],
+  sesamo: ["sesame", "tahini"],
   istamina: ["aged cheese", "cured meat", "salami", "smoked fish", "canned tuna", "canned fish", "fermented", "soy sauce", "miso", "sauerkraut", "kimchi", "vinegar", "wine", "beer", "tomato", "spinach", "eggplant", "avocado", "chocolate", "cocoa", "strawberry", "citrus", "banana"],
   "polline-betulla": [],
   "polline-graminacee": [],
@@ -86,9 +86,12 @@ const DAIRY_WORDS = [
   "yogurt",
 ];
 
-function cleanText(t: string) {
+function cleanText(t: string, allergen: AllergenId) {
   let s = t.toLowerCase();
-  for (const f of FALSE_FRIENDS) s = s.split(f).join(" ");
+  const exceptions = allergen === "glutine" ? ["senza glutine"]
+    : allergen === "lattosio" ? FALSE_FRIENDS.filter((word) => word !== "noce moscata" && word !== "noce di cocco")
+    : allergen === "frutta-guscio" ? ["noce moscata", "noce di cocco"] : [];
+  for (const f of exceptions) s = s.split(f).join(" ");
   return s;
 }
 
@@ -101,7 +104,7 @@ function splitTraces(text: string): { main: string; traces: string } {
 function keywordHit(text: string, a: AllergenId): string | null {
   const words = [...allergenById(a).keywords, ...EN_KEYWORDS[a]];
   for (const kw of words) {
-    const re = new RegExp(`(^|[^a-zàèéìòù])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i");
+    const re = new RegExp(`(^|[^a-zàèéìòù])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|es)?([^a-zàèéìòù]|$)`, "i");
     if (re.test(text)) return kw;
   }
   return null;
@@ -109,7 +112,7 @@ function keywordHit(text: string, a: AllergenId): string | null {
 
 function dairyHit(text: string): string | null {
   for (const kw of DAIRY_WORDS) {
-    const re = new RegExp(`(^|[^a-zàèéìòù])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i");
+    const re = new RegExp(`(^|[^a-zàèéìòù])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|es)?([^a-zàèéìòù]|$)`, "i");
     if (re.test(text)) return kw;
   }
   return null;
@@ -126,7 +129,7 @@ function customAllergenHit(text: string, rawTerm: string): boolean {
 
 export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customAllergens: string[] = []): Analysis {
   const reasons: Reason[] = [];
-  const text = cleanText(p.ingredientsText);
+  const text = p.ingredientsText.toLowerCase();
   const { main, traces } = splitTraces(text);
   const hasIngredients = p.ingredientsText.trim().length > 3;
   const hasTags = p.allergenTags.length > 0 || p.traceTags.length > 0;
@@ -136,6 +139,12 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
 
   for (const a of userAllergens) {
     const allergen = allergenById(a);
+    if (!allergen) {
+      warn = true;
+      reasons.push({ level: "warning", text: "Una voce del profilo non è riconosciuta: aggiorna il profilo prima di usare il risultato." });
+      continue;
+    }
+    const { main, traces } = splitTraces(cleanText(text, a));
 
     if (allergen.group === "pollen") {
       const crossKw = keywordHit(main, a);
@@ -201,6 +210,10 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
     const traceHit = OFF_TAGS[a].some((t) => p.traceTags.includes(t)) || !!keywordHit(traces, a);
 
     if (freeLabel) {
+      if (tagHit) {
+        warn = true;
+        reasons.push({ level: "warning", text: `Dati discordanti: dichiarazione senza ${lower(a)} e allergene presente nel catalogo. Verifica l'etichetta.` });
+      }
       reasons.push({ level: "info", text: `Etichetta \"senza ${lower(a)}\" dichiarata dal produttore` });
       if (traceHit) {
         warn = true;
@@ -262,4 +275,17 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
 
 export function compatiblePurchaseProducts(products: FoodProduct[], profile: { allergens: AllergenId[]; customAllergens?: string[] } | null) {
   return profile ? products.filter((product) => analyzeFood(product, profile.allergens, profile.customAllergens).verdict === "compatible") : products;
+}
+
+export function purchaseProductGroups(products: FoodProduct[], profile: { allergens: AllergenId[]; customAllergens?: string[] } | null) {
+  const compatible: FoodProduct[] = [];
+  const review: FoodProduct[] = [];
+  const avoid: FoodProduct[] = [];
+  for (const product of products) {
+    const analysis = profile ? analyzeFood(product, profile.allergens, profile.customAllergens) : null;
+    if (analysis?.verdict === "avoid") avoid.push(product);
+    else if (analysis?.verdict === "warning") review.push(product);
+    else compatible.push(product);
+  }
+  return { compatible, review, avoid };
 }

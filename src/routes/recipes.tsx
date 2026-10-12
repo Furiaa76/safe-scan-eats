@@ -292,7 +292,7 @@ async function searchOnlineRecipe(query: string): Promise<Recipe | null> {
   return null;
 }
 
-const ENGLISH_ALLERGEN_WORDS: Record<AllergenId, string[]> = {
+const ENGLISH_ALLERGEN_WORDS: Partial<Record<AllergenId, string[]>> = {
   glutine: ["wheat", "flour", "breadcrumbs", "bread crumbs", "bread", "pasta", "couscous", "barley", "rye"],
   lattosio: ["milk", "butter", "cream", "mascarpone", "mozzarella", "cheese", "ricotta"],
   arachidi: ["peanut", "peanuts", "peanut butter"],
@@ -307,7 +307,7 @@ const ENGLISH_ALLERGEN_WORDS: Record<AllergenId, string[]> = {
 function containsAllergen(name: string, allergen: AllergenId) {
   const lower = name.toLowerCase();
   const it = ALLERGENS.find((a) => a.id === allergen)?.keywords ?? [];
-  return [...it, ...ENGLISH_ALLERGEN_WORDS[allergen]].some((word) => lower.includes(word.toLowerCase()));
+  return [...it, ...(ENGLISH_ALLERGEN_WORDS[allergen] ?? [])].some((word) => lower.includes(word.toLowerCase()));
 }
 
 function safeIngredientName(item: Ingredient, allergens: AllergenId[]) {
