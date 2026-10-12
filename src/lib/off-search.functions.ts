@@ -35,6 +35,8 @@ for (const [name, tags] of Object.entries(categoryNames)) {
 function ingredientCategories(query: string): string[] {
   const q = categoryKey(query.replace(/senza\s+(glutine|lattosio)|(?:gluten|lactose)[ -]?free/gi, " "));
   if (/sfoglia/.test(q) && /lasagn/.test(q)) return ["en:lasagna-sheets"];
+  // Recipe wording is shorter than the taxonomy label "salse di besciamella".
+  if (q === "besciamella" || q === "bechamel") return categoryNames["salse di besciamella"] ?? [];
   const exact = categoryNames[q];
   if (exact) return exact;
   const stems = categoryStems.get(singularKey(q));
@@ -50,6 +52,8 @@ function queryVariants(query: string): string[] {
   if (canonical !== n) variants.add(canonical);
   const base = canonical.replace(/senza\s+(glutine|lattosio)|(?:gluten|lactose)[ -]?free/gi, " ").replace(/\s+/g, " ").trim();
   if (base !== q && base) variants.add(base);
+  if (/\bbesciamella\b/i.test(base)) variants.add(base.replace(/\bbesciamella\b/gi, "bechamel"));
+  if (/\bbechamel\b/i.test(base)) variants.add(base.replace(/\bbechamel\b/gi, "besciamella"));
   if (/\blasagn[ae]\b/i.test(base)) {
     variants.add("lasagne");
     if (/\bsfoglia\b/i.test(base)) variants.add("sfoglia fresca");
@@ -98,15 +102,15 @@ function mergeAndRank(groups: Raw[][], query: string): Raw[] {
   return [...merged.values()]
     .filter((product) => matchesProductQuery(product, query))
     .sort((a, b) => glutenFreeScore(b, query) - glutenFreeScore(a, query))
-    .slice(0, 30);
+    .slice(0, 60);
 }
 
 function matchesProductQuery(product: Raw, query: string): boolean {
-  const q = normalizeFoodName(query);
+  const q = normalizeFoodName(query).replace(/\bbechamel\b/g, "besciamella");
   const names = normalizeFoodName([
     product["product_name_it"], product["product_name_en"], product["product_name"],
     product["generic_name_it"], product["generic_name_en"], product["brands"], product["code"],
-  ].map(text).join(" "));
+  ].map(text).join(" ")).replace(/\bbechamel\b/g, "besciamella");
   const glutenFree = /senza\s+glutine|gluten[ -]?free/.test(q);
   const lactoseFree = /senza\s+lattosio|lactose[ -]?free/.test(q);
   const lasagneSheets = /sfoglia/.test(q) && /lasagn/.test(q);
@@ -190,16 +194,15 @@ export const offSearch = createServerFn({ method: "GET" })
     const countryTag = data.country ? purchaseCountry(data.country)?.tag : undefined;
     // Recipe ingredients name a product type, not necessarily the catalog's
     // product name. Use its category and declarations before broad full text.
-    const sheets = await searchIngredientCategories(query, data.fields, countryTag);
-    const sheetCandidates = mergeAndRank([countryTag ? sheets.filter((p) => strings(p["countries_tags"]).includes(countryTag)) : sheets], query);
-    if (sheetCandidates.length) {
-      const products = await Promise.all(sheetCandidates.map((p) => completeIngredients(p, data.fields)));
-      return { ok: true, json: JSON.stringify(products) };
-    }
-    const groups = await Promise.all(queryVariants(query).map((q) => searchOne(q, data.fields, countryTag)));
+    // Merge category and name searches: a category may contain only one brand,
+    // while other relevant products have not yet been categorised in the catalog.
+    const [categoryProducts, groups] = await Promise.all([
+      searchIngredientCategories(query, data.fields, countryTag),
+      Promise.all(queryVariants(query).map((q) => searchOne(q, data.fields, countryTag))),
+    ]);
     // A service failure is not evidence that no matching products exist.
-    if (groups.every((group) => group === null)) return { ok: false, json: "[]" };
-    const availableGroups = groups.filter((group): group is Raw[] => group !== null);
+    if (!categoryProducts.length && groups.every((group) => group === null)) return { ok: false, json: "[]" };
+    const availableGroups = [categoryProducts, ...groups.filter((group): group is Raw[] => group !== null)];
     // Fallback searches can return worldwide products: require an explicit country match.
     const filtered = countryTag ? availableGroups.map((group) => group.filter((product) => strings(product["countries_tags"]).includes(countryTag))) : availableGroups;
     const candidates = mergeAndRank(filtered, query);

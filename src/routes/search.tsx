@@ -88,6 +88,10 @@ function SearchPage() {
         <p className="text-sm text-muted-foreground">{t(filterByProfile ? "Nessun prodotto compatibile trovato per il profilo attivo. Prova un altro nome o una marca." : buy ? "Nessun prodotto registrato per questo Paese. Puoi usare la ricerca online qui sopra." : "Nessun prodotto trovato.")}</p>
         {!buy && <Link to="/ingredients" search={{}} className="mt-4 inline-block rounded-2xl bg-primary px-6 py-3 text-base font-extrabold text-primary-foreground">{t("Fotografa ingredienti")}</Link>}
       </div>}
+      {!isFetching && !isError && visibleProducts.length > 0 && buy && <div>
+        <h2 className="font-extrabold text-foreground">{t("Confronta prodotti e marchi")}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">{t("Mostriamo le alternative trovate nel catalogo per questo ingrediente. Il numero dipende dai dati disponibili e dal profilo attivo.")}</p>
+      </div>}
       {!isFetching && visibleProducts.map((product) => {
         const verdict = buy && profile && !freeMode ? analyzeFood(product, profile.allergens, profile.customAllergens).verdict : null;
         return <article key={product.code} className="rounded-2xl border border-border bg-card p-4">

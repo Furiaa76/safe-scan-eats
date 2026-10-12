@@ -248,6 +248,8 @@ export const ENGLISH: Record<string, string> = {
   "Ingredienti": "Ingredients",
   "Lista ingredienti non disponibile.": "Ingredient list unavailable.",
   "Scansiona un altro prodotto": "Scan another product",
+  "Confronta prodotti e marchi": "Compare products and brands",
+  "Mostriamo le alternative trovate nel catalogo per questo ingrediente. Il numero dipende dai dati disponibili e dal profilo attivo.": "We show alternatives found in the catalog for this ingredient. The number depends on the available data and active profile.",
   "Cerco alternative compatibili…": "Looking for compatible alternatives…",
   "Alternative compatibili per te": "Compatible alternatives for you",
   "Suggerimenti della stessa categoria con dati ingredienti completi. Verifica comunque sempre l'etichetta.": "Suggestions in the same category with complete ingredient data. Always check the label.",
