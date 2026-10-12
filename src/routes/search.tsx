@@ -123,9 +123,9 @@ function SearchPage() {
           {analysis?.reasons.filter((reason) => reason.sourceUrl && reason.verifiedAt).map((reason) => <div key={reason.sourceUrl + reason.text} className="mt-2 text-xs text-muted-foreground"><p>{t(reason.text)}</p><a href={reason.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-primary underline">{t("Consulta la fonte della dichiarazione")}</a></div>)}
           {buy && <>
             <Link to="/product/$code" params={{ code: product.code }} className="mt-2 inline-block text-xs font-bold text-primary underline">{t("Controlla ingredienti e allergeni")}</Link>
-            {!review && !productRetailers(product, location).length && <p className="mt-3 text-xs text-muted-foreground">{t("Negozi non indicati nel database.")}</p>}
+            {!review && !productRetailers(product, location).length && <p className="mt-3 text-xs text-muted-foreground">{t("Usa la ricerca online per verificare i venditori del prodotto nel Paese e nella città selezionati.")}</p>}
             {review && <p className="mt-2 text-xs text-caution-foreground">{t(analyzeFood(product, profile?.allergens ?? [], profile?.customAllergens).reasons.find((reason) => reason.level === "warning")?.text ?? "Controlla ingredienti e allergeni")}</p>}
-            {!review && <PurchaseLinks query={productPurchaseQuery(product, filterByProfile ? profile.allergens : [])} exactProduct stores={product.stores ?? []} />}
+            {!review && <PurchaseLinks query={productPurchaseQuery(product, filterByProfile ? profile.allergens : [])} exactProduct />}
             {filterByProfile && <p className="mt-3 text-xs text-muted-foreground">{t("La ricerca esterna può mostrare altri prodotti non filtrati. Verifica che nome, marca e codice corrispondano e controlla l’etichetta.")}</p>}
           </>}
         </article></div>;
