@@ -1,3 +1,4 @@
+import { ProductRetailers } from "@/components/ProductRetailers";
 import { useAppLanguage } from "@/lib/language";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -124,7 +125,7 @@ export function ResultView({
             <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-secondary"><Package className="h-6 w-6 text-primary" /></div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="line-clamp-2 text-base font-extrabold text-foreground">{product.name}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><p className="line-clamp-2 text-base font-extrabold text-foreground">{product.name}</p><ProductRetailers product={product} /></div>
             <p className="truncate text-xs text-muted-foreground">{[product.brand, product.code].filter(Boolean).join(" · ")}</p>
           </div>
           {product.nutritionGrade && (
@@ -258,7 +259,7 @@ function Alternatives({ product, allergens, customAllergens }: { product: FoodPr
         {data.map((alt) => (
           <Link key={alt.code} to="/product/$code" params={{ code: alt.code }} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors active:bg-secondary">
             {alt.imageUrl ? <img src={alt.imageUrl} alt={t("")} className="h-10 w-10 shrink-0 rounded-xl object-contain" /> : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-safe-soft"><CheckCircle2 className="h-5 w-5 text-safe" /></div>}
-            <div className="min-w-0 flex-1"><p className="truncate text-sm font-bold text-foreground">{t(alt.name)}</p><p className="truncate text-xs text-muted-foreground">{t(alt.brand)}</p></div>
+            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><p className="text-sm font-bold text-foreground">{t(alt.name)}</p><ProductRetailers product={alt} /></div><p className="truncate text-xs text-muted-foreground">{t(alt.brand)}</p></div>
           </Link>
         ))}
       </div>

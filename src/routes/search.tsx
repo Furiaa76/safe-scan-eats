@@ -9,6 +9,8 @@ import { useProfile, useProfilesState } from "@/lib/store";
 import { analyzeFood, purchaseProductGroups, VERDICT_LABEL } from "@/lib/verdict";
 import { ingredientPurchaseQuery, productPurchaseQuery, usePurchaseLocation } from "@/lib/purchase";
 import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
+import { productRetailers } from "@/lib/product-retailers";
+import { ProductRetailers } from "@/components/ProductRetailers";
 import { PurchaseLinks } from "@/components/PurchaseLinks";
 
 type ProductSearch = { q: string; buy?: boolean; from?: "recipes" | "shopping" };
@@ -115,13 +117,13 @@ function SearchPage() {
           <article className="rounded-2xl border border-border bg-card p-4">
           <Link to="/product/$code" params={{ code: product.code }} className="flex items-center gap-3">
             {product.imageUrl ? <img src={product.imageUrl} alt="" loading="lazy" className="h-14 w-14 shrink-0 rounded-xl object-contain" /> : <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-secondary"><Package className="h-5 w-5 text-primary" /></div>}
-            <div className="min-w-0 flex-1"><p className="text-sm font-extrabold text-foreground">{product.name}</p><p className="mt-1 text-xs text-muted-foreground">{product.brand || product.code}</p></div>
+            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><p className="text-sm font-extrabold text-foreground">{product.name}</p><ProductRetailers product={product} /></div><p className="mt-1 text-xs text-muted-foreground">{product.brand || product.code}</p></div>
           </Link>
           {verdict && <p className={`mt-3 text-sm font-extrabold ${verdict === "avoid" ? "text-danger" : verdict === "warning" ? "text-caution-foreground" : "text-safe"}`}>{t(VERDICT_LABEL[verdict])}</p>}
           {analysis?.reasons.filter((reason) => reason.sourceUrl && reason.verifiedAt).map((reason) => <div key={reason.sourceUrl + reason.text} className="mt-2 text-xs text-muted-foreground"><p>{t(reason.text)}</p><a href={reason.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-primary underline">{t("Consulta la fonte della dichiarazione")}</a></div>)}
           {buy && <>
             <Link to="/product/$code" params={{ code: product.code }} className="mt-2 inline-block text-xs font-bold text-primary underline">{t("Controlla ingredienti e allergeni")}</Link>
-            {!review && !(product.stores?.length) && <p className="mt-3 text-xs text-muted-foreground">{t("Negozi non indicati nel database.")}</p>}
+            {!review && !productRetailers(product, location).length && <p className="mt-3 text-xs text-muted-foreground">{t("Negozi non indicati nel database.")}</p>}
             {review && <p className="mt-2 text-xs text-caution-foreground">{t(analyzeFood(product, profile?.allergens ?? [], profile?.customAllergens).reasons.find((reason) => reason.level === "warning")?.text ?? "Controlla ingredienti e allergeni")}</p>}
             {!review && <PurchaseLinks query={productPurchaseQuery(product, filterByProfile ? profile.allergens : [])} exactProduct stores={product.stores ?? []} />}
             {filterByProfile && <p className="mt-3 text-xs text-muted-foreground">{t("La ricerca esterna può mostrare altri prodotti non filtrati. Verifica che nome, marca e codice corrispondano e controlla l’etichetta.")}</p>}
