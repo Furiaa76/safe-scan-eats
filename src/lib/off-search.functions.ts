@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { purchaseCountry } from "./purchase-countries";
 import foodCategories from "./food-search-categories.json";
+import { freeFromClaim } from "./free-from";
 
 const UA = "SafeFoodScan/1.0 (web app informativa)";
 type Raw = Record<string, unknown>;
@@ -110,16 +111,17 @@ function matchesProductQuery(product: Raw, query: string): boolean {
     product["product_name_it"], product["product_name_en"], product["product_name"],
     product["generic_name_it"], product["generic_name_en"], product["brands"], product["code"],
   ].map(text).join(" ")).replace(/\bbechamel\b/g, "besciamella");
+  const identity = { name: text(product["product_name_it"]) || text(product["product_name_en"]) || text(product["product_name"]), brand: text(product["brands"]), code: text(product["code"]), source: "off" as const, labelTags: strings(product["labels_tags"]) };
   const glutenFree = /senza\s+glutine|gluten[ -]?free/.test(q);
   const lactoseFree = /senza\s+lattosio|lactose[ -]?free/.test(q);
   const lasagneSheets = /sfoglia/.test(q) && /lasagn/.test(q);
   if (lasagneSheets && /bolognese|ragu|pasta sfoglia/.test(names)) return false;
   if (glutenFree) {
     const labels = strings(product["labels_tags"]).map(normalize);
-    if (!/senza\s+glutine|gluten[ -]?free/.test(names) &&
+    if (!freeFromClaim(identity, "glutine") && !/senza\s+glutine|gluten[ -]?free/.test(names) &&
       !labels.some((label) => /gluten-free|no-gluten|senza-glutine/.test(label))) return false;
   }
-  if (lactoseFree && !/senza\s+lattosio|lactose[ -]?free/.test(names) &&
+  if (lactoseFree && !freeFromClaim(identity, "lattosio") && !/senza\s+lattosio|lactose[ -]?free/.test(names) &&
     !strings(product["labels_tags"]).some((label) => /lactose-free|no-lactose|senza-lattosio/.test(normalize(label)))) return false;
   if (ingredientCategories(query).some((tag) => strings(product["categories_tags"]).includes(tag))) return true;
   const terms = q.replace(/senza\s+(glutine|lattosio)|(?:gluten|lactose)[ -]?free/g, " ")

@@ -5,7 +5,8 @@ import ts from 'typescript';
 import vm from 'node:vm';
 const moduleUrl = (source) => 'data:text/javascript;base64,' + Buffer.from(ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText).toString('base64');
 const allergens = moduleUrl(readFileSync(new URL('../src/lib/allergens.ts', import.meta.url), 'utf8').replace('from "lucide-react";', `from "${import.meta.resolve('lucide-react')}";`));
-const verdictSource = readFileSync(new URL('../src/lib/verdict.ts', import.meta.url), 'utf8').replaceAll('from "./allergens";', `from "${allergens}";`);
+const claimsModule = moduleUrl(readFileSync(new URL('../src/lib/free-from.ts', import.meta.url), 'utf8'));
+const verdictSource = readFileSync(new URL('../src/lib/verdict.ts', import.meta.url), 'utf8').replaceAll('from "./allergens";', `from "${allergens}";`).replaceAll('from "./free-from";', `from "${claimsModule}";`);
 const { compatiblePurchaseProducts, analyzeFood, purchaseProductGroups } = await import(moduleUrl(verdictSource));
 const product = (code, ingredientsText, fields = {}) => ({ code, name: code, brand: '', source: 'off', ingredientsText, allergenTags: [], traceTags: [], labelTags: [], ...fields });
 const products = [product('rice', 'farina di riso, acqua'), product('wheat', 'farina di frumento, acqua', { allergenTags: ['en:gluten'] }), product('traces', 'riso, acqua', { traceTags: ['en:gluten'] }), product('unknown', ''), product('soy', 'riso, soia', { allergenTags: ['en:soybeans'] })];
@@ -99,4 +100,43 @@ test('foreign or unknown ingredient languages cannot become compatible for a res
   assert.equal(purchaseProductGroups([p],{allergens:['frutta-guscio']}).compatible.length,0);
  }
  assert.equal(analyzeFood(product('known','rice, water',{source:'off',ingredientsLanguage:'en'}),['frutta-guscio']).verdict,'compatible');
+});
+
+test('official Schär gluten declaration accepts missing or foreign ingredient data only for covered restrictions',()=>{
+ const p=product('schar','',{brand:'Schär',name:'Pane',ingredientsLanguage:'unknown'});
+ assert.equal(analyzeFood(p,['glutine']).verdict,'compatible');
+ assert.ok(analyzeFood(p,['glutine']).reasons.some(r=>r.sourceUrl==='https://www.schaer.com/it-it'));
+ assert.equal(analyzeFood(p,['glutine','frutta-guscio']).verdict,'warning');
+ assert.equal(analyzeFood({...p,ingredientsText:'acqua, mandorla',ingredientsLanguage:'it'},['glutine','frutta-guscio']).verdict,'avoid');
+ assert.equal(analyzeFood({...p,ingredientsText:'avena, amido di frumento',ingredientsLanguage:'it',allergenTags:['en:gluten']},['glutine']).verdict,'compatible');
+ assert.equal(analyzeFood({...p,traceTags:['en:gluten']},['glutine']).verdict,'warning');
+});
+test('brand text, company names and manual entries cannot impersonate a verified range',()=>{
+ for(const fields of [{brand:'Other',name:'Pane Schär'}, {brand:'Schär-like',name:'Pane'}, {brand:'Schär, Other',name:'Pane'}, {brand:'Dr. Schär',name:'Kanso Keto Slice'}, {brand:'Schär',name:'Pane',source:'manual'}]) {
+  assert.equal(analyzeFood(product('unverified','',fields),['glutine']).verdict,'warning');
+ }
+});
+test('Zymil milk and yogurt declarations accept lactose profiles, not other restrictions or all Parmalat products',()=>{
+ for(const p of [product('milk','',{brand:'Zymil',name:'Latte Magro Digeribile'}),product('yogurt','',{brand:'Parmalat',name:'Zymil alla Greca Bianco'})]) {
+  assert.equal(analyzeFood(p,['lattosio']).verdict,'compatible');
+  assert.equal(analyzeFood(p,['lattosio','frutta-guscio']).verdict,'warning');
+ }
+ assert.equal(analyzeFood(product('ordinary','latte, acqua',{brand:'Parmalat',name:'Latte intero'}),['lattosio']).verdict,'warning');
+ assert.equal(analyzeFood(product('snack','',{brand:'Zymil',name:'Snack al cacao'}),['lattosio']).verdict,'warning');
+ const milk=product('milk','latte, acqua',{brand:'Zymil',name:'Latte intero',allergenTags:['en:milk']});
+ assert.equal(analyzeFood(milk,['lattosio']).verdict,'compatible');
+ assert.equal(analyzeFood(milk,['lattosio'],['latte']).verdict,'avoid');
+});
+test('Nutrifree lactose declarations apply only to the products in the verified selection',()=>{
+ const p=product('bread','',{brand:'Nutrifree',name:'Nutrifree Panfette 300 g'});
+ assert.equal(analyzeFood(p,['glutine','lattosio']).verdict,'compatible');
+ assert.equal(analyzeFood(product('other','latte, acqua',{brand:'Nutrifree',name:'Doremì al Latte'}),['lattosio']).verdict,'warning');
+});
+test('explicit product declarations cover their own restriction without an ingredient blacklist',()=>{
+ const lactose=product('lactose','',{brand:'Unknown',name:'Latte senza lattosio'});
+ assert.equal(analyzeFood(lactose,['lattosio']).verdict,'compatible');
+ assert.equal(analyzeFood(product('nuts','',{labelTags:['en:no-nuts']}),['frutta-guscio']).verdict,'compatible');
+ assert.equal(analyzeFood(product('nuts','',{labelTags:['en:no-nuts']}),['frutta-guscio','arachidi']).verdict,'warning');
+ assert.equal(analyzeFood(product('negative','',{name:'Latte non senza lattosio'}),['lattosio']).verdict,'warning');
+ assert.equal(analyzeFood(product('question','',{name:'Latte senza lattosio?'}),['lattosio']).verdict,'warning');
 });

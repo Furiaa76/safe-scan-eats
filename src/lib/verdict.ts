@@ -1,12 +1,15 @@
 import type { AllergenId } from "./allergens";
 import { allergenById } from "./allergens";
 import type { FoodProduct } from "./off";
+import { freeFromClaim } from "./free-from";
 
 export type Verdict = "compatible" | "warning" | "avoid";
 
 export interface Reason {
   level: "avoid" | "warning" | "info";
   text: string;
+  sourceUrl?: string;
+  verifiedAt?: string;
 }
 
 export interface Analysis {
@@ -32,11 +35,6 @@ const OFF_TAGS: Record<AllergenId, string[]> = {
   "polline-graminacee": [],
   "polline-ambrosia": [],
   "polline-artemisia-asteracee": [],
-};
-
-const FREE_LABELS: Partial<Record<AllergenId, string[]>> = {
-  glutine: ["en:no-gluten", "en:gluten-free"],
-  lattosio: ["en:no-lactose", "en:lactose-free"],
 };
 
 const FALSE_FRIENDS = [
@@ -158,7 +156,9 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
       continue;
     }
 
-    const freeLabel = (FREE_LABELS[a] ?? []).some((l) => p.labelTags.includes(l));
+    const declaration = freeFromClaim(p, a);
+    const freeLabel = !!declaration;
+    if (declaration) reasons.push({ level: "info", text: declaration.description, ...(declaration.sourceUrl ? { sourceUrl: declaration.sourceUrl } : {}), ...(declaration.verifiedAt ? { verifiedAt: declaration.verifiedAt } : {}) });
 
     if (a === "istamina") {
       const histamineKw = keywordHit(main, a);
@@ -210,7 +210,11 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
     const traceHit = OFF_TAGS[a].some((t) => p.traceTags.includes(t)) || !!keywordHit(traces, a);
 
     if (freeLabel) {
-      if (tagHit) {
+      if (kw && a !== "glutine") {
+        avoid = true;
+        reasons.push({ level: "avoid", text: `Contiene ${kw} (${lower(a)}): dati discordanti con la dichiarazione di assenza.` });
+      }
+      if (tagHit && !declaration?.manufacturer) {
         warn = true;
         reasons.push({ level: "warning", text: `Dati discordanti: dichiarazione senza ${lower(a)} e allergene presente nel catalogo. Verifica l'etichetta.` });
       }
@@ -250,13 +254,15 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
     }
   }
 
+  const uncoveredRestrictions = userAllergens.filter((allergen) => !freeFromClaim(p, allergen));
+  const needsIngredientCheck = userAllergens.length === 0 || uncoveredRestrictions.length > 0 || customAllergens.some((term) => term.trim());
   const unsupportedLanguage = p.source === "off" && p.ingredientsLanguage !== undefined && !["it", "en"].includes(p.ingredientsLanguage);
-  if (unsupportedLanguage && (userAllergens.length > 0 || customAllergens.length > 0)) {
+  if (unsupportedLanguage && needsIngredientCheck) {
     warn = true;
     reasons.push({ level: "warning", text: "Lingua degli ingredienti non verificabile dall'app: controlla l'etichetta originale." });
   }
   const incomplete = !hasIngredients || unsupportedLanguage;
-  if (incomplete) {
+  if (incomplete && needsIngredientCheck) {
     warn = true;
     reasons.push({
       level: "warning",
@@ -264,6 +270,9 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
     });
   }
 
+  if (incomplete && !needsIngredientCheck && userAllergens.length > 0) {
+    reasons.push({ level: "info", text: "Le dichiarazioni disponibili coprono le restrizioni selezionate. I dati ingredienti restano incompleti: verifica la confezione esatta." });
+  }
   if (userAllergens.length === 0 && customAllergens.length === 0) {
     reasons.push({ level: "info", text: "Non hai selezionato allergeni nel tuo profilo" });
   }

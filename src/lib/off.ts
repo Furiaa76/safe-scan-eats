@@ -34,7 +34,7 @@ function map(raw: Raw, code?: string, language: AppLanguage = "it"): FoodProduct
   return {
     code: str(raw["code"]) || code || "",
     name: str(raw[`product_name_${language}`]) || str(raw["product_name"]) || str(raw[`generic_name_${language}`]) || (language === "en" ? "Unnamed product" : "Prodotto senza nome"),
-    brand: str(raw["brands"]).split(",")[0]?.trim() ?? "",
+    brand: str(raw["brands"]),
     imageUrl: str(raw["image_front_small_url"]) || str(raw["image_front_url"]) || undefined,
     ingredientsText: str(raw[`ingredients_text_${language}`]) || str(raw["ingredients_text_it"]) || str(raw["ingredients_text_en"]) || str(raw["ingredients_text"]),
     ingredientsLanguage: str(raw[`ingredients_text_${language}`]) ? language : str(raw["ingredients_text_it"]) ? "it" : str(raw["ingredients_text_en"]) ? "en" : str(raw["ingredients_lc"]) || "unknown",

@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { test } from 'node:test';
 import ts from 'typescript';
+const claimJs = ts.transpileModule(readFileSync(new URL('../src/lib/free-from.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
+const { freeFromClaim } = await import('data:text/javascript;base64,'+Buffer.from(claimJs).toString('base64'));
 const source = readFileSync(new URL('../src/lib/off-search.functions.ts', import.meta.url), 'utf8');
 function catalog(fetch) {
  const js = ts.transpileModule(source.replace(/^import .*;\n/gm, '').replace('export const offSearch', 'const offSearch'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText.replace(/export \{\};?/, '');
- const context = vm.createContext({ fetch, AbortSignal, console, foodCategories: JSON.parse(readFileSync(new URL('../src/lib/food-search-categories.json', import.meta.url), 'utf8')), purchaseCountry: () => ({ tag: 'en:italy' }), createServerFn: () => ({ inputValidator() { return this; }, handler(fn) { return fn; } }) });
+ const context = vm.createContext({ freeFromClaim, fetch, AbortSignal, console, foodCategories: JSON.parse(readFileSync(new URL('../src/lib/food-search-categories.json', import.meta.url), 'utf8')), purchaseCountry: () => ({ tag: 'en:italy' }), createServerFn: () => ({ inputValidator() { return this; }, handler(fn) { return fn; } }) });
  vm.runInContext(js + '\nglobalThis.api = { offSearch, queryVariants, matchesProductQuery, completeIngredients, ingredientCategories };', context);
  return context.api;
 }
@@ -169,4 +171,12 @@ test('country text search does not wrap brands in parentheses that the index tre
  const result=await api.offSearch({data:{query:'Schär',fields:'code',country:'it'}});
  assert.equal(JSON.parse(result.json).length,1);
  assert.ok(urls.every(url=>!new URL(url).searchParams.get('q')?.startsWith('(')));
+});
+
+test('ingredient searches retain officially gluten-free Schär products when catalog labels are missing',()=>{
+ const api=catalog(unavailable);
+ assert.equal(api.matchesProductQuery({code:'11111111',product_name:'Farina',brands:'Schär'},'farina senza glutine'),true);
+ assert.equal(api.matchesProductQuery({code:'22222222',product_name:'Farina',brands:'Other'},'farina senza glutine'),false);
+ assert.equal(api.matchesProductQuery({code:'33333333',product_name:'Latte Zymil Magro',brands:'Parmalat'},'latte senza lattosio'),true);
+ assert.equal(api.matchesProductQuery({code:'44444444',product_name:'Latte intero',brands:'Parmalat'},'latte senza lattosio'),false);
 });

@@ -27,7 +27,7 @@ const VERDICT_STYLE: Record<
     bg: "bg-safe",
     fg: "text-safe-foreground",
     Icon: CheckCircle2,
-    subtitle: "Non abbiamo trovato i tuoi allergeni in questo prodotto.",
+    subtitle: "Le informazioni disponibili risultano compatibili con le restrizioni del profilo.",
   },
   warning: {
     bg: "bg-caution",
@@ -149,7 +149,7 @@ export function ResultView({
             <div className="mt-2 flex flex-col gap-2">
               {analysis.reasons.map((r, i) => {
                 const cfg = r.level === "avoid" ? { cls: "bg-danger-soft text-danger", Icon: CircleX } : r.level === "warning" ? { cls: "bg-caution-soft text-caution-foreground", Icon: TriangleAlert } : { cls: "bg-muted text-foreground", Icon: Info };
-                return <div key={i} className={`flex items-start gap-3 rounded-2xl p-3.5 ${cfg.cls}`}><cfg.Icon className="mt-0.5 h-5 w-5 shrink-0" /><p className="text-sm font-bold">{t(r.text)}</p></div>;
+                return <div key={i} className={`flex items-start gap-3 rounded-2xl p-3.5 ${cfg.cls}`}><cfg.Icon className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="text-sm font-bold">{t(r.text)}</p>{r.sourceUrl && <a href={r.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs font-bold underline">{t("Consulta la fonte della dichiarazione")}</a>}{r.verifiedAt && <p className="mt-1 text-xs">{t("Verificato il")}: {r.verifiedAt}</p>}</div></div>;
               })}
             </div>
           </section>
@@ -235,9 +235,9 @@ function Alternatives({ product, allergens, customAllergens }: { product: FoodPr
     queryFn: async () => {
       const list = await productsInCategory(product.categoryTag!);
       return list
-        .filter((p) => p.code !== product.code && p.ingredientsText.trim().length > 3)
+        .filter((p) => p.code !== product.code)
         .map((p) => ({ product: p, analysis: analyzeFood(p, allergens, customAllergens) }))
-        .filter(({ analysis }) => analysis.verdict === "compatible" && !analysis.incomplete)
+        .filter(({ analysis }) => analysis.verdict === "compatible")
         .map(({ product }) => product)
         .slice(0, 3);
     },
@@ -253,7 +253,7 @@ function Alternatives({ product, allergens, customAllergens }: { product: FoodPr
   return (
     <section className="mt-5">
       <h2 className="text-base font-extrabold text-foreground">{t("Alternative compatibili per te")}</h2>
-      <p className="mt-1 text-xs text-muted-foreground">{t("Suggerimenti della stessa categoria con dati ingredienti completi. Verifica comunque sempre l'etichetta.")}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{t("Suggerimenti della stessa categoria secondo ingredienti e dichiarazioni disponibili. Verifica comunque sempre l'etichetta.")}</p>
       <div className="mt-2 flex flex-col gap-2">
         {data.map((alt) => (
           <Link key={alt.code} to="/product/$code" params={{ code: alt.code }} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 transition-colors active:bg-secondary">

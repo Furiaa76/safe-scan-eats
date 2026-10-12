@@ -104,7 +104,8 @@ function SearchPage() {
         <p className="mt-1 text-xs text-muted-foreground">{t("Mostriamo le alternative trovate nel catalogo per questo ingrediente. Il numero dipende dai dati disponibili e dal profilo attivo.")}</p>
       </div>}
       {(!isFetching || isFetchingNextPage) && visibleProducts.map((product, index) => {
-        const verdict = buy && profile && !freeMode ? analyzeFood(product, profile.allergens, profile.customAllergens).verdict : null;
+        const analysis = buy && profile && !freeMode ? analyzeFood(product, profile.allergens, profile.customAllergens) : null;
+        const verdict = analysis?.verdict ?? null;
         const review = verdict === "warning";
         return <div key={product.code}>
           {filterByProfile && index === groups.compatible.length && groups.review.length > 0 && <div className="mb-3 mt-5 rounded-xl bg-caution-soft p-3">
@@ -117,6 +118,7 @@ function SearchPage() {
             <div className="min-w-0 flex-1"><p className="text-sm font-extrabold text-foreground">{product.name}</p><p className="mt-1 text-xs text-muted-foreground">{product.brand || product.code}</p></div>
           </Link>
           {verdict && <p className={`mt-3 text-sm font-extrabold ${verdict === "avoid" ? "text-danger" : verdict === "warning" ? "text-caution-foreground" : "text-safe"}`}>{t(VERDICT_LABEL[verdict])}</p>}
+          {analysis?.reasons.filter((reason) => reason.sourceUrl && reason.verifiedAt).map((reason) => <div key={reason.sourceUrl + reason.text} className="mt-2 text-xs text-muted-foreground"><p>{t(reason.text)}</p><a href={reason.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-primary underline">{t("Consulta la fonte della dichiarazione")}</a></div>)}
           {buy && <>
             <Link to="/product/$code" params={{ code: product.code }} className="mt-2 inline-block text-xs font-bold text-primary underline">{t("Controlla ingredienti e allergeni")}</Link>
             {!review && !(product.stores?.length) && <p className="mt-3 text-xs text-muted-foreground">{t("Negozi non indicati nel database.")}</p>}
