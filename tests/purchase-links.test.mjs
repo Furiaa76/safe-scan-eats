@@ -17,6 +17,7 @@ test('selected product links require the exact name, brand and selected free-fro
  const url=new URL(onlinePurchaseUrl(query,{country:'it',city:'Como'},'it',true));
  assert.equal(url.searchParams.get('q'),query);
  assert.equal(url.searchParams.has('tbm'),false);
+ assert.equal(url.searchParams.get('udm'),'web');
  assert.equal(url.searchParams.get('gl'),'it');
  assert.ok(!url.searchParams.get('q').includes('Italy'));
 });

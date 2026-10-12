@@ -43,7 +43,8 @@ export function onlinePurchaseUrl(query: string, location: PurchaseLocation, lan
   const params = new URLSearchParams({ q: query.slice(0, 350), gl: country.code, hl: language });
   // Shopping broadens matches. Product links use ordinary search with quoted
   // identity; ingredient links remain category searches.
-  if (!exactProduct) params.set("tbm", "shop");
+  if (exactProduct) params.set("udm", "web");
+  else params.set("tbm", "shop");
   return `https://www.google.com/search?${params}`;
 }
 
