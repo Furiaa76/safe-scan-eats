@@ -85,8 +85,7 @@ test('recipe sheets use category and gluten declarations rather than broad text 
  });
  const result = await api.offSearch({ data: { query: 'sfoglia per lasagne senza glutine', fields: 'code', country: 'it' } });
  assert.equal(JSON.parse(result.json)[0].code, '8021228901643');
- assert.equal(urls.length, 1);
- const query = new URL(urls[0]).searchParams.get('q');
+ const query = new URL(urls.find(url => new URL(url).searchParams.get('q')?.includes('categories_tags:'))).searchParams.get('q');
  assert.ok(query.includes('categories_tags:"en:lasagna-sheets"'));
  assert.ok(query.includes('labels_tags:"en:no-gluten"'));
  assert.ok(query.includes('countries_tags:"en:italy"'));
@@ -110,4 +109,39 @@ test('category matches accept branded names but still reject gluten and lactose 
  assert.equal(api.matchesProductQuery({ ...product, labels_tags: [] }, 'pane grattugiato senza glutine'), false);
  assert.equal(api.matchesProductQuery({ product_name: 'Brand', categories_tags: ['en:milks'] }, 'latte senza lattosio'), false);
  assert.equal(api.matchesProductQuery(product, 'pane grattugiato marca inesistente senza glutine'), false);
+});
+
+// Regression: one categorised brand must not prevent uncategorised alternatives.
+test('ingredient search combines category and name results across brands without duplicates', async () => {
+ const common = { countries_tags: ['en:italy'], labels_tags: ['en:no-gluten'], ingredients_text: 'latte, amido di mais' };
+ const api = catalog(async (url) => {
+  const categorySearch = new URL(url).searchParams.get('q')?.includes('categories_tags:');
+  return { ok: true, json: async () => ({ hits: categorySearch
+   ? [{ ...common, code: '11111111', product_name: 'Besciamella', brands: ['Marca A'] }]
+   : [{ ...common, code: '11111111', product_name: 'Besciamella', brands: ['Marca A'] },
+      { ...common, code: '22222222', product_name: 'Besciamella senza glutine', brands: ['Marca B'] },
+      { ...common, code: '33333333', product_name: 'Besciamella', brands: ['Marca C'] },
+      { ...common, code: '44444444', product_name: 'Besciamella', countries_tags: ['en:france'] },
+      { ...common, code: '55555555', product_name: 'Besciamella', labels_tags: [] },
+      { ...common, code: '66666666', product_name: 'Pasta senza glutine' }] }) };
+ });
+ const result = await api.offSearch({ data: { query: 'besciamella senza glutine', fields: 'code', country: 'it' } });
+ assert.equal(result.ok, true);
+ assert.deepEqual(JSON.parse(result.json).map(p => p.code).sort(), ['11111111', '22222222', '33333333']);
+});
+test('category alternatives survive a failure of the text indexes', async () => {
+ const api = catalog(async (url) => new URL(url).searchParams.get('q')?.includes('categories_tags:')
+  ? { ok: true, json: async () => ({ hits: [{ code: '11111111', product_name: 'Besciamella', countries_tags: ['en:italy'], ingredients_text: 'latte, farina' }] }) }
+  : { ok: false });
+ const result = await api.offSearch({ data: { query: 'besciamella', fields: 'code', country: 'it' } });
+ assert.equal(result.ok, true);
+ assert.equal(JSON.parse(result.json).length, 1);
+});
+
+test('besciamella finds its sauce category and alternative catalog spellings', () => {
+ const api = catalog(unavailable);
+ assert.ok(api.ingredientCategories('besciamella senza glutine').includes('en:bechamel-sauces'));
+ assert.ok(api.queryVariants('besciamella senza glutine').includes('bechamel'));
+ assert.equal(api.matchesProductQuery({ product_name: 'Bechamel Sauce', labels_tags: ['en:no-gluten'] }, 'besciamella senza glutine'), true);
+ assert.equal(api.matchesProductQuery({ product_name: 'Lasagne', ingredients_text: 'besciamella' }, 'besciamella'), false);
 });
