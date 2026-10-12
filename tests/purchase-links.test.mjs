@@ -15,11 +15,11 @@ test('selected product links require the exact name, brand and selected free-fro
  const query=productPurchaseQuery(product({}),['glutine','lattosio']);
  assert.equal(query,'"Besciamella 500 ml" "Marca A" "senza glutine" "senza lattosio"');
  const url=new URL(onlinePurchaseUrl(query,{country:'it',city:'Como'},'it',true));
- assert.equal(url.searchParams.get('q'),query);
+ assert.equal(url.searchParams.get('q'),query+' Como Italia');
  assert.equal(url.searchParams.has('tbm'),false);
  assert.equal(url.searchParams.get('udm'),'web');
  assert.equal(url.searchParams.get('gl'),'it');
- assert.ok(!url.searchParams.get('q').includes('Italy'));
+ assert.ok(url.searchParams.get('q').includes('Italia'));
 });
 test('verified product declarations stay in the query even without an active profile',()=>{
  assert.equal(productPurchaseQuery(product({brand:'Schär',name:'Panfette'})), '"Panfette" "Schär" "senza glutine"');
@@ -38,4 +38,15 @@ test('supermarket links follow cities and countries beyond Italy',()=>{
   const url=new URL(shopMapUrl('Carrefour',{country,city}));
   assert.equal(url.searchParams.get('query'),`Carrefour, ${city}, ${countryName}`);
  }
+});
+
+test('exact product web search includes the selected country and city, not only a regional bias',()=>{
+ const query=productPurchaseQuery(product({}),['glutine','lattosio']);
+ for(const [country,city,name] of [['ch','Lugano','Svizzera'],['fr','Paris','Francia'],['de','Berlin','Germania'],['us','New York',"Stati Uniti d'America"]]) {
+  const url=new URL(onlinePurchaseUrl(query,{country,city},'it',true));
+  assert.equal(url.searchParams.get('q'),`${query} ${city} ${name}`);
+  assert.equal(url.searchParams.get('gl'),country);
+  assert.equal(url.searchParams.get('udm'),'web');
+ }
+ assert.equal(new URL(onlinePurchaseUrl(query,{country:'ch',city:'   '},'en',true)).searchParams.get('q'),`${query} Switzerland`);
 });

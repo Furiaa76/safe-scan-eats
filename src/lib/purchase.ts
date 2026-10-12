@@ -40,7 +40,9 @@ export function setPurchaseLocation(location: PurchaseLocation) {
 
 export function onlinePurchaseUrl(query: string, location: PurchaseLocation, language: "it" | "en", exactProduct = false) {
   const country = purchaseCountry(location.country) ?? purchaseCountry("it")!;
-  const params = new URLSearchParams({ q: query.slice(0, 350), gl: country.code, hl: language });
+  // gl only biases Google's results; put the selected market in the query too.
+  const localQuery = [query.slice(0, 350), location.city.trim().slice(0, 100), country[language]].filter(Boolean).join(" ");
+  const params = new URLSearchParams({ q: localQuery, gl: country.code, hl: language });
   // Shopping broadens matches. Product links use ordinary search with quoted
   // identity; ingredient links remain category searches.
   if (exactProduct) params.set("udm", "web");
