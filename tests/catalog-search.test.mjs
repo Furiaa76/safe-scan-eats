@@ -162,3 +162,11 @@ test('catalog pages expose more results and forward the next page to both search
  assert.ok(urls.some(url=>new URL(url).searchParams.get('page')==='2'));
  assert.ok(urls.filter(url=>new URL(url).searchParams.get('page')==='2').every(url=>new URL(url).searchParams.get('page_size')==='60'));
 });
+
+test('country text search does not wrap brands in parentheses that the index treats literally', async()=>{
+ const urls=[];
+ const api=catalog(async(url)=>{urls.push(url);return {ok:true,json:async()=>({hits:[{code:'11111111',product_name:'Pane',brands:['Schär'],ingredients_text:'riso, acqua',countries_tags:['en:italy']}]})};});
+ const result=await api.offSearch({data:{query:'Schär',fields:'code',country:'it'}});
+ assert.equal(JSON.parse(result.json).length,1);
+ assert.ok(urls.every(url=>!new URL(url).searchParams.get('q')?.startsWith('(')));
+});

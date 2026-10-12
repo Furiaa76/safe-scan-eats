@@ -101,8 +101,7 @@ function mergeAndRank(groups: Raw[][], query: string): Raw[] {
   }
   return [...merged.values()]
     .filter((product) => matchesProductQuery(product, query))
-    .sort((a, b) => glutenFreeScore(b, query) - glutenFreeScore(a, query))
-    ;
+    .sort((a, b) => glutenFreeScore(b, query) - glutenFreeScore(a, query));
 }
 
 function matchesProductQuery(product: Raw, query: string): boolean {
@@ -140,7 +139,7 @@ async function searchOne(query: string, fields: string, countryTag?: string, pag
   const countryFilter = countryTag ? `&tagtype_0=countries&tag_contains_0=contains&tag_0=${encodeURIComponent(countryTag)}` : "";
   const url = `${base}&search_simple=1&search_terms=${encodeURIComponent(query)}&page_size=60&page=${page}&fields=${encodeURIComponent(fields)}${countryFilter}`;
   const escapedQuery = query.replace(/[+\-!(){}\[\]^"~*?:\\/]/g, " ").trim();
-  const searchText = countryTag ? `(${escapedQuery}) AND countries_tags:"${countryTag}"` : escapedQuery;
+  const searchText = countryTag ? `${escapedQuery} AND countries_tags:"${countryTag}"` : escapedQuery;
   // Prefer the index that finds recipe products. Do not make a successful
   // result wait for the legacy endpoint's twelve-second timeout.
   const alt = await getJson(`https://search.openfoodfacts.org/search?q=${encodeURIComponent(searchText)}&page_size=60&page=${page}&fields=${encodeURIComponent(fields)}`);
