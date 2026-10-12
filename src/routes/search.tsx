@@ -7,7 +7,7 @@ import { ArrowLeft, Loader2, Package, Search } from "lucide-react";
 import { searchProductPage } from "@/lib/off";
 import { useProfile, useProfilesState } from "@/lib/store";
 import { analyzeFood, purchaseProductGroups, VERDICT_LABEL } from "@/lib/verdict";
-import { ingredientPurchaseQuery, usePurchaseLocation } from "@/lib/purchase";
+import { ingredientPurchaseQuery, productPurchaseQuery, usePurchaseLocation } from "@/lib/purchase";
 import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
 import { PurchaseLinks } from "@/components/PurchaseLinks";
 
@@ -88,7 +88,7 @@ function SearchPage() {
 
     {buy && !filterByProfile && q.trim().length >= 2 && <section className="mt-4 rounded-2xl bg-secondary/50 p-4">
       <h2 className="font-extrabold text-foreground">{t("Cerca questo ingrediente")}: {t(ingredientQuery)}</h2>
-      <PurchaseLinks query={catalogQuery} />
+      <PurchaseLinks query={`"${catalogQuery.replace(/["\\]/g, " ").trim()}"`} exactProduct onlineLabel="Cerca ingrediente online" />
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{t("I negozi sono segnalati dagli utenti del database, anche in sedi o Paesi diversi. Prezzi, spedizione e disponibilità vanno verificati con il venditore. Controlla sempre l’etichetta prima di acquistare.")}</p>
     </section>}
 
@@ -123,7 +123,7 @@ function SearchPage() {
             <Link to="/product/$code" params={{ code: product.code }} className="mt-2 inline-block text-xs font-bold text-primary underline">{t("Controlla ingredienti e allergeni")}</Link>
             {!review && !(product.stores?.length) && <p className="mt-3 text-xs text-muted-foreground">{t("Negozi non indicati nel database.")}</p>}
             {review && <p className="mt-2 text-xs text-caution-foreground">{t(analyzeFood(product, profile?.allergens ?? [], profile?.customAllergens).reasons.find((reason) => reason.level === "warning")?.text ?? "Controlla ingredienti e allergeni")}</p>}
-            {!review && <PurchaseLinks query={[product.name, product.brand, product.code].filter(Boolean).join(" ")} stores={product.stores ?? []} />}
+            {!review && <PurchaseLinks query={productPurchaseQuery(product, filterByProfile ? profile.allergens : [])} exactProduct stores={product.stores ?? []} />}
             {filterByProfile && <p className="mt-3 text-xs text-muted-foreground">{t("La ricerca esterna può mostrare altri prodotti non filtrati. Verifica che nome, marca e codice corrispondano e controlla l’etichetta.")}</p>}
           </>}
         </article></div>;

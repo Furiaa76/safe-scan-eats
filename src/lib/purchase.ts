@@ -1,5 +1,7 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { purchaseCountry } from "./purchase-countries";
+import { freeFromClaim } from "./free-from";
+import type { FoodProduct } from "./off";
 
 export interface PurchaseLocation { country: string; city: string }
 const KEY = "safe-scan-purchase-location-v1";
@@ -36,10 +38,24 @@ export function setPurchaseLocation(location: PurchaseLocation) {
   window.dispatchEvent(new Event(EVENT));
 }
 
-export function onlinePurchaseUrl(query: string, location: PurchaseLocation, language: "it" | "en") {
+export function onlinePurchaseUrl(query: string, location: PurchaseLocation, language: "it" | "en", exactProduct = false) {
   const country = purchaseCountry(location.country) ?? purchaseCountry("it")!;
-  const params = new URLSearchParams({ q: `${query.slice(0, 350)} ${country.en}`, tbm: "shop", gl: country.code, hl: language });
+  const params = new URLSearchParams({ q: query.slice(0, 350), gl: country.code, hl: language });
+  // Shopping broadens matches. Product links use ordinary search with quoted
+  // identity; ingredient links remain category searches.
+  if (!exactProduct) params.set("tbm", "shop");
   return `https://www.google.com/search?${params}`;
+}
+
+export function productPurchaseQuery(product: FoodProduct, allergens: readonly string[] = []) {
+  const quoted = (value: string) => `"${value.replace(/["\\]/g, " ").replace(/\s+/g, " ").trim()}"`;
+  const terms = [quoted(product.name)];
+  const brands = product.brand.split(/[,;]/).map((brand) => brand.trim()).filter(Boolean);
+  if (brands.length) terms.push(quoted(brands[0]!));
+  for (const [id, phrase] of [["glutine", "senza glutine"], ["lattosio", "senza lattosio"]] as const) {
+    if (allergens.includes(id) || freeFromClaim(product, id)) terms.push(quoted(phrase));
+  }
+  return terms.join(" ");
 }
 
 export function ingredientPurchaseQuery(name: string, allergens: readonly string[]) {
