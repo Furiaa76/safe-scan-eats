@@ -12,6 +12,7 @@ export const ENGLISH: Record<string, string> = {
   "Nessuna disponibilità confermata per questo prodotto nei supermercati della zona. I negozi senza conferma non vengono mostrati.": "No confirmed stock for this product in local supermarkets. Stores without confirmation are not shown.",
   "Una scheda online o la presenza di un supermercato in città non conferma le scorte del punto vendita.": "An online listing or a supermarket in your city does not confirm stock at that store.",
   "catalogo online": "online catalogue",
+  "Continua la ricerca": "Continue searching",
   "Scheda online controllata": "Online page checked",
   "Prodotto selezionato": "Selected product",
   "Cerchiamo il codice a barre del prodotto selezionato, mantenendo i controlli del profilo attivo.": "We look up the selected product barcode and retain the active profile checks.",
