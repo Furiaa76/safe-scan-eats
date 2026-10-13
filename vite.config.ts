@@ -3,6 +3,13 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  vite: {
+    define: {
+      __APP_BUILD__: JSON.stringify(
+        process.env["VERCEL_GIT_COMMIT_SHA"] || "local",
+      ),
+    },
+  },
   tanstackStart: {
     server: { entry: "server" },
   },

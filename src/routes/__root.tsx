@@ -1,3 +1,4 @@
+import { ClientDiagnostics, AppRouteError } from "@/components/ClientDiagnostics";
 import { AppStatistics } from "@/components/AppStatistics";
 import { Capacitor } from "@capacitor/core";
 import { useAppLanguage } from "@/lib/language";
@@ -35,6 +36,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFound,
+  errorComponent: AppRouteError,
 });
 
 function RootShell({ children }: { children: ReactNode }) {
@@ -76,7 +78,7 @@ function RootComponent() {
     // Il ritorno alla home avviene solo su un nuovo avvio standalone.
   }, []);
 
-  return <QueryClientProvider client={queryClient}><Outlet /><AppStatistics /></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><ClientDiagnostics /><Outlet /><AppStatistics /></QueryClientProvider>;
 }
 
 function NotFound() {

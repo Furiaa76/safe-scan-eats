@@ -1,3 +1,4 @@
+import { reportClientError } from "@/lib/client-diagnostics";
 import { EXTRA_RECIPES } from "@/lib/recipe-catalog";
 import { useAppLanguage } from "@/lib/language";
 import { PurchaseItemLink } from "@/components/PurchaseItemLink";
@@ -447,7 +448,8 @@ function RecipesPage() {
         setServings(aiRecipe.servings);
         setSearchMessage(generated.notes || "Ricetta creata e adattata al profilo attivo.");
         return;
-      } catch {
+      } catch (error) {
+        reportClientError("recipe-generate", error);
         // Se l'AI non risponde, proviamo la banca dati pubblica come ripiego.
       }
 
@@ -460,12 +462,14 @@ function RecipesPage() {
           setSearchMessage("Ricetta trovata online e adattata al profilo attivo.");
           return;
         }
-      } catch {
+      } catch (error) {
+        reportClientError("recipe-search", error);
         // Ignora il problema della ricerca esterna: mostriamo un messaggio chiaro sotto.
       }
 
       setSearchMessage("Non riesco a generare questa ricetta in questo momento. Riprova tra poco.");
-    } catch {
+    } catch (error) {
+      reportClientError("recipe-search", error);
       setSearchMessage("La ricerca online non è disponibile in questo momento. Riprova tra poco.");
     } finally {
       setSearching(false);

@@ -1,3 +1,4 @@
+import { reportClientError } from "@/lib/client-diagnostics";
 import { useAppLanguage } from "@/lib/language";
 import { PurchaseItemLink } from "@/components/PurchaseItemLink";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -76,7 +77,8 @@ function ShoppingPage() {
           setCloudReady(true);
           setCloudState("synced");
         }
-      } catch {
+      } catch (error) {
+        reportClientError("shopping-load", error);
         if (!cancelled) setCloudState("error");
       } finally {
         hydrating.current = false;
@@ -92,7 +94,7 @@ function ShoppingPage() {
 
   useEffect(() => {
     if (!cloudReady || !isCloudShoppingConfigured()) return;
-    void saveCloudAllergenPreferences(profile?.allergens ?? []).catch(() => {});
+    void saveCloudAllergenPreferences(profile?.allergens ?? []).catch(error => reportClientError("shopping-preferences", error));
   }, [cloudReady, profile?.allergens]);
 
   useEffect(() => {
@@ -103,7 +105,7 @@ function ShoppingPage() {
         name: item.name,
         allergens: item.allergens,
       })),
-    ).catch(() => {});
+    ).catch(error => reportClientError("shopping-profiles", error));
   }, [cloudReady, profilesState.profiles]);
 
   useEffect(() => {
@@ -112,7 +114,7 @@ function ShoppingPage() {
       setCloudState("syncing");
       void saveCloudShopping(items)
         .then(() => setCloudState("synced"))
-        .catch(() => setCloudState("error"));
+        .catch(error => { reportClientError("shopping-save", error); setCloudState("error"); });
     }, 350);
     return () => window.clearTimeout(timer);
   }, [items, cloudReady]);
@@ -172,7 +174,8 @@ function ShoppingPage() {
       const ok = await linkAlexaPairingCode(code);
       setAlexaMessage(ok ? "Alexa collegata alla tua lista della spesa." : "Codice non valido o scaduto. Chiedi ad Alexa un nuovo codice.");
       if (ok) setAlexaCode("");
-    } catch {
+    } catch (error) {
+      reportClientError("alexa-link", error);
       setAlexaMessage("Non riesco a collegare Alexa in questo momento.");
     } finally {
       setAlexaLinking(false);
@@ -292,7 +295,7 @@ function ShoppingPage() {
                       setCloudState("syncing");
                       void clearCloudShopping()
                         .then(() => setCloudState("synced"))
-                        .catch(() => setCloudState("error"));
+                        .catch(error => { reportClientError("shopping-clear", error); setCloudState("error"); });
                     }
                   }}
                   className="text-xs font-extrabold text-danger"

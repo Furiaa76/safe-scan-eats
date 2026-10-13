@@ -1,3 +1,4 @@
+import { reportClientError } from "@/lib/client-diagnostics";
 import { useAppLanguage } from "@/lib/language";
 import { useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
@@ -126,6 +127,7 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
       } catch (e) {
         if (cancelled) return;
         stopCamera();
+        reportClientError("camera-start", e);
         setError(errorMessage(e));
         setStatus("error");
       }
@@ -169,7 +171,8 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
       const result = await reader.decodeFromImageUrl(url);
       doneRef.current = true;
       onDetected(result.getText());
-    } catch {
+    } catch (error) {
+      reportClientError("photo-decode", error);
       setError("Non riesco a leggere il codice nella foto. Avvicinati, evita riflessi e riprova.");
       setStatus("error");
     } finally {
