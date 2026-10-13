@@ -76,6 +76,20 @@ for (const recipe of catalog) {
     }
   }
 }
+// Preserve the pesto variant through the new-user dialogue with AI unavailable.
+for (const dish of ['la lasagna al pesto', 'la lasagna a pesto']) {
+  items = [];
+  profiles = [];
+  let response = await say('CreateRecipeIntent', { dish });
+  assert.match(speech(response), /Per quante persone/);
+  response = await say('ChangeServingsIntent', { servings: '2' }, response.sessionAttributes);
+  assert.match(speech(response), /Ho aggiunto/);
+  assert.ok(items.some(item => item.name === 'Basilico' && item.quantity === '30 g'));
+  assert.ok(items.some(item => item.name === 'Pinoli' && item.quantity === '15 g'));
+  assert.ok(!items.some(item => /Carne macinata|Passata di pomodoro/i.test(item.name)));
+  assert.equal(items[0].quantity, '125 g');
+}
+assert.equal(await sandbox.generate('lasagna al pesto sperimentale', 2), null);
 const meat = await sandbox.generate('i cannelloni', 2);
 assert.ok(meat.some(i => i.name === 'Carne macinata'));
 assert.equal(meat[0].quantity, '125 g');
