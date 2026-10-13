@@ -12,6 +12,10 @@ const HOSTS: Record<string, string> = {
   Conad: "spesaonline.conad.it",
   TIGROS: "www.tigros.it",
   Carrefour: "www.carrefour.it",
+  Iper: "iperdrive.iper.it",
+  Iperal: "www.iperalspesaonline.it",
+  Eurospin: "online.eurospin.com",
+  Bennet: "www.bennet.com",
 };
 export function exactOnlineSupermarkets(
   rows: unknown,
@@ -87,23 +91,33 @@ export async function findOnlineSupermarkets(
           q: query.slice(0, 120),
         });
         const response = await fetch(`/api/online-retailers?${params}`);
-        if (!response.ok) return [];
+        if (!response.ok) throw new Error("Catalogue lookup failed");
         const data = await response.json();
         return exactOnlineSupermarkets(data.offers, batch, country);
       } catch {
-        return [];
+        throw new Error("Catalogue lookup failed");
       }
     }),
   );
   return offers.flat();
 }
 
-export function supermarketsBySeller(offers: OnlineSupermarket[], preferredCodes: string[]): OnlineSupermarket[] {
-  const preferred = new Set(preferredCodes.map(code => code.padStart(14, "0")));
+export function supermarketsBySeller(
+  offers: OnlineSupermarket[],
+  preferredCodes: string[],
+): OnlineSupermarket[] {
+  const preferred = new Set(
+    preferredCodes.map((code) => code.padStart(14, "0")),
+  );
   const sellers = new Map<string, OnlineSupermarket>();
   for (const offer of offers) {
     const existing = sellers.get(offer.name);
-    if (!existing || preferred.has(offer.code.padStart(14, "0")) && !preferred.has(existing.code.padStart(14, "0"))) sellers.set(offer.name, offer);
+    if (
+      !existing ||
+      (preferred.has(offer.code.padStart(14, "0")) &&
+        !preferred.has(existing.code.padStart(14, "0")))
+    )
+      sellers.set(offer.name, offer);
   }
   return [...sellers.values()];
 }

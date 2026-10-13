@@ -21,3 +21,8 @@ test('one seller card retains the exact compatible product ahead of variants nee
  assert.deepEqual(supermarketsBySeller([review,offer],[offer.code]),[offer]);
  assert.deepEqual(supermarketsBySeller([offer,review],[offer.code]),[offer]);
 });
+test('a failed request is reported as failure, never an empty successful shop search',async()=>{
+ const original=globalThis.fetch;
+ globalThis.fetch=async()=>new Response(null,{status:503});
+ try{await assert.rejects(findOnlineSupermarkets([offer.code],'it','pasta'));}finally{globalThis.fetch=original;}
+});

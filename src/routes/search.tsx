@@ -1,5 +1,6 @@
 import { useServerFn } from "@tanstack/react-start";
 import { checkLocalStock } from "@/lib/local-stock.functions";
+import { supermarketBrandOwners } from "@/lib/supermarket-brands";
 import { findOnlineSupermarkets, supermarketsBySeller } from "@/lib/online-supermarkets";
 import { confirmedLocalStock } from "@/lib/local-stock";
 import { useAppLanguage } from "@/lib/language";
@@ -82,6 +83,7 @@ function SearchPage() {
     retry: false, staleTime: 60_000, refetchInterval: local ? 300_000 : false,
   });
   const catalogueStores = local && !onlineStores.isError ? supermarketsBySeller((onlineStores.data ?? []).filter(offer=>Date.now()-Date.parse(offer.checkedAt)<=600_000 && !localStores.some(store=>store.retailer.toLowerCase()===offer.name.toLowerCase())), groups.compatible.map(product=>product.code)) : [];
+  const brandStores = supermarketBrandOwners(catalogProducts,location.country).filter(offer=>!catalogueStores.some(store=>store.name===offer.name) && !localStores.some(store=>store.retailer.toLowerCase()===offer.name.toLowerCase()));
   const typedIngredient = buy ? ingredientPurchaseQuery(value.trim(), profile?.allergens ?? []) : value.trim();
   const typedCatalogQuery = buy && location.country !== "it" ? translateText(typedIngredient, "en") : typedIngredient;
   const searchingTypedQuery = isFetching && typedCatalogQuery === catalogQuery;
@@ -93,7 +95,7 @@ function SearchPage() {
     </header>
     {buy && <>
       <p className="mt-3 text-sm text-muted-foreground">{local
-        ? t("Mostriamo i supermercati con una scheda del prodotto sul proprio sito. La disponibilità nel negozio scelto va verificata.")
+        ? t("Indichiamo i supermercati dalle schede dei prodotti e dai marchi propri. Controlla la disponibilità nel negozio.")
         : t(filterByProfile ? "I risultati compatibili sono separati da quelli da verificare. I prodotti con allergeni rilevati sono esclusi dalle proposte di acquisto." : "Scegli un prodotto del catalogo oppure cercalo direttamente online.")}</p>
       <PurchaseCountrySelector withCity />
       {!local && <label className="mt-3 flex items-center gap-2 text-sm text-foreground">
@@ -127,7 +129,7 @@ function SearchPage() {
     <div className="mt-5 flex flex-col gap-3">
 
       {local && (stock.isFetching || onlineStores.isFetching) && <p className="py-4 text-center text-sm">{t("Cerco il prodotto sui siti dei supermercati…")}</p>}
-      {local && location.country === "it" && !isFetching && !stock.isFetching && !onlineStores.isFetching && localStores.length === 0 && catalogueStores.length === 0 && <p className="rounded-xl bg-muted p-4 text-sm">{t("Non abbiamo trovato una scheda corrispondente sui siti dei supermercati controllati. Puoi provare un altro nome o una marca.")}</p>}
+      {local && location.country === "it" && !isError && !onlineStores.isError && !isFetching && !stock.isFetching && !onlineStores.isFetching && localStores.length === 0 && catalogueStores.length === 0 && brandStores.length === 0 && <p className="rounded-xl bg-muted p-4 text-sm">{t("Nessuna corrispondenza nei cataloghi collegati. Questo non significa che il prodotto non sia venduto: la ricerca non copre tutti i supermercati.")}</p>}
 
       {isFetching && <div className="flex items-center justify-center gap-2 py-6 text-sm font-bold text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" />{t("Cerco…")}</div>}
       {!local && isError && <p className="py-4 text-center text-sm text-muted-foreground">{t("Ricerca non riuscita. Controlla la connessione e riprova.")}</p>}
@@ -145,6 +147,13 @@ function SearchPage() {
         <span className="mt-1 block text-sm text-muted-foreground">{offer.address}, {offer.city}</span>
         <span className="mt-2 block text-xs text-safe">{t("Disponibilità confermata")}: {new Date(offer.checkedAt).toLocaleTimeString(language === "it" ? "it-IT" : "en-GB", {hour:"2-digit",minute:"2-digit"})}</span>
         {filterByProfile && offers.some(row => row.storeId === offer.storeId && groups.review.some(product => product.code.padStart(14, "0") === row.code.padStart(14, "0"))) && <span className="mt-2 block text-xs text-caution-foreground">{t("Controlla ingredienti e allergeni")}</span>}
+      </a>)}
+      {local && (isError || onlineStores.isError) && <div className="rounded-xl bg-muted p-4 text-sm"><p>{t("Ricerca dei negozi non riuscita. Riprova.")}</p><button type="button" className="mt-2 font-bold text-primary underline" onClick={()=>{void refetch();void onlineStores.refetch();}}>{t("Riprova")}</button></div>}
+      {local && !isFetching && brandStores.map(offer => <a key={offer.name} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl border border-border bg-card p-4 text-foreground">
+        <strong className="block text-base">{offer.name}</strong>
+        <span className="mt-1 block text-sm">{t("Catena del marchio")}: {offer.brand}</span>
+        <span className="mt-2 block text-xs text-muted-foreground">{t("Disponibilità del prodotto nel negozio da verificare. Il link apre la pagina ufficiale del marchio.")}</span>
+        {filterByProfile && groups.review.some(product=>product.code===offer.code) && <span className="mt-2 block text-xs text-caution-foreground">{t("Controlla ingredienti e allergeni")}</span>}
       </a>)}
       {local && !isFetching && catalogueStores.map(offer => <a key={offer.name} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl border border-border bg-card p-4 text-foreground">
         <strong className="block text-base">{offer.name}</strong>
@@ -177,6 +186,7 @@ function SearchPage() {
           </>}
         </article></div>;
       })}
+      {local && <details className="rounded-xl bg-muted p-3 text-xs text-muted-foreground"><summary className="cursor-pointer font-bold">{t("Copertura della ricerca")}</summary><p className="mt-2">{t("Cataloghi collegati")}: Carrefour, Esselunga, Coop Shop, Conad, TIGROS, Iper, Iperal, Eurospin, Bennet.</p><p className="mt-2">{t("Indicazione della catena dai marchi propri")}: MD, Lidl, Eurospin.</p><p className="mt-2">{t("La ricerca non copre ancora tutte le catene e tutti i prodotti.")}</p></details>}
       {hasNextPage && <button type="button" disabled={isFetching} onClick={() => void fetchNextPage()}
         className="rounded-2xl bg-secondary px-4 py-3 font-extrabold text-secondary-foreground disabled:opacity-50">{t(isFetchingNextPage ? "Cerco…" : local ? "Continua la ricerca" : "Mostra altri prodotti")}</button>}
       {!local && !!visibleProducts.length && <p className="mt-2 text-center text-[11px] text-muted-foreground">{t("Dati prodotto: Open Food Facts")}</p>}

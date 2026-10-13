@@ -43,7 +43,7 @@ export function PurchaseLinks({
       </div>
       <p className="text-xs text-muted-foreground">
         {t(
-          "Mostriamo i supermercati con una scheda del prodotto sul proprio sito. La disponibilità nel negozio scelto va verificata.",
+          "Indichiamo i supermercati dalle schede dei prodotti e dai marchi propri. Controlla la disponibilità nel negozio.",
         )}
       </p>
     </div>

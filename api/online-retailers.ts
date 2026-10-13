@@ -115,6 +115,34 @@ export function digitelematicaCatalogue(
     ];
   });
 }
+export function bennetCatalogue(value: any): CatalogueOffer[] {
+  if (!Array.isArray(value?.hits)) return [];
+  return value.hits.flatMap((hit: any) => {
+    const row = hit?.masterValues;
+    if (
+      !row ||
+      row.food !== true ||
+      typeof row.summary !== "string" ||
+      !Array.isArray(row.eans)
+    )
+      return [];
+    const sourceUrl = safeProductUrl(row.url, "www.bennet.com", "/Categories/");
+    if (!sourceUrl || !sourceUrl.includes("/p/")) return [];
+    return row.eans
+      .filter(
+        (code: unknown) => typeof code === "string" && /^\d{8,14}$/.test(code),
+      )
+      .map((code: string) => ({
+        code,
+        name: "Bennet",
+        country: "it",
+        verified: true,
+        sourceUrl,
+        checkedAt: new Date().toISOString(),
+        productName: row.summary.slice(0, 200),
+      }));
+  });
+}
 export function esselungaCatalogue(value: any): CatalogueOffer[] {
   const row = value?.displayableProduct;
   if (
@@ -234,8 +262,15 @@ async function sourceSearch(
   if (sourcePending.has(key)) return (await sourcePending.get(key)) ?? [];
   const work = (async () => {
     try {
-      if (name === "TIGROS" || name === "Coop") {
-        const host = name === "TIGROS" ? "www.tigros.it" : "www.coopshop.it";
+      const hosts: Record<string, string> = {
+        TIGROS: "www.tigros.it",
+        Coop: "www.coopshop.it",
+        Iper: "iperdrive.iper.it",
+        Iperal: "www.iperalspesaonline.it",
+        Eurospin: "online.eurospin.com",
+      };
+      if (hosts[name]) {
+        const host = hosts[name]!;
         const url = new URL(`https://${host}/ebsn/api/products`);
         url.searchParams.set("q", query);
         return digitelematicaCatalogue(
@@ -243,6 +278,13 @@ async function sourceSearch(
           name,
           host,
         );
+      }
+      if (name === "Bennet") {
+        const url = new URL(
+          "https://search-prod.bennet.com/fact-finder/rest/v5/search/Bennet_PROD",
+        );
+        url.searchParams.set("query", query);
+        return bennetCatalogue(JSON.parse(await publicPage(url.href)));
       }
       if (name === "Esselunga") {
         const headers = {
@@ -451,7 +493,16 @@ export async function GET(request: Request) {
       pool(codes, lookup, 4).then((rows) => rows.flat()),
     ];
     if (query.length >= 2)
-      for (const name of ["Esselunga", "Coop", "Conad", "TIGROS"])
+      for (const name of [
+        "Esselunga",
+        "Coop",
+        "Conad",
+        "TIGROS",
+        "Iper",
+        "Iperal",
+        "Eurospin",
+        "Bennet",
+      ])
         tasks.push(sourceSearch(name, query));
     const rows = (await Promise.all(tasks))
       .flat()

@@ -106,3 +106,16 @@ test('batch lookup includes only the requested GTINs across all public supermark
   assert.ok(reply.offers.every(x=>x.code!==code));
  }finally{globalThis.fetch=original;}
 });
+test('Bennet search records require food flag, actual EAN and product URL',async()=>{
+ const {bennetCatalogue}=await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
+ const value={hits:[{masterValues:{summary:'Chef Besciamella Senza Lattosio',food:true,eans:[code],url:'https://www.bennet.com/Categories/LATTE/p/P_0209981'}}]};
+ assert.equal(bennetCatalogue(value)[0].code,code);
+ assert.deepEqual(bennetCatalogue({hits:[{masterValues:{...value.hits[0].masterValues,food:false}}]}),[]);
+ assert.deepEqual(bennetCatalogue({hits:[{masterValues:{...value.hits[0].masterValues,url:'https://evil.example/Categories/p/product'}}]}),[]);
+});
+test('expanded Iper, Iperal and Eurospin sources retain exact-barcode catalogue proof',()=>{
+ for(const [name,host] of [['Iper','iperdrive.iper.it'],['Iperal','www.iperalspesaonline.it'],['Eurospin','online.eurospin.com']]){
+  const result=digitelematicaCatalogue({data:{products:[{barcode:code,name:'Chef',itemUrl:'/product/chef'}]}},name,host);
+  assert.equal(result[0].name,name); assert.equal(result[0].code,code); assert.ok(result[0].sourceUrl.startsWith(`https://${host}/product/`));
+ }
+});
