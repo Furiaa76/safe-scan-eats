@@ -4,6 +4,15 @@ export type AppLanguage = "it" | "en";
 import { EXTRA_RECIPES, CATALOG_FOOD_EN } from "./recipe-catalog";
 
 export const ENGLISH: Record<string, string> = {
+  "Nei supermercati della zona mostriamo solo disponibilità confermate del prodotto nel punto vendita.": "Local supermarket results show only confirmed product stock at the specific store.",
+  "Disponibilità nei supermercati della zona": "Local supermarket availability",
+  "Disponibilità confermata": "Confirmed availability",
+  "Inserisci la città per cercare disponibilità confermate nei supermercati della zona.": "Enter a city to search confirmed local supermarket stock.",
+  "Verifico la disponibilità nel punto vendita…": "Checking availability at the store\u2026",
+  "Nessuna disponibilità confermata per questo prodotto nei supermercati della zona. I negozi senza conferma non vengono mostrati.": "No confirmed stock for this product in local supermarkets. Stores without confirmation are not shown.",
+  "Una scheda online o la presenza di un supermercato in città non conferma le scorte del punto vendita.": "An online listing or a supermarket in your city does not confirm stock at that store.",
+  "catalogo online": "online catalogue",
+
   "Aggiungi Safe Scan alla Home": "Add Safe Scan to your Home Screen",
   "Apri l’app dalla sua icona, senza passare dagli store.": "Open the app from its icon, without using an app store.",
   "Su iPhone: apri questo sito in Safari, tocca Condividi, poi Aggiungi alla schermata Home e Aggiungi.": "On iPhone: open this site in Safari, tap Share, then Add to Home Screen and Add.",

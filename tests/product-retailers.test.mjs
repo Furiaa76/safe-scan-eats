@@ -4,9 +4,9 @@ import { test } from 'node:test';
 import ts from 'typescript';
 const js=ts.transpileModule(readFileSync(new URL('../src/lib/product-retailers.ts',import.meta.url),'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
 const { productRetailers }=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
-test('verified supermarket matches exact checked product and Como pickup only',()=>{
+test('exact online catalogue evidence never becomes local Como stock',()=>{
  const result=productRetailers({code:'8002580001646',source:'off',stores:['Esselunga','Carrefour']},{country:'it',city:'Como'});
- assert.equal(result[0].name,'Esselunga'); assert.equal(result[0].verified,true); assert.ok(result[0].pickup.includes('Como'));
+ assert.equal(result[0].name,'Esselunga'); assert.equal(result[0].verified,true); assert.equal(result[0].pickup,undefined);
  assert.equal(result.length,1); assert.equal(result[0].country,'it'); assert.ok(result[0].sourceUrl.includes('/chef-besciamella-senza-lattosio-500-ml'));
  assert.equal(productRetailers({code:'8002580001646',source:'off'},{country:'it',city:'Milano'})[0].pickup,undefined);
 });
