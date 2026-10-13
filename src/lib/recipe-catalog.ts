@@ -150,7 +150,8 @@ export const EXTRA_RECIPES: CatalogRecipe[] = [
     "title": "Lasagne al pesto",
     "englishTitle": "Pesto lasagna",
     "aliases": [
-      "Pesto lasagna"
+      "Pesto lasagna",
+      "lasagne a pesto"
     ],
     "servings": 4,
     "ingredients": [

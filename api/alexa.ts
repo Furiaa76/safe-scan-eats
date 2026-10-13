@@ -439,7 +439,8 @@ const EXTRA_RECIPES: Array<{ id: string; title: string; englishTitle: string; al
     "title": "Lasagne al pesto",
     "englishTitle": "Pesto lasagna",
     "aliases": [
-      "Pesto lasagna"
+      "Pesto lasagna",
+      "lasagne a pesto"
     ],
     "servings": 4,
     "ingredients": [
@@ -4562,6 +4563,7 @@ function cleanDish(input: string) {
   return input
     .toLocaleLowerCase("it-IT")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\blasagna\b/g, "lasagne")
     .replace(/[!?.,'’]/g, " ")
     .replace(/\b(voglio|vorrei|fare|preparare|cucinare|la|il|lo|gli|le|i|una|un)\b/g, " ")
     .replace(/\s+/g, " ")
