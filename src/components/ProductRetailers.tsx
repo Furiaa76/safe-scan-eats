@@ -12,11 +12,22 @@ import {
   usePurchaseLocation,
 } from "@/lib/purchase";
 
-export function ProductRetailers({ product }: { product: FoodProduct }) {
+export function ProductRetailers({
+  product,
+  query,
+}: {
+  product: FoodProduct;
+  query?: string;
+}) {
   const { t, language } = useAppLanguage();
   const location = usePurchaseLocation();
   const catalogue = useQuery({
-    queryKey: ["online-retailers", product.code, location.country],
+    queryKey: [
+      "online-retailers",
+      product.code,
+      location.country,
+      query ?? product.name,
+    ],
     enabled:
       product.source !== "manual" &&
       location.country === "it" &&
@@ -24,7 +35,7 @@ export function ProductRetailers({ product }: { product: FoodProduct }) {
     queryFn: async (): Promise<ProductRetailer[]> => {
       try {
         const response = await fetch(
-          `/api/online-retailers?code=${encodeURIComponent(product.code)}&country=${location.country}`,
+          `/api/online-retailers?code=${encodeURIComponent(product.code)}&country=${location.country}&q=${encodeURIComponent(query ?? product.name)}`,
         );
         if (!response.ok) return [];
         const data = await response.json();
@@ -36,12 +47,16 @@ export function ProductRetailers({ product }: { product: FoodProduct }) {
     staleTime: 60_000,
     retry: false,
   });
-  const retailers = [
-    ...productRetailers(product, location),
-    ...(product.source !== "manual" && location.country === "it"
-      ? (catalogue.data ?? [])
-      : []),
-  ];
+  const retailers = Array.from(
+    new Map(
+      [
+        ...productRetailers(product, location),
+        ...(product.source !== "manual" && location.country === "it"
+          ? (catalogue.data ?? [])
+          : []),
+      ].map((retailer) => [retailer.name, retailer]),
+    ).values(),
+  );
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       {retailers.length ? (
