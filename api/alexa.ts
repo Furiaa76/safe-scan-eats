@@ -4580,13 +4580,32 @@ function scaleRecipeQuantity(quantity: string, servings: number, baseServings = 
   return `${String(scaled).replace(".", ",")}${match[2]}`.trim();
 }
 
+function dishNumberKey(input: string) {
+  return cleanDish(input).split(" ").map((word) => {
+    if (/^(al|allo|alla|agli|alle|ai)$/.test(word)) return "a";
+    if (/^(del|dello|della|degli|delle|dei)$/.test(word)) return "di";
+    if (word.length <= 3) return word;
+    if (word === "uova" || word === "uovo") return "uov";
+    return word.replace(/([cg])hi$/, "$1").replace(/[aeio]$/, "");
+  }).join(" ");
+}
+
 async function generateIngredients(dish: string, servings = 4, avoidHistamine = false, preferences: string[] = []) {
   const cleaned = cleanDish(dish);
   // Match the whole dish: a requested variant must not silently become its generic recipe.
-  const extra = EXTRA_RECIPES.find((recipe) =>
+  let extra = EXTRA_RECIPES.find((recipe) =>
     [recipe.title, ...recipe.aliases].some((alias) => cleanDish(alias) === cleaned));
-  const builtIn = extra?.ingredients ??
+  let builtIn = extra?.ingredients ??
     Object.entries(BUILTIN_RECIPES).find(([key]) => cleanDish(key) === cleaned)?.[1];
+  if (!builtIn) {
+    const numberKey = dishNumberKey(dish);
+    const candidates = EXTRA_RECIPES.filter((recipe) =>
+      [recipe.title, ...recipe.aliases].some((alias) => dishNumberKey(alias) === numberKey));
+    // A plural form must still identify one complete recipe, including its variant.
+    if (candidates.length === 1) extra = candidates[0];
+    const baseCandidates = Object.entries(BUILTIN_RECIPES).filter(([key]) => dishNumberKey(key) === numberKey);
+    builtIn = extra?.ingredients ?? (candidates.length === 0 && baseCandidates.length === 1 ? baseCandidates[0][1] : undefined);
+  }
   if (builtIn) {
     const scaled = builtIn.map((item) => {
       const options = item as { name: string; quantity: string; glutenSwap?: string; lactoseSwap?: string };
@@ -4809,7 +4828,7 @@ function recipeMentionsDish(recipe: string | undefined, dish: string) {
   return recipe
     .split("·")
     .map((part) => cleanDish(part.replace(/\(\d+\s+persone?\)/gi, "")))
-    .some((part) => part === wanted);
+    .some((part) => part === wanted || dishNumberKey(part) === dishNumberKey(wanted));
 }
 
 function parseServings(value: unknown): number | null {
@@ -4894,7 +4913,7 @@ async function replaceDishInCloud(
   }
   const shared = selected.some((item) =>
     (item.recipe ?? "").split("·").some((part) =>
-      cleanDish(part.replace(/\(\d+\s+persone?\)/gi, "")) !== cleanDish(oldDish)));
+      dishNumberKey(part.replace(/\(\d+\s+persone?\)/gi, "")) !== dishNumberKey(oldDish)));
   if (shared) {
     // Old rows contain only a combined quantity, not each recipe's contribution.
     return { ok: false as const, reason: "sharedIngredients" as const, count: 0 };
