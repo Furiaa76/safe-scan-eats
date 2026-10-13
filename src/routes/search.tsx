@@ -46,10 +46,10 @@ function SearchPage() {
   const [value, setValue] = useState(catalogQuery);
   useEffect(() => setValue(catalogQuery), [catalogQuery]);
   const { data, isFetching, isError, refetch, hasNextPage, fetchNextPage, isFetchingNextPage } = useInfiniteQuery({
-    queryKey: ["off-search", catalogQuery, searchCountry ?? "world", language, code ?? ""],
+    queryKey: ["off-search", catalogQuery, searchCountry ?? "world", language, code ?? "", !!buy],
     initialPageParam: 1,
     queryFn: async ({ pageParam }) => {
-      if (local && code) { const product = await fetchProduct(code); return { products: product ? [product] : [], hasMore: false }; }
+      if (buy && code) { const product = await fetchProduct(code); return { products: product ? [product] : [], hasMore: false }; }
       return searchProductPage(catalogQuery, searchCountry, language, pageParam);
     },
     getNextPageParam: (lastPage, _pages, page) => lastPage.hasMore ? page + 1 : undefined,
@@ -84,7 +84,7 @@ function SearchPage() {
       <p className="mt-3 text-sm text-muted-foreground">{filterByProfile
         ? t("I risultati compatibili sono separati da quelli da verificare. I prodotti con allergeni rilevati sono esclusi dalle proposte di acquisto.")
         : t(local ? "Nei supermercati della zona mostriamo solo disponibilità confermate del prodotto nel punto vendita." : "Scegli un prodotto del catalogo oppure cercalo direttamente online.")}</p>
-      <PurchaseCountrySelector withCity />
+      <PurchaseCountrySelector withCity cityRequired={local} />
       {!local && <label className="mt-3 flex items-center gap-2 text-sm text-foreground">
         <input type="checkbox" checked={worldwide} onChange={(event) => setWorldwide(event.target.checked)} />
         {t("Cerca anche nei cataloghi di altri Paesi")}
@@ -110,7 +110,7 @@ function SearchPage() {
     {buy && !local && !filterByProfile && q.trim().length >= 2 && <section className="mt-4 rounded-2xl bg-secondary/50 p-4">
       <h2 className="font-extrabold text-foreground">{t("Cerca questo ingrediente")}: {t(ingredientQuery)}</h2>
       <PurchaseLinks query={`"${catalogQuery.replace(/["\\]/g, " ").trim()}"`} exactProduct {...(from ? { from } : {})} onlineLabel="Cerca ingrediente online" />
-      <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{t("I negozi sono segnalati dagli utenti del database, anche in sedi o Paesi diversi. Prezzi, spedizione e disponibilità vanno verificati con il venditore. Controlla sempre l’etichetta prima di acquistare.")}</p>
+      <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{t("Le schede dei venditori si riferiscono al prodotto esatto nel catalogo online. Prezzi, consegna e disponibilità vanno controllati sul sito del venditore.")}</p>
     </section>}
 
     <div className="mt-5 flex flex-col gap-3">
@@ -125,8 +125,8 @@ function SearchPage() {
         {!buy && <Link to="/ingredients" search={{}} className="mt-4 inline-block rounded-2xl bg-primary px-6 py-3 text-base font-extrabold text-primary-foreground">{t("Fotografa ingredienti")}</Link>}
       </div>}
       {!isFetching && !isError && visibleProducts.length > 0 && buy && <div>
-        <h2 className="font-extrabold text-foreground">{t("Confronta prodotti e marchi")}</h2>
-        <p className="mt-1 text-xs text-muted-foreground">{t("Mostriamo le alternative trovate nel catalogo per questo ingrediente. Il numero dipende dai dati disponibili e dal profilo attivo.")}</p>
+        <h2 className="font-extrabold text-foreground">{t(code ? "Prodotto selezionato" : "Confronta prodotti e marchi")}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">{t(code ? "Cerchiamo il codice a barre del prodotto selezionato, mantenendo i controlli del profilo attivo." : "Mostriamo le alternative trovate nel catalogo per questo ingrediente. Il numero dipende dai dati disponibili e dal profilo attivo.")}</p>
       </div>}
       {(!isFetching || isFetchingNextPage) && visibleProducts.map((product, index) => {
         const analysis = buy && profile && !freeMode ? analyzeFood(product, profile.allergens, profile.customAllergens) : null;

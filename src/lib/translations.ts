@@ -12,6 +12,11 @@ export const ENGLISH: Record<string, string> = {
   "Nessuna disponibilità confermata per questo prodotto nei supermercati della zona. I negozi senza conferma non vengono mostrati.": "No confirmed stock for this product in local supermarkets. Stores without confirmation are not shown.",
   "Una scheda online o la presenza di un supermercato in città non conferma le scorte del punto vendita.": "An online listing or a supermarket in your city does not confirm stock at that store.",
   "catalogo online": "online catalogue",
+  "Scheda online controllata": "Online page checked",
+  "Prodotto selezionato": "Selected product",
+  "Cerchiamo il codice a barre del prodotto selezionato, mantenendo i controlli del profilo attivo.": "We look up the selected product barcode and retain the active profile checks.",
+  "Le schede dei venditori si riferiscono al prodotto esatto nel catalogo online. Prezzi, consegna e disponibilità vanno controllati sul sito del venditore.": "Retailer pages refer to the exact product in their online catalogue. Check prices, delivery and availability on the retailer website.",
+  "Città per gli acquisti (obbligatoria)": "Shopping city (required)",
 
   "Aggiungi Safe Scan alla Home": "Add Safe Scan to your Home Screen",
   "Apri l’app dalla sua icona, senza passare dagli store.": "Open the app from its icon, without using an app store.",
