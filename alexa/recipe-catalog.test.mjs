@@ -90,6 +90,19 @@ for (const dish of ['la lasagna al pesto', 'la lasagna a pesto']) {
   assert.equal(items[0].quantity, '125 g');
 }
 assert.equal(await sandbox.generate('lasagna al pesto sperimentale', 2), null);
+for (const [spoken, catalogName] of [
+  ['torte di mele', 'torta di mele'],
+  ['cannellone di carne', 'cannelloni di carne'],
+  ['gnocco al pomodoro', 'gnocchi al pomodoro'],
+  ['risotti ai funghi', 'risotto ai funghi'],
+  ['lasagna vegetariana', 'lasagne vegetariane'],
+]) {
+  const expected = await sandbox.generate(catalogName, 2);
+  assert.ok(expected, catalogName);
+  const actual = await sandbox.generate(spoken, 2);
+  assert.ok(actual, spoken);
+  assert.equal(JSON.stringify(actual), JSON.stringify(expected), spoken);
+}
 const meat = await sandbox.generate('i cannelloni', 2);
 assert.ok(meat.some(i => i.name === 'Carne macinata'));
 assert.equal(meat[0].quantity, '125 g');
