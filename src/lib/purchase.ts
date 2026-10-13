@@ -64,7 +64,7 @@ export function productPurchaseQuery(product: FoodProduct, allergens: readonly s
 export function ingredientPurchaseQuery(name: string, allergens: readonly string[]) {
   let query = name;
   if (allergens.includes("glutine") && !/senza glutine|gluten[ -]?free/i.test(query) &&
-    /\b(pasta|spaghetti|penne|bucatini|sfoglia|lasagne|farina|pangrattato|savoiardi|besciamella|pane|biscotti)\b/i.test(query)) query += " senza glutine";
+    /\b(pasta|spaghetti|penne|bucatini|ravioli|tortellini|gnocchi|cannelloni|sfoglia|lasagne|farina|pangrattato|savoiardi|besciamella|pane|biscotti)\b/i.test(query)) query += " senza glutine";
   if (allergens.includes("lattosio") && !/senza lattosio|lactose[ -]?free/i.test(query) &&
     /\b(latte|burro|panna|mascarpone|mozzarella|besciamella|ricotta|pecorino|parmigiano)\b/i.test(query)) query += " senza lattosio";
   return query;

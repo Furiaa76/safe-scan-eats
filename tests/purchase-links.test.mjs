@@ -50,3 +50,11 @@ test('exact product web search includes the selected country and city, not only 
  }
  assert.equal(new URL(onlinePurchaseUrl(query,{country:'ch',city:'   '},'en',true)).searchParams.get('q'),`${query} Switzerland`);
 });
+
+test('ready-made pasta queries keep the product and apply profile restrictions',()=>{
+ for (const name of ['Ravioli ricotta e spinaci','Tortellini','Gnocchi di patate','Cannelloni']) {
+  assert.ok(ingredientPurchaseQuery(name,['glutine']).includes('senza glutine'));
+  assert.ok(!ingredientPurchaseQuery(name,['glutine']).includes('farina'));
+ }
+ assert.equal(ingredientPurchaseQuery('Ravioli ricotta e spinaci',['glutine','lattosio']), 'Ravioli ricotta e spinaci senza glutine senza lattosio');
+});
