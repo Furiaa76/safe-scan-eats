@@ -1218,22 +1218,10 @@ const EXTRA_RECIPES: Array<{ id: string; title: string; englishTitle: string; al
     "servings": 4,
     "ingredients": [
       {
-        "name": "Farina",
-        "quantity": "400 g",
-        "glutenSwap": "Farina senza glutine"
-      },
-      {
-        "name": "Uova",
-        "quantity": "4"
-      },
-      {
-        "name": "Ricotta",
-        "quantity": "300 g",
-        "lactoseSwap": "Ricotta senza lattosio"
-      },
-      {
-        "name": "Spinaci",
-        "quantity": "400 g"
+        "name": "Ravioli ricotta e spinaci",
+        "quantity": "800 g",
+        "glutenSwap": "Ravioli ricotta e spinaci senza glutine",
+        "lactoseSwap": "Ravioli ricotta e spinaci senza lattosio"
       },
       {
         "name": "Parmigiano grattugiato",
@@ -5985,7 +5973,10 @@ const CATALOG_FOOD_EN: Record<string, string> = {
   "olio per friggere senza glutine": "gluten-free frying oil",
   "olio per friggere senza lattosio": "lactose-free frying oil",
   "lievito di birra senza glutine": "gluten-free baker's yeast",
-  "lievito di birra senza lattosio": "lactose-free baker's yeast"
+  "lievito di birra senza lattosio": "lactose-free baker's yeast",
+  "ravioli ricotta e spinaci": "Ricotta and spinach ravioli",
+  "ravioli ricotta e spinaci senza glutine": "Gluten-free ricotta and spinach ravioli",
+  "ravioli ricotta e spinaci senza lattosio": "Lactose-free ricotta and spinach ravioli"
 };
 
 const FOOD_EN: Record<string, string> = {

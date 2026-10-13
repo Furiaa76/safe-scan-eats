@@ -324,7 +324,10 @@ function safeIngredientName(item: Ingredient, allergens: AllergenId[]) {
     }
   }
   if (allergens.includes("lattosio")) {
-    if (item.lactoseSwap) name = item.lactoseSwap;
+    if (item.lactoseSwap) {
+      name = item.lactoseSwap;
+      if (allergens.includes("glutine") && item.glutenSwap && !/senza glutine/i.test(name)) name += " e senza glutine";
+    }
     else {
       name = name
         .replace(/mascarpone/gi, "Mascarpone senza lattosio")

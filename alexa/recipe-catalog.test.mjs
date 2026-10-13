@@ -136,3 +136,15 @@ for (const [dish, expected] of [['carbonara','Pasta senza glutine'],['tiramisu',
   assert.ok(generated.some(i=>i.name===expected),dish);
 }
 console.log('Laura lasagne full-dialog regression and base-recipe substitutions passed.');
+
+// Ready-made ravioli are a grocery item, just like packaged pasta.
+for (const preferences of [[], ['glutine'], ['lattosio'], ['glutine','lattosio']]) {
+  const generated = await sandbox.generate('ravioli ricotta e spinaci', 2, false, preferences);
+  const ravioli = generated.find(i => i.name.startsWith('Ravioli ricotta e spinaci'));
+  assert.ok(ravioli, 'Packaged ravioli must be the main grocery');
+  assert.equal(ravioli.quantity, '400 g');
+  for (const restriction of preferences) assert.ok(ravioli.name.includes(`senza ${restriction}`));
+  assert.ok(!generated.some(i => /^(farina|uova|ricotta|spinaci)\b/i.test(i.name)), 'Do not replace ready-made ravioli with dough or filling ingredients');
+  assert.ok(generated.some(i => i.name.startsWith('Burro')));
+}
+console.log('Ready-made ravioli and combined gluten/lactose profiles passed.');
