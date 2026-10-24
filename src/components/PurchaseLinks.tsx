@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useAppLanguage } from "@/lib/language";
 import { onlinePurchaseUrl, usePurchaseLocation } from "@/lib/purchase";
+import { AmazonPurchaseLink } from "@/components/AmazonPurchaseLink";
 export function PurchaseLinks({
   query,
   exactProduct = false,
@@ -41,6 +42,7 @@ export function PurchaseLinks({
           {t("Cerca supermercati")}
         </Link>
       </div>
+      <AmazonPurchaseLink query={query} country={location.country} />
       <p className="text-xs text-muted-foreground">
         {t(
           "Indichiamo i supermercati dalle schede dei prodotti e dai marchi propri. Controlla la disponibilità nel negozio.",
