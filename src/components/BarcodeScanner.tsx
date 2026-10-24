@@ -187,24 +187,24 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex h-[100dvh] min-h-0 flex-col overflow-hidden bg-foreground" role="dialog" aria-modal="true" aria-label={t("Scanner codice a barre")}>
-      <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-[max(env(safe-area-inset-top),1rem)] landscape:pb-2 landscape:pt-[max(env(safe-area-inset-top),0.5rem)]">
+      <div className="absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-3 bg-gradient-to-b from-black/80 to-transparent px-5 pb-6 pt-[max(env(safe-area-inset-top),1rem)] landscape:pb-3 landscape:pt-[max(env(safe-area-inset-top),0.5rem)]">
         <p className="text-base font-extrabold text-primary-foreground">{t("Scansiona codice a barre")}</p>
         <button type="button" onClick={close} aria-label={t("Chiudi scanner")} className="grid h-10 w-10 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground">
           <X className="h-5 w-5" />
         </button>
       </div>
 
-      <div className="relative mx-4 min-h-0 flex-1 overflow-hidden rounded-3xl bg-foreground">
+      <div className="absolute inset-0 overflow-hidden bg-foreground">
         <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted autoPlay />
         {status === "live" && (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center">
-            <div className="relative h-40 max-h-[35vh] w-[80%] max-w-2xl rounded-2xl border-4 border-primary-foreground/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] landscape:h-28 landscape:w-[65%]">
+          <div className="pointer-events-none absolute inset-x-[5%] bottom-[max(calc(env(safe-area-inset-bottom)+9rem),22%)] top-[max(calc(env(safe-area-inset-top)+5rem),15%)] landscape:bottom-[max(calc(env(safe-area-inset-bottom)+7rem),25%)] landscape:top-[max(calc(env(safe-area-inset-top)+4rem),20%)]">
+            <div className="relative h-full w-full rounded-2xl border-4 border-primary-foreground/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.25)]">
               <div className="absolute inset-x-3 top-1/2 h-0.5 animate-pulse bg-destructive" />
             </div>
           </div>
         )}
         {(status === "starting" || status === "decoding") && (
-          <div className="absolute inset-0 grid place-items-center text-center">
+          <div className="absolute inset-x-0 bottom-36 top-24 grid place-items-center text-center">
             <div>
               <Loader2 className="mx-auto h-10 w-10 animate-spin text-primary-foreground" />
               <p className="mt-3 text-sm font-bold text-primary-foreground">{t(status === "starting" ? "Avvio fotocamera…" : "Leggo il codice…")}</p>
@@ -212,7 +212,7 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
           </div>
         )}
         {status === "error" && (
-          <div className="absolute inset-0 grid place-items-center overflow-y-auto p-6 text-center">
+          <div className="absolute inset-x-0 bottom-36 top-24 grid place-items-center overflow-y-auto p-6 text-center">
             <div>
               <CameraOff className="mx-auto h-12 w-12 text-primary-foreground/80" />
               <p className="mt-4 text-sm font-semibold leading-relaxed text-primary-foreground">{t(error)}</p>
@@ -221,7 +221,7 @@ export function BarcodeScanner({ onDetected, onClose }: Props) {
         )}
       </div>
 
-      <div className="shrink-0 px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-4 landscape:pb-[max(env(safe-area-inset-bottom),0.5rem)] landscape:pt-2">
+      <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-5 pb-[max(env(safe-area-inset-bottom),1.25rem)] pt-8 landscape:pb-[max(env(safe-area-inset-bottom),0.5rem)] landscape:pt-4">
         {status === "live" && <p className="mb-3 text-center text-sm font-semibold text-primary-foreground/80 landscape:mb-2">{t("Inquadra il codice a barre dentro il riquadro")}</p>}
         <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-extrabold text-primary-foreground landscape:py-3">
           <Camera className="h-5 w-5" />
