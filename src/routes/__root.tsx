@@ -1,5 +1,6 @@
 import { ClientDiagnostics, AppRouteError } from "@/components/ClientDiagnostics";
 import { AppStatistics } from "@/components/AppStatistics";
+import { SponsorBanner } from "@/components/SponsorBanner";
 import { Capacitor } from "@capacitor/core";
 import { useAppLanguage } from "@/lib/language";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -78,7 +79,7 @@ function RootComponent() {
     // Il ritorno alla home avviene solo su un nuovo avvio standalone.
   }, []);
 
-  return <QueryClientProvider client={queryClient}><ClientDiagnostics /><Outlet /><AppStatistics /></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><ClientDiagnostics /><SponsorBanner /><Outlet /><AppStatistics /></QueryClientProvider>;
 }
 
 function NotFound() {
