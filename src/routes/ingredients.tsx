@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Camera, Check, Info, Loader2, ScanSearch, Tag } from "lucide-react";
 import { identifyFront, readLabel } from "@/lib/vision.functions";
 import { fileToDataUrl, saveFrontPhoto } from "@/lib/image";
+import { PhotoMagnifier } from "@/components/PhotoMagnifier";
 
 type IngSearch = { code?: string; name?: string; brand?: string; image?: string; mode?: "front" | "label" };
 
@@ -173,11 +174,13 @@ function GuidedFlow() {
   const [name, setName] = useState(search.name ?? "");
   const [brand, setBrand] = useState(search.brand ?? "");
   const [label, setLabel] = useState<string | null>(null);
+  const [originalLabel, setOriginalLabel] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState<null | "front" | "label">(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => saveFrontPhoto(null), []);
+  useEffect(() => () => { if (originalLabel) URL.revokeObjectURL(originalLabel); }, [originalLabel]);
 
   const onFront = async (file?: File) => {
     if (!file) return;
@@ -215,7 +218,18 @@ function GuidedFlow() {
   const onLabel = async (file?: File) => {
     if (!file) return;
     setError(null); setBusy("label");
-    const dataUrl = await fileToDataUrl(file, 1600, 0.85);
+    setText("");
+    setOriginalLabel(URL.createObjectURL(file));
+    let dataUrl: string;
+    try {
+      dataUrl = await fileToDataUrl(file, 1600, 0.85);
+    } catch {
+      setError("Non riesco ad aprire la foto. Scatta una nuova foto oppure scrivi gli ingredienti qui sotto.");
+      setLabel(null);
+      setOriginalLabel(null);
+      setBusy(null);
+      return;
+    }
     setLabel(dataUrl);
     try {
       const r = await readFn({ data: { image: dataUrl } });
@@ -273,6 +287,7 @@ function GuidedFlow() {
       {(name || brand) && <p className="mt-3 flex items-center gap-2 text-sm font-bold text-foreground"><Tag className="h-4 w-4 text-primary" />{t([name, brand].filter(Boolean).join(" · "))}</p>}
       {identity?.claims?.length ? <div className="mt-3 flex flex-wrap gap-2">{identity.claims.map((claim) => <span key={claim} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{t(claim)}</span>)}</div> : null}
       <PhotoBox photo={label} busy={busy === "label"} busyText={t("Leggo gli ingredienti…")} hint={t("Tocca per fotografare la lista ingredienti")} icon={<Camera className="h-14 w-14 text-primary-foreground/80" />} onFile={onLabel} />
+      {originalLabel && <PhotoMagnifier key={originalLabel} src={originalLabel} />}
       {error && <p className="mt-3 text-sm font-semibold text-danger">{t(error)}</p>}
       <label className="mt-5 text-sm font-extrabold text-foreground" htmlFor="ing">{t("Ingredienti letti (controlla e correggi)")}</label><textarea id="ing" value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder={t("Es. farina di grano tenero, zucchero, burro, uova…")} className="mt-2 rounded-2xl border border-border bg-card p-4 text-base text-foreground outline-none focus:border-primary" />
       <button type="button" disabled={text.trim().length < 3 || busy !== null} onClick={analyze} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">{t("Analizza ingredienti")}</button><button type="button" onClick={() => setStep(1)} className="mt-2 py-2 text-sm font-bold text-muted-foreground">{t("Torna alla foto frontale")}</button>
