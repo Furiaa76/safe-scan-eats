@@ -10,6 +10,7 @@ const SHOPPING_KEY = "safefood-shopping-list";
 export interface Profile {
   id: string;
   name: string;
+  photo?: string;
   allergens: AllergenId[];
   /** Allergie o sostanze specifiche dichiarate manualmente dall'utente. */
   customAllergens?: string[];
@@ -229,12 +230,14 @@ export function saveProfile(p: Omit<Profile, "id"> & { id?: string }) {
   const state = getProfilesState();
   const id = p.id || state.activeProfileId || makeProfileId();
   const nickel = p.nickel ?? state.profiles.find((profile) => profile.id === id)?.nickel;
+  const photo = p.photo ?? state.profiles.find((profile) => profile.id === id)?.photo;
   const nextProfile: Profile = {
     id,
     name: p.name,
     allergens: p.allergens,
     customAllergens: Array.from(new Set((p.customAllergens ?? []).map((x) => x.trim()).filter(Boolean))),
     severe: p.severe,
+    ...(photo ? { photo } : {}),
     ...(nickel ? { nickel } : {}),
   };
   const exists = state.profiles.some((profile) => profile.id === id);
@@ -249,6 +252,17 @@ export function addProfile(p: Omit<Profile, "id">): Profile {
   const state = getProfilesState();
   saveProfilesState({ profiles: [...state.profiles, profile], activeProfileId: profile.id, freeMode: false });
   return profile;
+}
+
+/** Updates the selected person's photo without changing the active profile. */
+export function setProfilePhoto(profileId: string, photo: string | null) {
+  const state = getProfilesState();
+  if (!state.profiles.some((p) => p.id === profileId)) throw new Error("Profilo non disponibile.");
+  saveProfilesState({ ...state, profiles: state.profiles.map((p) => {
+    if (p.id !== profileId) return p;
+    const { photo: previousPhoto, ...rest } = p;
+    return photo ? { ...rest, photo } : rest;
+  }) });
 }
 
 export function setActiveProfile(id: string) {

@@ -3,11 +3,12 @@ import { LanguageSelector } from "@/components/LanguageSelector";
 import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
 import { useAppLanguage } from "@/lib/language";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { fileToDataUrl } from "@/lib/image";
 import { emptyNickelSettings } from "@/lib/nickel";
 import { Barcode, Camera, Check, ChefHat, ChevronRight, CreditCard, History, Plus, Salad, ShieldAlert, ShoppingCart, Trash2, TriangleAlert, User, Users, List } from "lucide-react";
 import { ALLERGENS, type AllergenId } from "@/lib/allergens";
-import { addProfile, enableFreeMode, removeProfile, saveProfile, setActiveProfile, useProfile, useProfilesState, useShoppingList } from "@/lib/store";
+import { addProfile, enableFreeMode, removeProfile, saveProfile, setProfilePhoto, setActiveProfile, useProfile, useProfilesState, useShoppingList } from "@/lib/store";
 
 
 
@@ -119,6 +120,42 @@ function ProfileForm({
   </div>;
 }
 
+function ProfilePhoto({ profile }: { profile: NonNullable<ReturnType<typeof useProfile>> }) {
+  const { t } = useAppLanguage();
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const choose = async (file: File | undefined) => {
+    if (!file) return;
+    setError("");
+    setBusy(true);
+    try {
+      // Keep only a small local copy, even when the original is a large phone photo.
+      const photo = await fileToDataUrl(file, 256, 0.8);
+      setProfilePhoto(profile.id, photo);
+    } catch {
+      setError(t("Impossibile salvare la foto. Prova con un’altra immagine o libera spazio sul dispositivo."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <div className="relative shrink-0">
+    <button type="button" disabled={busy} onClick={() => input.current?.click()} aria-label={t("Scegli foto del profilo")} title={t("Scegli foto del profilo")} className="relative grid h-11 w-11 place-items-center rounded-2xl bg-primary text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50">
+      {profile.photo ? <img src={profile.photo} alt="" className="h-full w-full rounded-2xl object-cover" /> : <User className="h-5 w-5" />}
+      <span className="absolute -bottom-1 -right-1 grid h-5 w-5 place-items-center rounded-full border-2 border-background bg-primary"><Camera className="h-3 w-3" /></span>
+    </button>
+    <input ref={input} type="file" accept="image/*" className="hidden" aria-label={t("Scegli foto del profilo")} onChange={(event) => {
+      const file = event.currentTarget.files?.[0];
+      event.currentTarget.value = "";
+      void choose(file);
+    }} />
+    {busy ? <span role="status" className="sr-only">{t("Salvataggio foto…")}</span> : null}
+    {error ? <p role="alert" className="absolute left-0 top-14 z-10 w-64 rounded-xl border border-border bg-card p-3 text-sm text-danger shadow-lg">{error}</p> : null}
+  </div>;
+}
+
 function Home({ onAddProfile, onEditProfile }: { onAddProfile: () => void; onEditProfile: () => void }) {
   const { t } = useAppLanguage();
 
@@ -134,8 +171,9 @@ function Home({ onAddProfile, onEditProfile }: { onAddProfile: () => void; onEdi
   };
 
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-8">
-    <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3"><div className="flex min-w-0 items-center gap-3"><div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"><Salad className="h-5 w-5" /></div><div className="min-w-0"><p className="text-xs font-semibold text-muted-foreground">{t(freeMode ? "Modalità" : "Ciao,")}</p><h1 className="truncate text-xl font-black text-foreground">{t(freeMode ? "Libera" : profile?.name ?? "Profilo")}</h1></div></div><Link to="/history" className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary px-3.5 py-2 text-sm font-bold text-secondary-foreground"><History className="h-4 w-4" />{t("Cronologia")}</Link></header>
+    <header className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3"><div className="flex min-w-0 items-center gap-3">{profile && !freeMode ? <ProfilePhoto key={profile.id} profile={profile} /> : <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground"><Salad className="h-5 w-5" /></div>}<div className="min-w-0"><p className="text-xs font-semibold text-muted-foreground">{t(freeMode ? "Modalità" : "Ciao,")}</p><h1 className="truncate text-xl font-black text-foreground">{t(freeMode ? "Libera" : profile?.name ?? "Profilo")}</h1></div></div><Link to="/history" className="flex shrink-0 items-center gap-1.5 rounded-full bg-secondary px-3.5 py-2 text-sm font-bold text-secondary-foreground"><History className="h-4 w-4" />{t("Cronologia")}</Link></header>
 
+    {profile && !freeMode ? <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground"><span>{t("Tocca la foto per cambiarla")}</span>{profile.photo ? <button type="button" onClick={() => { try { setProfilePhoto(profile.id, null); } catch { window.alert(t("Impossibile rimuovere la foto. Riprova.")); } }} className="font-bold text-primary">{t("Rimuovi foto")}</button> : null}</div> : null}
     <LanguageSelector />
     <WebAppInstall />
     <PurchaseCountrySelector />
