@@ -6,8 +6,22 @@ import vm from 'node:vm';
 const moduleUrl = (source) => 'data:text/javascript;base64,' + Buffer.from(ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText).toString('base64');
 const allergens = moduleUrl(readFileSync(new URL('../src/lib/allergens.ts', import.meta.url), 'utf8').replace('from "lucide-react";', `from "${import.meta.resolve('lucide-react')}";`));
 const claimsModule = moduleUrl(readFileSync(new URL('../src/lib/free-from.ts', import.meta.url), 'utf8'));
-const verdictSource = readFileSync(new URL('../src/lib/verdict.ts', import.meta.url), 'utf8').replaceAll('from "./allergens";', `from "${allergens}";`).replaceAll('from "./free-from";', `from "${claimsModule}";`);
+const nickelModule = moduleUrl(readFileSync(new URL('../src/lib/nickel.ts', import.meta.url), 'utf8'));
+const verdictSource = readFileSync(new URL('../src/lib/verdict.ts', import.meta.url), 'utf8').replaceAll('from "./allergens";', `from "${allergens}";`).replaceAll('from "./free-from";', `from "${claimsModule}";`).replaceAll('from "./nickel";', `from "${nickelModule}";`);
 const { compatiblePurchaseProducts, analyzeFood, purchaseProductGroups } = await import(moduleUrl(verdictSource));
+const personalList = (name) => ({enabled:true,startPage:false,entries:[{id:name,kind:'ingredient',name,aliases:[],code:'',note:''}]});
+test('nickel personal matches participate in shopping and cannot be overridden by a gluten-free label',()=>{
+ const p={code:'tomato',name:'Sauce',brand:'',source:'off',ingredientsText:'pomodoro, acqua',allergenTags:[],traceTags:[],labelTags:['en:no-gluten']};
+ assert.equal(analyzeFood(p,['glutine'],[],personalList('pomodoro')).verdict,'avoid');
+ assert.equal(compatiblePurchaseProducts([p],{allergens:['glutine'],nickel:personalList('pomodoro')}).length,0);
+});
+test('a clear nickel list cannot override another allergen or missing data',()=>{
+ const p={code:'x',name:'x',brand:'',source:'manual',ingredientsText:'farina di frumento',allergenTags:[],traceTags:[],labelTags:[]};
+ assert.equal(analyzeFood(p,['glutine'],[],personalList('cacao')).verdict,'avoid');
+ assert.equal(analyzeFood({...p,ingredientsText:''},[],[],personalList('cacao')).verdict,'warning');
+ assert.equal(analyzeFood(p,[],[],{enabled:true,startPage:false,entries:[]}).verdict,'warning');
+ assert.equal(analyzeFood({...p,ingredientsText:'uva'},[],[],personalList('cacao')).verdict,'compatible');
+});
 const product = (code, ingredientsText, fields = {}) => ({ code, name: code, brand: '', source: 'off', ingredientsText, allergenTags: [], traceTags: [], labelTags: [], ...fields });
 const products = [product('rice', 'farina di riso, acqua'), product('wheat', 'farina di frumento, acqua', { allergenTags: ['en:gluten'] }), product('traces', 'riso, acqua', { traceTags: ['en:gluten'] }), product('unknown', ''), product('soy', 'riso, soia', { allergenTags: ['en:soybeans'] })];
 test('shopping excludes gluten, traces and missing ingredients', () => {

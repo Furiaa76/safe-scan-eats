@@ -4,7 +4,8 @@ import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
 import { useAppLanguage } from "@/lib/language";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Barcode, Camera, Check, ChefHat, ChevronRight, CreditCard, History, Plus, Salad, ShieldAlert, ShoppingCart, Trash2, TriangleAlert, User, Users } from "lucide-react";
+import { emptyNickelSettings } from "@/lib/nickel";
+import { Barcode, Camera, Check, ChefHat, ChevronRight, CreditCard, History, Plus, Salad, ShieldAlert, ShoppingCart, Trash2, TriangleAlert, User, Users, List } from "lucide-react";
 import { ALLERGENS, type AllergenId } from "@/lib/allergens";
 import { addProfile, enableFreeMode, removeProfile, saveProfile, setActiveProfile, useProfile, useProfilesState, useShoppingList } from "@/lib/store";
 
@@ -12,6 +13,7 @@ import { addProfile, enableFreeMode, removeProfile, saveProfile, setActiveProfil
 
 export const Route = createFileRoute("/")({
   server: { handlers: { POST: async ({ request }) => handleAlexaRequest(request) } },
+  validateSearch: (s: Record<string, unknown>): { home?: boolean } => ({ home: s["home"] === true || s["home"] === "true" || s["home"] === "1" }),
   head: () => ({ meta: [
     { title: "Safe Scan Eats — Controlla allergeni e intolleranze" },
     { name: "description", content: "Scansiona i prodotti e scopri subito se sono compatibili con le tue intolleranze e allergie alimentari." },
@@ -42,6 +44,8 @@ function ProfileForm({
   const [name, setName] = useState(editingProfile?.name ?? "");
   const [selected, setSelected] = useState<Set<AllergenId>>(new Set(editingProfile?.allergens ?? []));
   const [customText, setCustomText] = useState((editingProfile?.customAllergens ?? []).join(", "));
+  const [nickelEnabled, setNickelEnabled] = useState(editingProfile?.nickel?.enabled ?? false);
+  const [saveError, setSaveError] = useState("");
   const [severe, setSevere] = useState(editingProfile?.severe ?? false);
   const toggle = (id: AllergenId) => setSelected((prev) => {
     const next = new Set(prev);
@@ -54,18 +58,21 @@ function ProfileForm({
       .map((x) => x.trim())
       .filter((x) => x.length >= 2)
   ));
-  const submit = () => {
+  const submit = (openNickel = false) => {
+    try {
     const data = {
-      id: editingProfile?.id,
+      ...(editingProfile?.id ? { id: editingProfile.id } : {}),
       name: name.trim() || (adding ? t("Nuovo profilo") : editingProfile?.name || t("Ospite")),
       allergens: Array.from(selected),
       customAllergens: customAllergens(),
       severe,
+      nickel: { ...(editingProfile?.nickel ?? emptyNickelSettings()), enabled: nickelEnabled || openNickel, startPage: nickelEnabled && !!editingProfile?.nickel?.startPage },
     };
     if (adding) addProfile(data);
     else saveProfile(data);
     onCancel?.();
-    navigate({ to: "/", replace: true });
+    navigate(openNickel ? { to: "/nichel" } : { to: "/", search: { home: true }, replace: true });
+    } catch { setSaveError("Non è stato possibile salvare il profilo su questo dispositivo."); }
   };
   const free = () => {
     enableFreeMode();
@@ -89,6 +96,8 @@ function ProfileForm({
       return <button key={a.id} type="button" onClick={() => toggle(a.id)} aria-pressed={active} className={`relative flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-colors ${active ? "border-primary bg-secondary" : "border-border bg-card"}`}><Icon className={`h-6 w-6 shrink-0 ${active ? "text-primary" : "text-muted-foreground"}`} /><span className="min-w-0 flex-1 text-sm font-bold leading-tight text-foreground">{t(a.label)}</span>{active && <span className="absolute -right-1.5 -top-1.5 grid h-6 w-6 place-items-center rounded-full bg-primary text-primary-foreground"><Check className="h-4 w-4" /></span>}</button>;
     })}</div>
 
+    <section className="mt-5 rounded-2xl border border-border bg-card p-4"><label className="flex cursor-pointer items-center gap-3"><input type="checkbox" checked={nickelEnabled} onChange={(e) => setNickelEnabled(e.target.checked)} className="h-5 w-5 shrink-0 accent-primary" /><span className="flex-1"><strong className="block text-sm">Nichel — lista personale</strong><span className="mt-1 block text-xs leading-relaxed text-muted-foreground">Aggiungi tu gli alimenti, gli ingredienti e i prodotti da evitare. La lista parte vuota.</span></span></label><button type="button" onClick={() => submit(true)} className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-secondary px-3 py-3 text-sm font-extrabold text-primary"><List className="h-4 w-4" />Salva e apri la lista Nichel</button></section>
+
     <h2 className="mt-8 text-xl font-extrabold text-foreground">{t("Pollini, piante e tisane")}</h2>
     <p className="mt-1 text-sm text-muted-foreground">{t("Queste voci generano solo avvisi di possibile reattività crociata quando esiste un collegamento specifico con un ingrediente.")}</p>
     <div className="mt-4 grid grid-cols-2 gap-3">{ALLERGENS.filter((a) => a.group === "pollen").map((a) => {
@@ -102,7 +111,8 @@ function ProfileForm({
     <textarea value={customText} onChange={(e) => setCustomText(e.target.value)} rows={3} placeholder={t("Es. menta, echinacea")} className="mt-3 w-full resize-none rounded-2xl border border-input bg-card px-4 py-3.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring" />
 
     <button type="button" onClick={() => setSevere(!severe)} aria-pressed={severe} className={`mt-5 flex items-center gap-3 rounded-2xl border-2 p-4 text-left transition-colors ${severe ? "border-danger bg-danger-soft" : "border-border bg-card"}`}><TriangleAlert className={`h-6 w-6 shrink-0 ${severe ? "text-danger" : "text-muted-foreground"}`} /><span className="min-w-0 flex-1 text-sm leading-snug text-foreground"><strong>{t("Allergie gravi.")}</strong> {t(" L'app ricorderà di controllare sempre l'etichetta.")}</span>{severe && <Check className="h-5 w-5 shrink-0 text-danger" />}</button>
-    <button type="button" disabled={selected.size === 0 && customAllergens().length === 0} onClick={submit} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground transition-opacity disabled:opacity-40">{t("Salva profilo")}<ChevronRight className="h-5 w-5" /></button>
+    <button type="button" disabled={selected.size === 0 && customAllergens().length === 0 && !nickelEnabled} onClick={() => submit()} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground transition-opacity disabled:opacity-40">{t("Salva profilo")}<ChevronRight className="h-5 w-5" /></button>
+    {saveError ? <p role="alert" className="mt-3 text-sm text-danger">{saveError}</p> : null}
     {!adding && !isEditing && <button type="button" onClick={free} className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-primary bg-card py-3.5 text-base font-extrabold text-primary"><User className="h-5 w-5" />{t("Continua in modalità libera")}</button>}
     {(adding || isEditing) && onCancel && <button type="button" onClick={onCancel} className="mt-3 py-3 text-sm font-bold text-muted-foreground">{t("Annulla")}</button>}
     <div className="mt-6"><Disclaimer /></div>
@@ -139,6 +149,7 @@ function Home({ onAddProfile, onEditProfile }: { onAddProfile: () => void; onEdi
         <div className="mt-3 flex flex-wrap items-center gap-2"><span className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><User className="h-3.5 w-3.5" />{t("Evita:")}</span>{profile?.allergens.filter((id) => ALLERGENS.find((x) => x.id === id)?.group !== "pollen").map((id) => { const a = ALLERGENS.find((x) => x.id === id); return a ? <span key={id} className="rounded-full bg-secondary px-3 py-1 text-xs font-bold text-secondary-foreground">{t(a.label)}</span> : null; })}</div>
         {!!profile?.allergens.some((id) => ALLERGENS.find((x) => x.id === id)?.group === "pollen") && <div className="mt-2 flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-muted-foreground">{t("Pollini/piante:")}</span>{profile.allergens.filter((id) => ALLERGENS.find((x) => x.id === id)?.group === "pollen").map((id) => { const a = ALLERGENS.find((x) => x.id === id); return a ? <span key={id} className="rounded-full bg-caution-soft px-3 py-1 text-xs font-bold text-caution-foreground">{t(a.label)}</span> : null; })}</div>}
         {!!profile?.customAllergens?.length && <div className="mt-2 flex flex-wrap items-center gap-2"><span className="text-xs font-semibold text-muted-foreground">{t("Dichiarate da te:")}</span>{profile.customAllergens.map((name) => <span key={name} className="rounded-full bg-danger-soft px-3 py-1 text-xs font-bold text-danger">{name}</span>)}</div>}
+        {profile ? <Link to="/nichel" className="mt-4 flex w-full items-center gap-3 rounded-xl bg-secondary p-3 text-primary"><List className="h-5 w-5 shrink-0" /><span className="min-w-0 flex-1"><strong className="block text-sm">Nichel — lista personale</strong><span className="mt-1 block text-xs">{profile.nickel?.entries.length ?? 0} voci · {profile.nickel?.enabled ? "Controllo attivo" : "Configura la tua lista"}</span></span><ChevronRight className="h-4 w-4" /></Link> : null}
         {profile && <div className="mt-4 flex flex-wrap gap-4"><button type="button" onClick={onEditProfile} className="text-xs font-extrabold text-primary">{t("Modifica profilo")}</button><button type="button" onClick={deleteActiveProfile} className="flex items-center gap-1.5 text-xs font-extrabold text-danger"><Trash2 className="h-4 w-4" />{t("Elimina profilo “")}{profile.name}{t("”")}</button></div>}
       </>}
     </section>

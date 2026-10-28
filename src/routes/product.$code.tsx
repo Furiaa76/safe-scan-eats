@@ -3,7 +3,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { ArrowLeft, Loader2, Search, WifiOff, PackageX } from "lucide-react";
-import { fetchProduct } from "@/lib/off";
+import { NickelResult } from "@/components/NickelResult";
+import { fetchProduct, type FoodProduct } from "@/lib/off";
 import { analyzeFood } from "@/lib/verdict";
 import { addToHistory, useProfile } from "@/lib/store";
 import { ResultView } from "@/components/ResultView";
@@ -19,17 +20,19 @@ function ProductPage() {
   const { code } = Route.useParams();
   const profile = useProfile();
   const { data, isLoading, isError, refetch } = useQuery({ queryKey: ["off-product", code], queryFn: () => fetchProduct(code), staleTime: 1000 * 60 * 10, retry: 1 });
-  const product = data ?? null;
-  const analysis = product ? analyzeFood(product, profile?.allergens ?? [], profile?.customAllergens ?? []) : null;
+  const savedProduct = profile?.nickel?.enabled ? profile.nickel.entries.find((x) => x.kind === "product" && x.code === code) : undefined;
+  const fallback: FoodProduct | null = savedProduct ? { code, name: savedProduct.name, brand: "", ingredientsText: "", allergenTags: [], traceTags: [], labelTags: [], source: "manual" } : null;
+  const product = data ?? fallback;
+  const analysis = product ? analyzeFood(product, profile?.allergens ?? [], profile?.customAllergens ?? [], profile?.nickel) : null;
 
   useEffect(() => {
     if (!product || !analysis) return;
     addToHistory({ code: product.code, name: product.name, brand: product.brand, imageUrl: product.imageUrl, source: "off", verdict: analysis.verdict, date: new Date().toISOString() });
   }, [product?.code, analysis?.verdict]);
 
-  if (isLoading) return <Shell><div className="flex flex-1 flex-col items-center justify-center text-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="mt-4 text-base font-bold text-foreground">{t("Cerco il prodotto…")}</p><p className="mt-1 font-mono text-sm text-muted-foreground">{code}</p></div></Shell>;
-  if (isError) return <Shell><div className="flex flex-1 flex-col items-center justify-center text-center"><WifiOff className="h-12 w-12 text-muted-foreground" /><p className="mt-4 text-lg font-extrabold text-foreground">{t("Connessione non riuscita")}</p><p className="mt-1 text-sm text-muted-foreground">{t("Non riesco a raggiungere il database dei prodotti.")}</p><button type="button" onClick={() => refetch()} className="mt-6 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground">{t("Riprova")}</button><FallbackActions code={code} /></div></Shell>;
-  if (!product || !analysis) return <Shell><div className="flex flex-1 flex-col items-center justify-center text-center"><PackageX className="h-14 w-14 text-muted-foreground" /><h1 className="mt-4 text-xl font-extrabold text-foreground">{t("Prodotto non trovato nel database")}</h1><p className="mt-2 text-sm text-muted-foreground">{t("Prova a cercarlo per nome o marca, oppure scansiona un altro codice.")}</p><FallbackActions code={code} /></div></Shell>;
+  if (isLoading && !savedProduct) return <Shell><div className="flex flex-1 flex-col items-center justify-center text-center"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="mt-4 text-base font-bold text-foreground">{t("Cerco il prodotto…")}</p><p className="mt-1 font-mono text-sm text-muted-foreground">{code}</p></div></Shell>;
+  if (isError && !savedProduct) return <Shell><div className="flex flex-1 flex-col items-center justify-center text-center"><WifiOff className="h-12 w-12 text-muted-foreground" /><p className="mt-4 text-lg font-extrabold text-foreground">{t("Connessione non riuscita")}</p><p className="mt-1 text-sm text-muted-foreground">{t("Non riesco a raggiungere il database dei prodotti.")}</p><button type="button" onClick={() => refetch()} className="mt-6 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground">{t("Riprova")}</button><FallbackActions code={code} />{profile?.nickel?.enabled ? <NickelResult product={{ code, name: "Prodotto " + code, brand: "", ingredientsText: "", allergenTags: [], traceTags: [], labelTags: [], source: "manual" }} profile={profile} /> : null}</div></Shell>;
+  if (!product || !analysis) return <Shell><div className="flex flex-1 flex-col items-center justify-center text-center"><PackageX className="h-14 w-14 text-muted-foreground" /><h1 className="mt-4 text-xl font-extrabold text-foreground">{t("Prodotto non trovato nel database")}</h1><p className="mt-2 text-sm text-muted-foreground">{t("Prova a cercarlo per nome o marca, oppure scansiona un altro codice.")}</p><FallbackActions code={code} />{profile?.nickel?.enabled ? <NickelResult product={{ code, name: "Prodotto " + code, brand: "", ingredientsText: "", allergenTags: [], traceTags: [], labelTags: [], source: "manual" }} profile={profile} /> : null}</div></Shell>;
 
   return <ResultView product={product} analysis={analysis} profile={profile} />;
 }

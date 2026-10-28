@@ -1,3 +1,4 @@
+import { NickelResult } from "./NickelResult";
 import { ProductRetailers } from "@/components/ProductRetailers";
 import { useAppLanguage } from "@/lib/language";
 import { Link } from "@tanstack/react-router";
@@ -83,13 +84,15 @@ export function ResultView({
 
   const { freeMode } = useProfilesState();
   const style = VERDICT_STYLE[analysis.verdict];
+  const nickelOnly = !!profile?.nickel?.enabled && !profile.allergens.length && !profile.customAllergens?.length;
+  const personalClear = nickelOnly && analysis.verdict === "compatible";
   const allergens = profile?.allergens ?? [];
   const customAllergens = profile?.customAllergens ?? [];
   const foodAllergens = allergens.filter((id) => allergenById(id).group !== "pollen");
   const findings = freeMode ? freeModeFindings(product) : [];
   const hasFoodIssue = analysis.reasons.some((reason) => reason.level === "avoid" || (reason.level === "warning" && !reason.text.startsWith("Possibile reattività crociata")));
   const shouldSuggestAlternatives = product.source === "off" && !!product.categoryTag && foodAllergens.length > 0 && hasFoodIssue;
-  const shouldAskForFrontPhoto = !freeMode && analysis.verdict === "warning" && analysis.incomplete;
+  const shouldAskForFrontPhoto = !freeMode && analysis.verdict === "warning" && analysis.incomplete && !nickelOnly;
   const ssn = assessSsnCeliac(product);
   const checkSsnRegistryFn = useServerFn(checkSsnRegistry);
   const { data: registryCheck, isFetching: registryChecking, refetch: retryRegistryCheck } = useQuery({
@@ -112,8 +115,8 @@ export function ResultView({
         </header>
         <div className="mt-6 flex flex-col items-center text-center">
           {freeMode ? <Info className="h-20 w-20" strokeWidth={1.5} /> : <style.Icon className="h-20 w-20" strokeWidth={1.5} />}
-          <h1 className="mt-3 text-3xl font-black uppercase tracking-wide">{t(freeMode ? "Informazioni prodotto" : VERDICT_LABEL[analysis.verdict])}</h1>
-          <p className="mt-2 max-w-[300px] text-sm font-semibold opacity-90">{t(freeMode ? "Modalità libera: nessun profilo applicato. Ti mostro cosa è stato rilevato senza stabilire se il prodotto è adatto a una persona specifica." : style.subtitle)}</p>
+          <h1 className="mt-3 text-3xl font-black uppercase tracking-wide">{t(freeMode ? "Informazioni prodotto" : personalClear ? "Nessuna corrispondenza" : VERDICT_LABEL[analysis.verdict])}</h1>
+          <p className="mt-2 max-w-[300px] text-sm font-semibold opacity-90">{t(freeMode ? "Modalità libera: nessun profilo applicato. Ti mostro cosa è stato rilevato senza stabilire se il prodotto è adatto a una persona specifica." : personalClear ? "In base alla tua lista personale. Questo non indica che il prodotto sia senza nichel." : style.subtitle)}</p>
         </div>
       </div>
 
@@ -135,6 +138,8 @@ export function ResultView({
             </div>
           )}
         </div>
+
+        {!freeMode && profile ? <NickelResult key={profile.id} product={product} profile={profile} /> : null}
 
         {freeMode && (
           <section className="mt-5">
@@ -218,7 +223,7 @@ export function ResultView({
           <p className="mt-2 rounded-2xl bg-muted p-4 text-sm leading-relaxed text-foreground">{product.ingredientsText || t("Lista ingredienti non disponibile.")}</p>
         </section>
 
-        {shouldSuggestAlternatives && <Alternatives product={product} allergens={foodAllergens} customAllergens={customAllergens} />}
+        {shouldSuggestAlternatives && <Alternatives product={product} allergens={foodAllergens} customAllergens={customAllergens} profile={profile} />}
         {product.source === "off" && <p className="mt-4 text-center text-[11px] text-muted-foreground">{t("Dati prodotto: Open Food Facts")}</p>}
 
         <Link to="/scan" search={{ mode: "barcode" }} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground"><RotateCcw className="h-5 w-5" />{t("Scansiona un altro prodotto")}</Link>
@@ -228,16 +233,16 @@ export function ResultView({
   );
 }
 
-function Alternatives({ product, allergens, customAllergens }: { product: FoodProduct; allergens: AllergenId[]; customAllergens: string[] }) {
+function Alternatives({ product, allergens, customAllergens, profile }: { product: FoodProduct; allergens: AllergenId[]; customAllergens: string[]; profile: Profile | null }) {
   const { t } = useAppLanguage();
 
   const { data, isFetching } = useQuery({
-    queryKey: ["alternatives", product.categoryTag, allergens.join(","), customAllergens.join("|")],
+    queryKey: ["alternatives", product.categoryTag, allergens.join(","), customAllergens.join("|"), profile?.nickel],
     queryFn: async () => {
       const list = await productsInCategory(product.categoryTag!);
       return list
         .filter((p) => p.code !== product.code)
-        .map((p) => ({ product: p, analysis: analyzeFood(p, allergens, customAllergens) }))
+        .map((p) => ({ product: p, analysis: analyzeFood(p, allergens, customAllergens, profile?.nickel) }))
         .filter(({ analysis }) => analysis.verdict === "compatible")
         .map(({ product }) => product)
         .slice(0, 3);

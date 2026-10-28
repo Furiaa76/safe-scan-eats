@@ -2,6 +2,7 @@ import type { AllergenId } from "./allergens";
 import { allergenById } from "./allergens";
 import type { FoodProduct } from "./off";
 import { freeFromClaim } from "./free-from";
+import { assessNickel, type NickelAssessment, type NickelSettings } from "./nickel";
 
 export type Verdict = "compatible" | "warning" | "avoid";
 
@@ -16,6 +17,7 @@ export interface Analysis {
   verdict: Verdict;
   reasons: Reason[];
   incomplete: boolean;
+  nickel?: NickelAssessment;
 }
 
 const OFF_TAGS: Record<AllergenId, string[]> = {
@@ -125,7 +127,7 @@ function customAllergenHit(text: string, rawTerm: string): boolean {
   return new RegExp(`(^|[^a-zàèéìòù])${escaped}([^a-zàèéìòù]|$)`, "i").test(text);
 }
 
-export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customAllergens: string[] = []): Analysis {
+export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customAllergens: string[] = [], nickelSettings?: NickelSettings): Analysis {
   const reasons: Reason[] = [];
   const text = p.ingredientsText.toLowerCase();
   const { main, traces } = splitTraces(text);
@@ -255,7 +257,7 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
   }
 
   const uncoveredRestrictions = userAllergens.filter((allergen) => !freeFromClaim(p, allergen));
-  const needsIngredientCheck = userAllergens.length === 0 || uncoveredRestrictions.length > 0 || customAllergens.some((term) => term.trim());
+  const needsIngredientCheck = (userAllergens.length === 0 && !nickelSettings?.enabled) || uncoveredRestrictions.length > 0 || customAllergens.some((term) => term.trim());
   const unsupportedLanguage = p.source === "off" && p.ingredientsLanguage !== undefined && !["it", "en"].includes(p.ingredientsLanguage);
   if (unsupportedLanguage && needsIngredientCheck) {
     warn = true;
@@ -273,12 +275,22 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
   if (incomplete && !needsIngredientCheck && userAllergens.length > 0) {
     reasons.push({ level: "info", text: "Le dichiarazioni disponibili coprono le restrizioni selezionate. I dati ingredienti restano incompleti: verifica la confezione esatta." });
   }
-  if (userAllergens.length === 0 && customAllergens.length === 0) {
+  const nickel = assessNickel(p, nickelSettings);
+  if (nickel?.status === "avoid") {
+    avoid = true;
+    for (const match of nickel.matches) reasons.push({ level: "avoid", text: `Lista personale Nichel: ${match.name} (${match.kind === "product" ? "prodotto salvato da te" : `trovata la dicitura “${match.term}”`}).` });
+  } else if (nickel?.status === "empty" || nickel?.status === "incomplete") {
+    warn = true;
+    reasons.push({ level: "warning", text: nickel.status === "empty" ? "La tua lista personale Nichel è vuota: aggiungi le voci da controllare." : "Controllo della lista personale Nichel incompleto: verifica ingredienti, lingua e codice del prodotto." });
+  } else if (nickel?.status === "clear") {
+    reasons.push({ level: "info", text: "Nessuna corrispondenza con la tua lista personale Nichel. Questo non indica che il prodotto sia senza nichel." });
+  }
+  if (userAllergens.length === 0 && customAllergens.length === 0 && !nickel) {
     reasons.push({ level: "info", text: "Non hai selezionato allergeni nel tuo profilo" });
   }
 
   const verdict: Verdict = avoid ? "avoid" : warn ? "warning" : "compatible";
-  return { verdict, reasons, incomplete };
+  return { verdict, reasons, incomplete, ...(nickel ? { nickel } : {}) };
 }
 
 export const VERDICT_LABEL: Record<Verdict, string> = {
@@ -287,16 +299,16 @@ export const VERDICT_LABEL: Record<Verdict, string> = {
   avoid: "Da evitare",
 };
 
-export function compatiblePurchaseProducts(products: FoodProduct[], profile: { allergens: AllergenId[]; customAllergens?: string[] } | null) {
-  return profile ? products.filter((product) => analyzeFood(product, profile.allergens, profile.customAllergens).verdict === "compatible") : products;
+export function compatiblePurchaseProducts(products: FoodProduct[], profile: { allergens: AllergenId[]; customAllergens?: string[]; nickel?: NickelSettings } | null) {
+  return profile ? products.filter((product) => analyzeFood(product, profile.allergens, profile.customAllergens, profile.nickel).verdict === "compatible") : products;
 }
 
-export function purchaseProductGroups(products: FoodProduct[], profile: { allergens: AllergenId[]; customAllergens?: string[] } | null) {
+export function purchaseProductGroups(products: FoodProduct[], profile: { allergens: AllergenId[]; customAllergens?: string[]; nickel?: NickelSettings } | null) {
   const compatible: FoodProduct[] = [];
   const review: FoodProduct[] = [];
   const avoid: FoodProduct[] = [];
   for (const product of products) {
-    const analysis = profile ? analyzeFood(product, profile.allergens, profile.customAllergens) : null;
+    const analysis = profile ? analyzeFood(product, profile.allergens, profile.customAllergens, profile.nickel) : null;
     if (analysis?.verdict === "avoid") avoid.push(product);
     else if (analysis?.verdict === "warning") review.push(product);
     else compatible.push(product);

@@ -162,7 +162,7 @@ function SearchPage() {
         {filterByProfile && groups.review.some(product=>product.code.padStart(14,"0")===offer.code.padStart(14,"0")) && <span className="mt-2 block text-xs text-caution-foreground">{t("Controlla ingredienti e allergeni")}</span>}
       </a>)}
       {!local && (!isFetching || isFetchingNextPage) && visibleProducts.map((product, index) => {
-        const analysis = buy && profile && !freeMode ? analyzeFood(product, profile.allergens, profile.customAllergens) : null;
+        const analysis = buy && profile && !freeMode ? analyzeFood(product, profile.allergens, profile.customAllergens, profile.nickel) : null;
         const verdict = analysis?.verdict ?? null;
         const review = verdict === "warning";
         return <div key={product.code}>
@@ -180,7 +180,7 @@ function SearchPage() {
           {buy && <>
             <Link to="/product/$code" params={{ code: product.code }} className="mt-2 inline-block text-xs font-bold text-primary underline">{t("Controlla ingredienti e allergeni")}</Link>
             {!local && !review && !productRetailers(product, location).length && <p className="mt-3 text-xs text-muted-foreground">{t("Usa la ricerca online per verificare i venditori del prodotto nel Paese e nella città selezionati.")}</p>}
-            {review && <p className="mt-2 text-xs text-caution-foreground">{t(analyzeFood(product, profile?.allergens ?? [], profile?.customAllergens).reasons.find((reason) => reason.level === "warning")?.text ?? "Controlla ingredienti e allergeni")}</p>}
+            {review && <p className="mt-2 text-xs text-caution-foreground">{t(analyzeFood(product, profile?.allergens ?? [], profile?.customAllergens, profile?.nickel).reasons.find((reason) => reason.level === "warning")?.text ?? "Controlla ingredienti e allergeni")}</p>}
             {!local && !review && <PurchaseLinks query={productPurchaseQuery(product, filterByProfile ? profile.allergens : [])} productCode={product.code} {...(from ? { from } : {})} exactProduct />}
             {!local && filterByProfile && <p className="mt-3 text-xs text-muted-foreground">{t("La ricerca esterna può mostrare altri prodotti non filtrati. Verifica che nome, marca e codice corrispondano e controlla l’etichetta.")}</p>}
           </>}

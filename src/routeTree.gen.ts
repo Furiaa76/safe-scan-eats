@@ -14,6 +14,7 @@ import { Route as AnalysisRouteImport } from './routes/analysis'
 import { Route as CrsRouteImport } from './routes/crs'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as IngredientsRouteImport } from './routes/ingredients'
+import { Route as NichelRouteImport } from './routes/nichel'
 import { Route as RecipesRouteImport } from './routes/recipes'
 import { Route as ScanRouteImport } from './routes/scan'
 import { Route as SearchRouteImport } from './routes/search'
@@ -45,6 +46,11 @@ const HistoryRoute = HistoryRouteImport.update({
 const IngredientsRoute = IngredientsRouteImport.update({
   id: '/ingredients',
   path: '/ingredients',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NichelRoute = NichelRouteImport.update({
+  id: '/nichel',
+  path: '/nichel',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecipesRoute = RecipesRouteImport.update({
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/crs': typeof CrsRoute
   '/history': typeof HistoryRoute
   '/ingredients': typeof IngredientsRoute
+  '/nichel': typeof NichelRoute
   '/recipes': typeof RecipesRoute
   '/scan': typeof ScanRoute
   '/search': typeof SearchRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   '/crs': typeof CrsRoute
   '/history': typeof HistoryRoute
   '/ingredients': typeof IngredientsRoute
+  '/nichel': typeof NichelRoute
   '/recipes': typeof RecipesRoute
   '/scan': typeof ScanRoute
   '/search': typeof SearchRoute
@@ -118,6 +126,7 @@ export interface FileRoutesById {
   '/crs': typeof CrsRoute
   '/history': typeof HistoryRoute
   '/ingredients': typeof IngredientsRoute
+  '/nichel': typeof NichelRoute
   '/recipes': typeof RecipesRoute
   '/scan': typeof ScanRoute
   '/search': typeof SearchRoute
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | '/crs'
     | '/history'
     | '/ingredients'
+    | '/nichel'
     | '/recipes'
     | '/scan'
     | '/search'
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/crs'
     | '/history'
     | '/ingredients'
+    | '/nichel'
     | '/recipes'
     | '/scan'
     | '/search'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/crs'
     | '/history'
     | '/ingredients'
+    | '/nichel'
     | '/recipes'
     | '/scan'
     | '/search'
@@ -177,6 +189,7 @@ export interface RootRouteChildren {
   CrsRoute: typeof CrsRoute
   HistoryRoute: typeof HistoryRoute
   IngredientsRoute: typeof IngredientsRoute
+  NichelRoute: typeof NichelRoute
   RecipesRoute: typeof RecipesRoute
   ScanRoute: typeof ScanRoute
   SearchRoute: typeof SearchRoute
@@ -221,6 +234,13 @@ declare module '@tanstack/react-router' {
       path: '/ingredients'
       fullPath: '/ingredients'
       preLoaderRoute: typeof IngredientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/nichel': {
+      id: '/nichel'
+      path: '/nichel'
+      fullPath: '/nichel'
+      preLoaderRoute: typeof NichelRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recipes': {
@@ -281,6 +301,7 @@ const rootRouteChildren: RootRouteChildren = {
   CrsRoute: CrsRoute,
   HistoryRoute: HistoryRoute,
   IngredientsRoute: IngredientsRoute,
+  NichelRoute: NichelRoute,
   RecipesRoute: RecipesRoute,
   ScanRoute: ScanRoute,
   SearchRoute: SearchRoute,

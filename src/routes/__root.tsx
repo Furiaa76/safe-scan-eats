@@ -4,6 +4,7 @@ import { Capacitor } from "@capacitor/core";
 import { useAppLanguage } from "@/lib/language";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, Link, createRootRouteWithContext, HeadContent, Scripts } from "@tanstack/react-router";
+import { getProfile, getStartupPath } from "@/lib/store";
 import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 
@@ -56,27 +57,17 @@ function RootComponent() {
   }, []);
 
   useEffect(() => {
-    const isStandalone =
-      window.matchMedia?.("(display-mode: standalone)")?.matches ||
-      Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
-
-    if (!isStandalone) return;
-
-    const resetToHome = () => {
-      if (window.location.pathname !== "/") {
-        window.location.replace("/");
-      }
-    };
-
-    // Se l'app viene avviata da zero dalla Home di iPhone, parte sempre dalla home dell'app.
-    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-    if (nav?.type === "navigate" && window.location.pathname !== "/") {
-      resetToHome();
+    const isStandalone = window.matchMedia?.("(display-mode: standalone)")?.matches || Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
+    const start = getStartupPath(getProfile());
+    const explicitHome = ["true", "1"].includes(new URLSearchParams(window.location.search).get("home") ?? "");
+    if (explicitHome) return;
+    // Only the first mount chooses startup; normal in-app back navigation is preserved.
+    if (window.location.pathname === "/" && start !== "/") {
+      window.location.replace(start);
       return;
     }
-
-    // Se l'app va semplicemente in background, mantieni la schermata corrente.
-    // Il ritorno alla home avviene solo su un nuovo avvio standalone.
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (isStandalone && nav?.type === "navigate" && window.location.pathname !== start) window.location.replace(start);
   }, []);
 
   return <QueryClientProvider client={queryClient}><ClientDiagnostics /><Outlet /><AppStatistics /></QueryClientProvider>;

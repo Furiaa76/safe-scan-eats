@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import type { AllergenId } from "./allergens";
+import { emptyNickelSettings, normalizeNickelSettings, normalizeNickelTerm, validNickelCode, type NickelEntry, type NickelSettings } from "./nickel";
 
 const LEGACY_PROFILE_KEY = "safefood-profile";
 const PROFILES_KEY = "safefood-profiles-v2";
@@ -12,6 +13,7 @@ export interface Profile {
   allergens: AllergenId[];
   /** Allergie o sostanze specifiche dichiarate manualmente dall'utente. */
   customAllergens?: string[];
+  nickel?: NickelSettings;
   severe: boolean;
 }
 
@@ -160,14 +162,19 @@ function makeProfileId() {
 
 function normalizeState(state: ProfilesState): ProfilesState {
   const profiles = Array.isArray(state.profiles)
-    ? state.profiles.map((p) => ({
-        ...p,
+    ? state.profiles.map((p) => {
+      const { nickel: rawNickel, ...rest } = p;
+      const nickel = normalizeNickelSettings(rawNickel);
+      return {
+        ...rest,
         allergens: Array.isArray(p.allergens) ? p.allergens : [],
         customAllergens: Array.isArray(p.customAllergens)
           ? Array.from(new Set(p.customAllergens.map((x) => String(x).trim()).filter(Boolean)))
           : [],
         severe: !!p.severe,
-      }))
+        ...(nickel ? { nickel } : {}),
+      };
+    })
     : [];
   const activeExists = profiles.some((p) => p.id === state.activeProfileId);
   return {
@@ -205,8 +212,9 @@ export function getProfilesState(): ProfilesState {
 }
 
 function saveProfilesState(state: ProfilesState) {
-  profilesCache = normalizeState(state);
-  window.localStorage.setItem(PROFILES_KEY, JSON.stringify(profilesCache));
+  const next = normalizeState(state);
+  window.localStorage.setItem(PROFILES_KEY, JSON.stringify(next));
+  profilesCache = next;
   emit();
 }
 
@@ -220,12 +228,14 @@ export function getProfile(): Profile | null {
 export function saveProfile(p: Omit<Profile, "id"> & { id?: string }) {
   const state = getProfilesState();
   const id = p.id || state.activeProfileId || makeProfileId();
+  const nickel = p.nickel ?? state.profiles.find((profile) => profile.id === id)?.nickel;
   const nextProfile: Profile = {
     id,
     name: p.name,
     allergens: p.allergens,
     customAllergens: Array.from(new Set((p.customAllergens ?? []).map((x) => x.trim()).filter(Boolean))),
     severe: p.severe,
+    ...(nickel ? { nickel } : {}),
   };
   const exists = state.profiles.some((profile) => profile.id === id);
   const profiles = exists
@@ -245,6 +255,34 @@ export function setActiveProfile(id: string) {
   const state = getProfilesState();
   if (!state.profiles.some((p) => p.id === id)) return;
   saveProfilesState({ ...state, activeProfileId: id, freeMode: false });
+}
+
+/** Updates only the named profile; never changes another person's active profile/list. */
+export function updateNickelSettings(profileId: string, patch: Partial<Pick<NickelSettings, "enabled" | "startPage">>) {
+  const state = getProfilesState();
+  if (!state.profiles.some((p) => p.id === profileId)) throw new Error("Profilo non disponibile.");
+  saveProfilesState({ ...state, profiles: state.profiles.map((p) => p.id === profileId ? { ...p, nickel: { ...(p.nickel ?? emptyNickelSettings()), ...patch } } : p) });
+}
+
+export function saveNickelEntry(profileId: string, entry: NickelEntry) {
+  const state = getProfilesState();
+  const profile = state.profiles.find((p) => p.id === profileId);
+  if (!profile) throw new Error("Profilo non disponibile.");
+  if (!normalizeNickelTerm(entry.name)) throw new Error("Inserisci il nome dell’alimento o del prodotto.");
+  if (entry.kind === "product" && !validNickelCode(entry.code.trim())) throw new Error("Inserisci un codice a barre di 8, 12, 13 o 14 cifre.");
+  const nickel = profile.nickel ?? emptyNickelSettings();
+  if (nickel.entries.some((x) => x.id !== entry.id && x.kind === entry.kind && (x.kind === "product" ? x.code === entry.code.trim() : normalizeNickelTerm(x.name) === normalizeNickelTerm(entry.name)))) throw new Error("Questa voce è già nella tua lista. Puoi modificarla.");
+  const entries = nickel.entries.some((x) => x.id === entry.id) ? nickel.entries.map((x) => x.id === entry.id ? entry : x) : [...nickel.entries, entry];
+  saveProfilesState({ ...state, profiles: state.profiles.map((p) => p.id === profileId ? { ...p, nickel: { ...nickel, enabled: true, entries } } : p) });
+}
+
+export function removeNickelEntry(profileId: string, entryId: string) {
+  const state = getProfilesState();
+  saveProfilesState({ ...state, profiles: state.profiles.map((p) => p.id === profileId && p.nickel ? { ...p, nickel: { ...p.nickel, entries: p.nickel.entries.filter((x) => x.id !== entryId) } } : p) });
+}
+
+export function getStartupPath(profile: Profile | null): "/" | "/nichel" {
+  return profile?.nickel?.enabled && profile.nickel.startPage ? "/nichel" : "/";
 }
 
 export function enableFreeMode() {
@@ -490,18 +528,23 @@ function subscribe(cb: () => void) {
   };
 }
 
+// React requires stable server snapshots while hydrating a stored personal profile.
+const SERVER_PROFILES: ProfilesState = { profiles: [], activeProfileId: null, freeMode: false };
+const SERVER_HISTORY: HistoryEntry[] = [];
+const SERVER_SHOPPING: ShoppingItem[] = [];
+
 export function useProfile(): Profile | null {
   return useSyncExternalStore(subscribe, getProfile, () => null);
 }
 
 export function useProfilesState(): ProfilesState {
-  return useSyncExternalStore(subscribe, getProfilesState, () => ({ profiles: [], activeProfileId: null, freeMode: false }));
+  return useSyncExternalStore(subscribe, getProfilesState, () => SERVER_PROFILES);
 }
 
 export function useHistory(): HistoryEntry[] {
-  return useSyncExternalStore(subscribe, getHistory, () => []);
+  return useSyncExternalStore(subscribe, getHistory, () => SERVER_HISTORY);
 }
 
 export function useShoppingList(): ShoppingItem[] {
-  return useSyncExternalStore(subscribe, getShoppingList, () => []);
+  return useSyncExternalStore(subscribe, getShoppingList, () => SERVER_SHOPPING);
 }
