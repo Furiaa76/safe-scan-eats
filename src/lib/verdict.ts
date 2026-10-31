@@ -135,6 +135,7 @@ function customAllergenHit(text: string, rawTerm: string): boolean {
 
 export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customAllergens: string[] = [], nickelSettings?: NickelSettings): Analysis {
   const reasons: Reason[] = [];
+  if (p.ingredientsTranslated) reasons.push({ level: "info", text: "Ingredienti tradotti in italiano dalla scheda francese del prodotto. Verifica sempre la confezione: le ricette possono cambiare." });
   const text = p.ingredientsText.toLowerCase();
   const { main, traces } = splitTraces(text);
   const hasIngredients = p.ingredientsText.trim().length > 3;

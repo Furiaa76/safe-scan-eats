@@ -1,6 +1,7 @@
 /** Client Open Food Facts (lettura pubblica, nessuna chiave richiesta). */
 import { offSearch } from "./off-search.functions";
 import type { AppLanguage } from "./translations";
+import { reviewedIngredientTranslation } from "./ingredient-translations";
 
 export interface FoodProduct {
   code: string;
@@ -9,6 +10,7 @@ export interface FoodProduct {
   imageUrl?: string | undefined;
   ingredientsText: string;
   ingredientsLanguage?: string;
+  ingredientsTranslated?: boolean;
   allergenTags: string[];
   traceTags: string[];
   labelTags: string[];
@@ -31,13 +33,17 @@ const arr = (v: unknown) => (Array.isArray(v) ? (v.filter((x) => typeof x === "s
 function map(raw: Raw, code?: string, language: AppLanguage = "it"): FoodProduct {
   const grade = str(raw["nutrition_grades"]);
   const cats = arr(raw["categories_tags"]);
+  const ingredientsText = str(raw[`ingredients_text_${language}`]) || str(raw["ingredients_text_it"]) || str(raw["ingredients_text_en"]) || str(raw["ingredients_text"]);
+  const ingredientsLanguage = str(raw[`ingredients_text_${language}`]) ? language : str(raw["ingredients_text_it"]) ? "it" : str(raw["ingredients_text_en"]) ? "en" : str(raw["ingredients_lc"]) || "unknown";
+  const translated = reviewedIngredientTranslation(str(raw["code"]) || code || "", str(raw["brands"]), ingredientsLanguage, ingredientsText);
   return {
     code: str(raw["code"]) || code || "",
     name: str(raw[`product_name_${language}`]) || str(raw["product_name"]) || str(raw[`generic_name_${language}`]) || (language === "en" ? "Unnamed product" : "Prodotto senza nome"),
     brand: str(raw["brands"]),
     imageUrl: str(raw["image_front_small_url"]) || str(raw["image_front_url"]) || undefined,
-    ingredientsText: str(raw[`ingredients_text_${language}`]) || str(raw["ingredients_text_it"]) || str(raw["ingredients_text_en"]) || str(raw["ingredients_text"]),
-    ingredientsLanguage: str(raw[`ingredients_text_${language}`]) ? language : str(raw["ingredients_text_it"]) ? "it" : str(raw["ingredients_text_en"]) ? "en" : str(raw["ingredients_lc"]) || "unknown",
+    ingredientsText: translated ?? ingredientsText,
+    ingredientsLanguage: translated ? "it" : ingredientsLanguage,
+    ...(translated ? { ingredientsTranslated: true } : {}),
     allergenTags: arr(raw["allergens_tags"]),
     traceTags: arr(raw["traces_tags"]),
     labelTags: arr(raw["labels_tags"]),
