@@ -101,6 +101,12 @@ function splitTraces(text: string): { main: string; traces: string } {
   return { main: text.slice(0, m.index), traces: text.slice(m.index) };
 }
 
+// Deglutinized wheat explains the catalog's wheat/gluten allergen tag on a
+// gluten-free product. This exception never applies to personal wheat exclusions.
+function withoutDeglutinizedWheat(text: string): string {
+  return text.replace(/\b(?:(?:amido\s+(?:di\s+|da\s+)?)?(?:frumento|grano)\s+deglutinat[oa]|(?:gluten[ -]+free\s+wheat\s+starch)|(?:wheat\s+starch\s*\(\s*gluten[ -]+free\s*\)))(?=$|[^a-z])/gi, " ");
+}
+
 function keywordHit(text: string, a: AllergenId): string | null {
   const words = [...allergenById(a).keywords, ...EN_KEYWORDS[a]];
   for (const kw of words) {
@@ -210,15 +216,20 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
     const tagHit = OFF_TAGS[a].some((t) => p.allergenTags.includes(t));
     const kw = keywordHit(main, a);
     const traceHit = OFF_TAGS[a].some((t) => p.traceTags.includes(t)) || !!keywordHit(traces, a);
+    const deglutinizedWheat = a === "glutine" && withoutDeglutinizedWheat(main) !== main;
+    const explainedGlutenTag = deglutinizedWheat && !keywordHit(withoutDeglutinizedWheat(main), a);
 
     if (freeLabel) {
       if (kw && a !== "glutine") {
         avoid = true;
         reasons.push({ level: "avoid", text: `Contiene ${kw} (${lower(a)}): dati discordanti con la dichiarazione di assenza.` });
       }
-      if (tagHit && !declaration?.manufacturer) {
+      if (tagHit && !declaration?.manufacturer && !explainedGlutenTag) {
         warn = true;
         reasons.push({ level: "warning", text: `Dati discordanti: dichiarazione senza ${lower(a)} e allergene presente nel catalogo. Verifica l'etichetta.` });
+      }
+      if (deglutinizedWheat) {
+        reasons.push({ level: "info", text: "Frumento deglutinato: compatibile con il filtro glutine in presenza della dichiarazione senza glutine. Non equivale a senza frumento." });
       }
       reasons.push({ level: "info", text: `Etichetta \"senza ${lower(a)}\" dichiarata dal produttore` });
       if (traceHit) {

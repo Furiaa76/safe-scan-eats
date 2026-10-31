@@ -154,3 +154,21 @@ test('explicit product declarations cover their own restriction without an ingre
  assert.equal(analyzeFood(product('negative','',{name:'Latte non senza lattosio'}),['lattosio']).verdict,'warning');
  assert.equal(analyzeFood(product('question','',{name:'Latte senza lattosio?'}),['lattosio']).verdict,'warning');
 });
+
+
+test('gluten-free deglutinized wheat explains catalog gluten tags without overriding other restrictions', () => {
+ for (const ingredients of ['acqua, amido di FRUMENTO deglutinato, sale', 'amido di grano deglutinato, acqua', 'frumento deglutinato, acqua', 'gluten-free wheat starch, water', 'wheat starch (gluten free), water']) {
+  const p = product('deglutinized', ingredients, {labelTags:['en:no-gluten'], allergenTags:['en:gluten']});
+  assert.equal(analyzeFood(p, ['glutine']).verdict, 'compatible', ingredients);
+  assert.equal(compatiblePurchaseProducts([p], {allergens:['glutine']}).length, 1);
+  assert.equal(analyzeFood({...p, traceTags:['en:gluten']}, ['glutine']).verdict, 'warning');
+  assert.equal(analyzeFood({...p, ingredientsText:ingredients + ', soia'}, ['glutine','soia']).verdict, 'avoid');
+ }
+ const p = product('wheat', 'amido di frumento deglutinato, acqua', {labelTags:['en:gluten-free'], allergenTags:['en:gluten']});
+ assert.equal(analyzeFood(p, ['glutine'], ['frumento']).verdict, 'avoid');
+ assert.equal(analyzeFood(p, ['glutine'], [], personalList('frumento')).verdict, 'avoid');
+ assert.equal(analyzeFood({...p, labelTags:[]}, ['glutine']).verdict, 'avoid');
+ for (const ingredientsText of ['amido di frumento non deglutinato', 'amido di frumento deglutinato, farina di orzo', 'amido di frumento']) {
+  assert.equal(analyzeFood({...p, ingredientsText}, ['glutine']).verdict, 'warning');
+ }
+});
