@@ -92,7 +92,7 @@ export function ResultView({
   const findings = freeMode ? freeModeFindings(product) : [];
   const hasFoodIssue = analysis.reasons.some((reason) => reason.level === "avoid" || (reason.level === "warning" && !reason.text.startsWith("Possibile reattività crociata")));
   const shouldSuggestAlternatives = product.source === "off" && !!product.categoryTag && foodAllergens.length > 0 && hasFoodIssue;
-  const shouldAskForFrontPhoto = !freeMode && analysis.verdict === "warning" && (analysis.incomplete || analysis.requiresFrontPhoto) && !nickelOnly;
+  const shouldAskForFrontPhoto = !freeMode && analysis.verdict === "warning" && analysis.incomplete && !nickelOnly;
   const ssn = assessSsnCeliac(product);
   const checkSsnRegistryFn = useServerFn(checkSsnRegistry);
   const { data: registryCheck, isFetching: registryChecking, refetch: retryRegistryCheck } = useQuery({

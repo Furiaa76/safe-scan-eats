@@ -17,7 +17,6 @@ export interface Analysis {
   verdict: Verdict;
   reasons: Reason[];
   incomplete: boolean;
-  requiresFrontPhoto?: boolean;
   nickel?: NickelAssessment;
 }
 
@@ -144,7 +143,6 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
 
   let avoid = false;
   let warn = false;
-  let requiresFrontPhoto = false;
 
   for (const a of userAllergens) {
     const allergen = allergenById(a);
@@ -243,10 +241,15 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
     }
 
     if (explainedGlutenTag) {
-      warn = true;
-      requiresFrontPhoto = true;
-      reasons.push({ level: "warning", text: "Rilevato frumento deglutinato, non frumento comune. Per completare il controllo glutine, fotografa anche il fronte e verifica la dichiarazione senza glutine sul prodotto." });
-      if (traceHit) reasons.push({ level: "warning", text: `Può contenere tracce di ${lower(a)}` });
+      reasons.push({ level: "info", text: "Il frumento deglutinato non attiva il blocco glutine. Il controllo continua sugli altri ingredienti e sulle eventuali tracce." });
+      if (tagHit) {
+        warn = true;
+        reasons.push({ level: "warning", text: "Il catalogo dichiara glutine, mentre il testo indica frumento deglutinato: verifica la dichiarazione senza glutine sulla confezione." });
+      }
+      if (traceHit) {
+        warn = true;
+        reasons.push({ level: "warning", text: `Può contenere tracce di ${lower(a)}` });
+      }
     } else if (tagHit || kw) {
       avoid = true;
       reasons.push({ level: "avoid", text: kw ? `Contiene ${kw} (${lower(a)})` : `Contiene ${lower(a)} (allergene dichiarato)` });
@@ -309,7 +312,7 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
   }
 
   const verdict: Verdict = avoid ? "avoid" : warn ? "warning" : "compatible";
-  return { verdict, reasons, incomplete, ...(requiresFrontPhoto ? { requiresFrontPhoto: true } : {}), ...(nickel ? { nickel } : {}) };
+  return { verdict, reasons, incomplete, ...(nickel ? { nickel } : {}) };
 }
 
 export const VERDICT_LABEL: Record<Verdict, string> = {

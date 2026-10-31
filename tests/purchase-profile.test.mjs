@@ -173,11 +173,13 @@ test('gluten-free deglutinized wheat explains catalog gluten tags without overri
  }
 });
 
-test('ingredient-only photo distinguishes deglutinized wheat and asks for the front declaration',()=>{
+test('ingredient-only photo accepts deglutinized wheat without overriding personal restrictions',()=>{
  const p=product('','acqua, amido di frumento deglutinato, burro senza lattosio, uova', {source:'manual'});
  const result=analyzeFood(p,['glutine'],[],{enabled:true,startPage:false,entries:[]});
  assert.equal(result.verdict,'warning');
- assert.equal(result.requiresFrontPhoto,true);
+ assert.equal(analyzeFood(p,['glutine']).verdict,'compatible');
+ assert.equal(analyzeFood({...p,traceTags:['en:gluten']},['glutine']).verdict,'warning');
+ assert.equal(analyzeFood({...p,ingredientsText:'farina di frumento non deglutinato'},['glutine']).verdict,'avoid');
  assert.equal(result.reasons.some(r=>r.level==='avoid'),false);
  assert.equal(result.nickel.status,'empty');
  assert.equal(analyzeFood({...p,labelTags:['en:no-gluten']},['glutine']).verdict,'compatible');
