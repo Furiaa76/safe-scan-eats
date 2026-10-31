@@ -17,6 +17,7 @@ export interface Analysis {
   verdict: Verdict;
   reasons: Reason[];
   incomplete: boolean;
+  requiresFrontPhoto?: boolean;
   nickel?: NickelAssessment;
 }
 
@@ -143,6 +144,7 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
 
   let avoid = false;
   let warn = false;
+  let requiresFrontPhoto = false;
 
   for (const a of userAllergens) {
     const allergen = allergenById(a);
@@ -240,7 +242,12 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
       continue;
     }
 
-    if (tagHit || kw) {
+    if (explainedGlutenTag) {
+      warn = true;
+      requiresFrontPhoto = true;
+      reasons.push({ level: "warning", text: "Rilevato frumento deglutinato, non frumento comune. Per completare il controllo glutine, fotografa anche il fronte e verifica la dichiarazione senza glutine sul prodotto." });
+      if (traceHit) reasons.push({ level: "warning", text: `Può contenere tracce di ${lower(a)}` });
+    } else if (tagHit || kw) {
       avoid = true;
       reasons.push({ level: "avoid", text: kw ? `Contiene ${kw} (${lower(a)})` : `Contiene ${lower(a)} (allergene dichiarato)` });
     } else if (traceHit) {
@@ -302,7 +309,7 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
   }
 
   const verdict: Verdict = avoid ? "avoid" : warn ? "warning" : "compatible";
-  return { verdict, reasons, incomplete, ...(nickel ? { nickel } : {}) };
+  return { verdict, reasons, incomplete, ...(requiresFrontPhoto ? { requiresFrontPhoto: true } : {}), ...(nickel ? { nickel } : {}) };
 }
 
 export const VERDICT_LABEL: Record<Verdict, string> = {

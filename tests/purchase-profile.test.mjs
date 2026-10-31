@@ -167,8 +167,21 @@ test('gluten-free deglutinized wheat explains catalog gluten tags without overri
  const p = product('wheat', 'amido di frumento deglutinato, acqua', {labelTags:['en:gluten-free'], allergenTags:['en:gluten']});
  assert.equal(analyzeFood(p, ['glutine'], ['frumento']).verdict, 'avoid');
  assert.equal(analyzeFood(p, ['glutine'], [], personalList('frumento')).verdict, 'avoid');
- assert.equal(analyzeFood({...p, labelTags:[]}, ['glutine']).verdict, 'avoid');
+ assert.equal(analyzeFood({...p, labelTags:[]}, ['glutine']).verdict, 'warning');
  for (const ingredientsText of ['amido di frumento non deglutinato', 'amido di frumento deglutinato, farina di orzo', 'amido di frumento']) {
   assert.equal(analyzeFood({...p, ingredientsText}, ['glutine']).verdict, 'warning');
  }
+});
+
+test('ingredient-only photo distinguishes deglutinized wheat and asks for the front declaration',()=>{
+ const p=product('','acqua, amido di frumento deglutinato, burro senza lattosio, uova', {source:'manual'});
+ const result=analyzeFood(p,['glutine'],[],{enabled:true,startPage:false,entries:[]});
+ assert.equal(result.verdict,'warning');
+ assert.equal(result.requiresFrontPhoto,true);
+ assert.equal(result.reasons.some(r=>r.level==='avoid'),false);
+ assert.equal(result.nickel.status,'empty');
+ assert.equal(analyzeFood({...p,labelTags:['en:no-gluten']},['glutine']).verdict,'compatible');
+ assert.equal(analyzeFood({...p,ingredientsText:p.ingredientsText+', orzo'},['glutine']).verdict,'avoid');
+ assert.equal(analyzeFood(p,['glutine'],['frumento']).verdict,'avoid');
+ assert.equal(analyzeFood(p,['glutine','uova']).verdict,'avoid');
 });
