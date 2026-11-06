@@ -107,7 +107,33 @@ function withoutDeglutinizedWheat(text: string): string {
   return text.replace(/\b(?:(?:amido\s+(?:di\s+|da\s+)?)?(?:frumento|grano)\s+deglutinat[oa]|(?:gluten[ -]+free\s+wheat\s+starch)|(?:wheat\s+starch\s*\(\s*gluten[ -]+free\s*\)))(?=$|[^a-z])/gi, " ");
 }
 
+// Keep each nut once, even when a multilingual label repeats it. Allow whitespace
+// inserted inside a word by OCR, without joining arbitrary neighbouring words.
+const NUT_NAMES: Record<string, string[]> = {
+  mandorle: ["mandorla", "mandorle", "almond", "almonds", "amande", "amandes", "mandel", "mandeln"],
+  nocciole: ["nocciola", "nocciole", "hazelnut", "hazelnuts", "noisette", "noisettes", "haselnuss", "haselnüsse", "haselnusse", "haselnisse"],
+  noci: ["noce", "noci", "walnut", "walnuts", "noix", "walnuss", "walnüsse"],
+  pistacchi: ["pistacchio", "pistacchi", "pistachio", "pistachios", "pistache", "pistaches", "pistazie", "pistazien"],
+  anacardi: ["anacardo", "anacardi", "cashew", "cashews", "noix de cajou", "cashewkerne"],
+  "noci pecan": ["pecan", "pecans", "pécan", "pécans", "pecannuss", "pekannuss"],
+  macadamia: ["macadamia", "macadamias", "macadamianuss", "macadamianüsse"],
+  "noci del Brasile": ["noci del brasile", "noce del brasile", "brazil nut", "brazil nuts", "noix du brésil", "paranuss", "paranüsse"],
+};
+
+function nutHits(text: string): string[] {
+  const normalized = text.normalize("NFC").toLowerCase();
+  const matches = Object.entries(NUT_NAMES).filter(([, aliases]) => aliases.some((alias) => {
+    const pattern = [...alias].map((char) => char.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s*");
+    const candidate = aliases === NUT_NAMES.noci
+      ? normalized.replace(/\b(?:noc[ei]\s+(?:del\s+brasile|pecan)|noix\s+(?:de\s+cajou|du\s+brésil|de\s+pécan|de\s+macadamia))\b/gu, " ")
+      : normalized;
+    return new RegExp(`(^|[^\\p{L}])${pattern}(?=$|[^\\p{L}])`, "u").test(candidate);
+  })).map(([name]) => name);
+  return matches;
+}
+
 function keywordHit(text: string, a: AllergenId): string | null {
+  if (a === "frutta-guscio") return nutHits(text).join(", ") || null;
   const words = [...allergenById(a).keywords, ...EN_KEYWORDS[a]];
   for (const kw of words) {
     const re = new RegExp(`(^|[^a-zàèéìòù])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|es)?([^a-zàèéìòù]|$)`, "i");

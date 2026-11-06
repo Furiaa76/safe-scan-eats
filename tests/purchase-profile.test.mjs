@@ -110,7 +110,8 @@ test('recipe ingredient checks support every selectable profile without crashing
 test('foreign or unknown ingredient languages cannot become compatible for a restricted profile',()=>{
  for(const language of ['fr','de','unknown']){
   const p=product('foreign','lait, noix, eau',{source:'off',ingredientsLanguage:language});
-  assert.equal(analyzeFood(p,['frutta-guscio']).verdict,'warning');
+  assert.equal(analyzeFood(p,['frutta-guscio']).verdict,'avoid');
+  assert.equal(analyzeFood({...p,ingredientsText:'lait, eau'},['frutta-guscio']).verdict,'warning');
   assert.equal(purchaseProductGroups([p],{allergens:['frutta-guscio']}).compatible.length,0);
  }
  assert.equal(analyzeFood(product('known','rice, water',{source:'off',ingredientsLanguage:'en'}),['frutta-guscio']).verdict,'compatible');
@@ -186,4 +187,32 @@ test('ingredient-only photo accepts deglutinized wheat without overriding person
  assert.equal(analyzeFood({...p,ingredientsText:p.ingredientsText+', orzo'},['glutine']).verdict,'avoid');
  assert.equal(analyzeFood(p,['glutine'],['frumento']).verdict,'avoid');
  assert.equal(analyzeFood(p,['glutine','uova']).verdict,'avoid');
+});
+
+test('photo with Italian, French and German nuts lists both nuts once', () => {
+ const text = 'Feine Schwe chschokolade nit Haselnuss- und Mandelc Fallung i Branches au chocolat au lait suisse fin fourrées crème de noisettes et C ndes 2 ette di cioccolato al latte svizzero ripiene di pasta di nocciole e mandorle TAREE i Haselniisse (9%), noisettes (9%), amandes (5%), zucchero, no cciole (9%), mandorle (5%)';
+ const result = analyzeFood(product('photo', text, {source:'manual'}), ['frutta-guscio']);
+ assert.equal(result.verdict, 'avoid');
+ assert.deepEqual(result.reasons.filter(r => r.level === 'avoid').map(r => r.text), ['Contiene mandorle, nocciole (frutta a guscio)']);
+});
+test('hazelnuts are found alone, including OCR spaces and foreign names', () => {
+ for (const text of ['nocciole', 'no cciole', 'noc cio le', 'noisettes', 'Haselnuss', 'Haselnüsse', 'hazelnuts']) {
+  const result = analyzeFood(product('nuts', 'zucchero, '+text, {source:'manual'}), ['frutta-guscio']);
+  assert.equal(result.verdict, 'avoid', text);
+  assert.ok(result.reasons.some(r => r.text === 'Contiene nocciole (frutta a guscio)'), text);
+ }
+});
+test('nut aliases do not match longer words, coconut, nutmeg or peanuts', () => {
+ for (const text of ['noce di cocco', 'noce moscata', 'arachidi', 'almondine', 'noisettesque']) {
+  assert.equal(analyzeFood(product('other', text, {source:'manual'}), ['frutta-guscio']).verdict, 'compatible', text);
+ }
+});
+test('all detected nut varieties remain visible and deduplicate aliases', () => {
+ const result = analyzeFood(product('mixed', 'mandorle, almonds, nocciole, noci, pistacchi, anacardi, noci pecan, macadamia, noci del Brasile', {source:'manual'}), ['frutta-guscio']);
+ assert.ok(result.reasons.some(r => r.text === 'Contiene mandorle, nocciole, noci, pistacchi, anacardi, noci pecan, macadamia, noci del Brasile (frutta a guscio)'));
+});
+test('foreign and OCR hazelnut traces stay warnings', () => {
+ for (const word of ['noisettes', 'no cciole', 'Haselnüsse']) {
+  assert.equal(analyzeFood(product('trace', 'riso; può contenere '+word, {source:'manual'}), ['frutta-guscio']).verdict, 'warning');
+ }
 });
