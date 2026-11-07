@@ -24,7 +24,7 @@ for (const claim of ['senza glutine', 'SENZA GLUTINE', 'privo di glutine', 'priv
     assert.equal(analyzeFood(product(`Tortina ${claim}. Ingredienti: farina di riso, uova, latte, soia.`), ['glutine']).verdict, 'compatible');
   });
 }
-for (const text of ['contiene glutine', 'non è senza glutine', 'non privo di glutine', 'not gluten free', 'no longer gluten free', 'forse senza glutine', 'potrebbe essere senza glutine', 'senza glutine?', 'a basso contenuto di glutine', 'senza aggiunta di glutine', 'farina di frumento', 'glutine']) {
+for (const text of ['contiene glutine', 'non è senza glutine', 'non privo di glutine', 'not gluten free', 'not\ngluten free', 'non è\nsenza glutine', 'no longer gluten free', 'forse senza glutine', 'potrebbe essere senza glutine', 'senza glutine?', 'a basso contenuto di glutine', 'senza aggiunta di glutine', 'farina di frumento', 'glutine']) {
   test(`not an absence declaration: ${text}`, () => {
     assert.equal(hasGlutenFreeDeclaration(text), false);
     assert.notEqual(analyzeFood(product(text), ['glutine']).verdict, 'compatible');

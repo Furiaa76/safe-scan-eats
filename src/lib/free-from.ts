@@ -20,7 +20,7 @@ const glutenFreePattern = () => new RegExp(`\\b(?:${spaced("senza")}\\s*${gluten
 function glutenClaimMatches(text: string) {
   const normalized = text.normalize("NFKC").toLowerCase().replace(/[‐‑–—]/g, "-");
   return { normalized, matches: [...normalized.matchAll(glutenFreePattern())].filter((match) => {
-    const prefix = normalized.slice(0, match.index).split(/[.!?;\n]/).at(-1) ?? "";
+    const prefix = normalized.slice(0, match.index).split(/[.!?;]/).at(-1) ?? "";
     // "Non è senza glutine", "not gluten free" and uncertain statements
     // cannot certify absence. A gluten-free question is not a declaration.
     return !/\b(?:non|not|no\s+longer|non\s+pi[uù])\b[^,]{0,60}$/.test(prefix)
