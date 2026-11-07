@@ -11,6 +11,35 @@ export interface FreeFromClaim {
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 const CHECKED = "2026-10-12";
 
+// Match explicit declarations, including line breaks, hyphens and OCR spaces
+// inside letters. Do not use fuzzy edit distance: losing a negation is unsafe.
+const spaced = (word: string) => [...word].join("[\\s-]*");
+const gluten = `(?:${spaced("glutine")}|${spaced("gluten")})`;
+const glutenFreePattern = () => new RegExp(`\\b(?:${spaced("senza")}\\s*${gluten}|${spaced("priv")}\\s*[oaie]\\s*(?:di\\s*)?${gluten}|${gluten}[\\s-]*${spaced("free")}|${spaced("free")}\\s+from\\s+${gluten}|(?:non\\s+contiene|non\\s+contengono|assenza\\s+di|esente\\s+da|esenti\\s+da|no|without|sans|sin|sem)\\s+${gluten}|${spaced("glutenfrei")})\\b`, "gi");
+
+function glutenClaimMatches(text: string) {
+  const normalized = text.normalize("NFKC").toLowerCase().replace(/[‐‑–—]/g, "-");
+  return { normalized, matches: [...normalized.matchAll(glutenFreePattern())].filter((match) => {
+    const prefix = normalized.slice(0, match.index).split(/[.!?;\n]/).at(-1) ?? "";
+    // "Non è senza glutine", "not gluten free" and uncertain statements
+    // cannot certify absence. A gluten-free question is not a declaration.
+    return !/\b(?:non|not|no\s+longer|non\s+pi[uù])\b[^,]{0,60}$/.test(prefix)
+      && !/\b(?:potrebbe|forse|maybe|possibly)\b[^,]{0,40}$/.test(prefix)
+      && !/^\s*\?/.test(normalized.slice(match.index! + match[0].length));
+  }) };
+}
+
+export function hasGlutenFreeDeclaration(text: string): boolean {
+  return glutenClaimMatches(text).matches.length > 0;
+}
+
+export function stripGlutenFreeDeclarations(text: string): string {
+  const { normalized, matches } = glutenClaimMatches(text);
+  let result = normalized;
+  for (const match of matches.reverse()) result = result.slice(0, match.index) + " " + result.slice(match.index! + match[0].length);
+  return result;
+}
+
 // Each rule has a bounded scope and an official source. A parent company does
 // not inherit the claims of one of its ranges. Never infer other allergen absences.
 export function manufacturerFreeFromClaims(product: ProductIdentity): FreeFromClaim[] {
@@ -56,15 +85,16 @@ const DECLARATIONS: Partial<Record<AllergenId, RegExp>> = {
   soia: /\b(senza soia|soy free|soya free)\b/,
   sesamo: /\b(senza sesamo|sesame free)\b/,
 };
-export function freeFromClaim(product: ProductIdentity & { labelTags?: string[] }, allergen: AllergenId): FreeFromClaim | undefined {
+export function freeFromClaim(product: ProductIdentity & { labelTags?: string[]; ingredientsText?: string }, allergen: AllergenId): FreeFromClaim | undefined {
   const official = manufacturerFreeFromClaims(product).find((claim) => claim.allergen === allergen);
   if (official) return official;
   const label = (LABELS[allergen] ?? []).some((tag) => product.labelTags?.includes(tag));
   // Names are a catalog declaration, not evidence inferred from ingredients or
   // a recipe. Ignore negative/uncertain names and user-authored manual products.
   const name = normalize(product.name);
-  const declaredName = product.source === "off" && !/\b(non|not|no longer)\b/.test(name) && !product.name.includes("?") && DECLARATIONS[allergen]?.test(name);
-  if (!label && !declaredName) return undefined;
+  const declaredName = product.source === "off" && (allergen === "glutine" ? hasGlutenFreeDeclaration(product.name) : !/\b(non|not|no longer)\b/.test(name) && !product.name.includes("?") && DECLARATIONS[allergen]?.test(name));
+  const labelText = allergen === "glutine" && hasGlutenFreeDeclaration(product.ingredientsText ?? "");
+  if (!label && !declaredName && !labelText) return undefined;
   const sourceUrl = product.code && /^\d{8,14}$/.test(product.code) ? `https://world.openfoodfacts.org/product/${product.code}` : undefined;
-  return { allergen, description: `Dichiarazione senza ${allergen === "frutta-guscio" ? "frutta a guscio" : allergen} presente nella scheda del prodotto.`, ...(sourceUrl ? { sourceUrl } : {}), manufacturer: false };
+  return { allergen, description: `Dichiarazione senza ${allergen === "frutta-guscio" ? "frutta a guscio" : allergen} presente ${labelText ? "nel testo dell'etichetta" : "nella scheda del prodotto"}.`, ...(sourceUrl ? { sourceUrl } : {}), manufacturer: false };
 }

@@ -6,6 +6,7 @@ import { analyzeFood } from "@/lib/verdict";
 import { addToHistory, useProfile } from "@/lib/store";
 import { loadFrontPhoto } from "@/lib/image";
 import { ResultView } from "@/components/ResultView";
+import { hasGlutenFreeDeclaration } from "@/lib/free-from";
 
 type AnalysisSearch = {
   text: string;
@@ -34,7 +35,7 @@ function claimsToLabelTags(claims?: string): string[] {
   const values = claims.split("|").map((x) => x.trim().toLowerCase()).filter(Boolean);
   const tags = new Set<string>();
   for (const claim of values) {
-    if (/senza\s+glutine|gluten[\s-]*free|no\s+gluten/.test(claim)) tags.add("en:gluten-free");
+    if (hasGlutenFreeDeclaration(claim)) tags.add("en:gluten-free");
     if (/senza\s+lattosio|lactose[\s-]*free|no\s+lactose/.test(claim)) tags.add("en:lactose-free");
     if (/specificamente\s+formulat[oa]\s+per\s+celiac|erogabile\s+ssn|registro\s+nazionale|bollino\s+verde\s+ssn/.test(claim)) tags.add("it:ssn-erogabile-celiachia");
   }

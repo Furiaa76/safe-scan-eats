@@ -1,7 +1,7 @@
 import type { AllergenId } from "./allergens";
 import { allergenById } from "./allergens";
 import type { FoodProduct } from "./off";
-import { freeFromClaim } from "./free-from";
+import { freeFromClaim, stripGlutenFreeDeclarations } from "./free-from";
 import { assessNickel, type NickelAssessment, type NickelSettings } from "./nickel";
 
 export type Verdict = "compatible" | "warning" | "avoid";
@@ -87,9 +87,9 @@ const DAIRY_WORDS = [
 ];
 
 function cleanText(t: string, allergen: AllergenId) {
+  if (allergen === "glutine") return stripGlutenFreeDeclarations(t);
   let s = t.toLowerCase();
-  const exceptions = allergen === "glutine" ? ["senza glutine"]
-    : allergen === "lattosio" ? FALSE_FRIENDS.filter((word) => word !== "noce moscata" && word !== "noce di cocco")
+  const exceptions = allergen === "lattosio" ? FALSE_FRIENDS.filter((word) => word !== "noce moscata" && word !== "noce di cocco")
     : allergen === "frutta-guscio" ? ["noce moscata", "noce di cocco"] : [];
   for (const f of exceptions) s = s.split(f).join(" ");
   return s;
@@ -241,10 +241,12 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
     }
 
     const tagHit = OFF_TAGS[a].some((t) => p.allergenTags.includes(t));
-    const kw = keywordHit(main, a);
+    const originalMain = splitTraces(text).main;
+    const glutenIngredients = stripGlutenFreeDeclarations(withoutDeglutinizedWheat(originalMain));
+    const kw = keywordHit(a === "glutine" ? glutenIngredients : main, a);
     const traceHit = OFF_TAGS[a].some((t) => p.traceTags.includes(t)) || !!keywordHit(traces, a);
-    const deglutinizedWheat = a === "glutine" && withoutDeglutinizedWheat(main) !== main;
-    const explainedGlutenTag = deglutinizedWheat && !keywordHit(withoutDeglutinizedWheat(main), a);
+    const deglutinizedWheat = a === "glutine" && withoutDeglutinizedWheat(originalMain) !== originalMain;
+    const explainedGlutenTag = deglutinizedWheat && !kw;
 
     if (freeLabel) {
       if (kw && a !== "glutine") {

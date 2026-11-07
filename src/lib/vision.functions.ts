@@ -81,8 +81,8 @@ export const identifyFront = createServerFn({ method: "POST" })
 export const readLabel = createServerFn({ method: "POST" })
   .inputValidator((d) => ImageInput.parse(d))
   .handler(async ({ data }) => {
-    const out = await askVision(data.image, `Trascrivi fedelmente la lista ingredienti presente nella foto dell'etichetta di un alimento.\nRispondi SOLO con JSON: {"readable": boolean, "ingredients": string, "traces": string}.\n- "ingredients": il testo completo degli ingredienti così come scritto (tradotto in italiano se in altra lingua), senza inventare nulla.\n- "traces": la frase "può contenere..." se presente, altrimenti "".\nSe l'etichetta non è leggibile o non contiene ingredienti, readable=false.`);
-    return { readable: out?.["readable"] === true && s(out?.["ingredients"]).length > 3, ingredients: s(out?.["ingredients"]), traces: s(out?.["traces"]) };
+    const out = await askVision(data.image, `Trascrivi fedelmente la lista ingredienti presente nella foto dell'etichetta di un alimento.\nRispondi SOLO con JSON: {"readable": boolean, "ingredients": string, "traces": string, "claims": string[]}.\n- "ingredients": il testo completo degli ingredienti così come scritto (tradotto in italiano se in altra lingua), senza inventare nulla.\n- "traces": la frase "può contenere..." se presente, altrimenti "".\nNel campo claims trascrivi le dichiarazioni di assenza esplicitamente visibili anche fuori dalla lista ingredienti: senza glutine, privo/priva/privi/prive di glutine, naturalmente privo di glutine, gluten free e traduzioni equivalenti. Non trasformare una negazione o una dicitura incerta in assenza. Non dedurre assenze dagli ingredienti. Se l’etichetta non è leggibile o non contiene ingredienti, readable=false.`);
+    return { readable: out?.["readable"] === true && s(out?.["ingredients"]).length > 3, ingredients: s(out?.["ingredients"]), traces: s(out?.["traces"]), claims: stringArray(out?.["claims"]) };
   });
 
 export const readHealthCard = createServerFn({ method: "POST" })

@@ -6,6 +6,7 @@ import { ArrowLeft, Camera, Check, Info, Loader2, ScanSearch, Tag } from "lucide
 import { identifyFront, readLabel } from "@/lib/vision.functions";
 import { fileToDataUrl, saveFrontPhoto } from "@/lib/image";
 import { PhotoMagnifier } from "@/components/PhotoMagnifier";
+import { hasGlutenFreeDeclaration } from "@/lib/free-from";
 
 type IngSearch = { code?: string; name?: string; brand?: string; image?: string; mode?: "front" | "label" };
 
@@ -72,7 +73,7 @@ function claimsFromText(text: string): string[] {
     .trim();
   const compact = normalized.replace(/\s+/g, "");
   const claims: string[] = [];
-  if (/senza\s*glutine|gluten\s*free/.test(normalized) || fuzzyContains(compact, "senzaglutine", 2) || fuzzyContains(compact, "glutenfree", 2)) claims.push("senza glutine");
+  if (hasGlutenFreeDeclaration(text)) claims.push("senza glutine");
   if (/senza\s*lattosio|lactose\s*free/.test(normalized) || fuzzyContains(compact, "senzalattosio", 2) || fuzzyContains(compact, "lactosefree", 2)) claims.push("senza lattosio");
   if (/senza\s*latte|milk\s*free/.test(normalized) || fuzzyContains(compact, "senzalatte", 1) || fuzzyContains(compact, "milkfree", 1)) claims.push("senza latte");
   return claims;
@@ -234,7 +235,7 @@ function GuidedFlow() {
     try {
       const r = await readFn({ data: { image: dataUrl } });
       if (!r.readable) throw new Error("not-readable");
-      setText([r.ingredients, r.traces].filter(Boolean).join(" "));
+      setText([r.ingredients, r.traces, ...r.claims].filter(Boolean).join(". "));
     } catch {
       try {
         const ocr = await localOcr(dataUrl);
