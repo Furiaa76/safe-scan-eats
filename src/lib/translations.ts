@@ -4,6 +4,12 @@ export type AppLanguage = "it" | "en";
 import { EXTRA_RECIPES, CATALOG_FOOD_EN } from "./recipe-catalog";
 
 export const ENGLISH: Record<string, string> = {
+  "Scatta foto": "Take photo",
+  "Scegli dalla galleria": "Choose from gallery",
+  "Foto del prodotto selezionata": "Selected product photo",
+  "Scatta una foto o sceglila dalla galleria": "Take a photo or choose one from your gallery",
+  "Scatta una foto o sceglila dalla galleria del telefono. Puoi partire dal fronte o dagli ingredienti.": "Take a photo or choose one from your phone gallery. Start with the front or the ingredients.",
+  "Non riesco ad aprire la foto. Scegli un'altra immagine oppure scatta una nuova foto.": "I cannot open the photo. Choose another image or take a new photo.",
   "Nei supermercati della zona mostriamo solo disponibilità confermate del prodotto nel punto vendita.": "Local supermarket results show only confirmed product stock at the specific store.",
   "Disponibilità nei supermercati della zona": "Local supermarket availability",
   "Disponibilità confermata": "Confirmed availability",
