@@ -1,8 +1,8 @@
 import { useAppLanguage } from "@/lib/language";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
-import { ArrowLeft, Camera, Check, Info, Loader2, ScanSearch, Tag } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, Camera, Check, Images, Info, Loader2, ScanSearch, Tag } from "lucide-react";
 import { identifyFront, readLabel } from "@/lib/vision.functions";
 import { fileToDataUrl, saveFrontPhoto } from "@/lib/image";
 import { PhotoMagnifier } from "@/components/PhotoMagnifier";
@@ -184,11 +184,19 @@ function GuidedFlow() {
   useEffect(() => () => { if (originalLabel) URL.revokeObjectURL(originalLabel); }, [originalLabel]);
 
   const onFront = async (file?: File) => {
-    if (!file) return;
+    if (!file || busy !== null) return;
     setError(null); setBusy("front");
-    const dataUrl = await fileToDataUrl(file);
-    setFront(dataUrl);
-    saveFrontPhoto(await fileToDataUrl(file, 480, 0.7));
+    let dataUrl: string;
+    try {
+      dataUrl = await fileToDataUrl(file);
+      const thumbnail = await fileToDataUrl(file, 480, 0.7);
+      setFront(dataUrl);
+      saveFrontPhoto(thumbnail);
+    } catch {
+      setError("Non riesco ad aprire la foto. Scegli un'altra immagine oppure scatta una nuova foto.");
+      setBusy(null);
+      return;
+    }
     try {
       const r = await identifyFn({ data: { image: dataUrl } });
       let claims = r.claims;
@@ -217,20 +225,18 @@ function GuidedFlow() {
   };
 
   const onLabel = async (file?: File) => {
-    if (!file) return;
+    if (!file || busy !== null) return;
     setError(null); setBusy("label");
-    setText("");
-    setOriginalLabel(URL.createObjectURL(file));
     let dataUrl: string;
     try {
       dataUrl = await fileToDataUrl(file, 1600, 0.85);
     } catch {
       setError("Non riesco ad aprire la foto. Scatta una nuova foto oppure scrivi gli ingredienti qui sotto.");
-      setLabel(null);
-      setOriginalLabel(null);
       setBusy(null);
       return;
     }
+    setText("");
+    setOriginalLabel(URL.createObjectURL(file));
     setLabel(dataUrl);
     try {
       const r = await readFn({ data: { image: dataUrl } });
@@ -263,7 +269,7 @@ function GuidedFlow() {
     <header className="flex items-center gap-3"><Link to="/" aria-label={t("Torna alla home")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-secondary text-secondary-foreground"><ArrowLeft className="h-5 w-5" /></Link><h1 className="truncate text-lg font-extrabold text-foreground">{t("Fotografa il prodotto")}</h1></header>
     {step === 0 ? <>
       <p className="mt-6 text-xl font-extrabold text-foreground">{t("Cosa vuoi fotografare?")}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{t("Puoi scegliere da dove partire. Se vuoi, puoi sempre passare all’altra foto dopo.")}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{t("Scatta una foto o sceglila dalla galleria del telefono. Puoi partire dal fronte o dagli ingredienti.")}</p>
       <button type="button" onClick={() => { setError(null); setStep(1); }} className="mt-5 flex w-full items-center gap-4 rounded-3xl bg-primary p-5 text-left text-primary-foreground shadow-lg">
         <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-primary-foreground/20"><ScanSearch className="h-8 w-8" /></div>
         <div><p className="text-lg font-extrabold">{t("Fotografa il fronte")}</p><p className="mt-1 text-sm opacity-90">{t("Riconosci prodotto e scritte come “senza glutine”")}</p></div>
@@ -291,16 +297,35 @@ function GuidedFlow() {
       {originalLabel && <PhotoMagnifier key={originalLabel} src={originalLabel} />}
       {error && <p className="mt-3 text-sm font-semibold text-danger">{t(error)}</p>}
       <label className="mt-5 text-sm font-extrabold text-foreground" htmlFor="ing">{t("Ingredienti letti (controlla e correggi)")}</label><textarea id="ing" value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder={t("Es. farina di grano tenero, zucchero, burro, uova…")} className="mt-2 rounded-2xl border border-border bg-card p-4 text-base text-foreground outline-none focus:border-primary" />
-      <button type="button" disabled={text.trim().length < 3 || busy !== null} onClick={analyze} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">{t("Analizza ingredienti")}</button><button type="button" onClick={() => setStep(1)} className="mt-2 py-2 text-sm font-bold text-muted-foreground">{t("Torna alla foto frontale")}</button>
+      <button type="button" disabled={text.trim().length < 3 || busy !== null} onClick={analyze} className="mt-5 w-full rounded-2xl bg-primary py-4 text-lg font-extrabold text-primary-foreground disabled:opacity-50">{t("Analizza ingredienti")}</button><button type="button" disabled={busy !== null} onClick={() => setStep(1)} className="mt-2 py-2 text-sm font-bold text-muted-foreground">{t("Torna alla foto frontale")}</button>
     </>}
     </>}
   </div>;
 }
 
-function PhotoBox({ photo, busy, busyText, hint, icon, onFile }: { photo: string | null; busy: boolean; busyText: string; hint: string; icon: React.ReactNode; onFile: (f?: File) => void }) {
+function PhotoBox({ photo, busy, busyText, icon, onFile }: { photo: string | null; busy: boolean; busyText: string; hint: string; icon: React.ReactNode; onFile: (f?: File) => void }) {
   const { t } = useAppLanguage();
 
-  return <label className="relative mt-4 flex aspect-[4/3] cursor-pointer flex-col items-center justify-center overflow-hidden rounded-3xl bg-foreground">{photo ? <img src={photo} alt={t("")} className="h-full w-full object-cover" /> : <>{t(icon)}<p className="mt-3 max-w-[240px] text-center text-sm font-semibold text-primary-foreground/80">{t(hint)}</p></>}{busy && <div className="absolute inset-0 grid place-items-center bg-foreground/70"><div className="text-center"><Loader2 className="mx-auto h-9 w-9 animate-spin text-primary-foreground" /><p className="mt-2 text-sm font-bold text-primary-foreground">{t(busyText)}</p></div></div>}<input type="file" accept="image/*" capture="environment" className="sr-only" disabled={busy} onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} /></label>;
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const selectPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (file && !busy) onFile(file);
+  };
+
+  return <div className="mt-4">
+    <div aria-busy={busy} className="relative flex aspect-[4/3] flex-col items-center justify-center overflow-hidden rounded-3xl bg-foreground">
+      {photo ? <img src={photo} alt={t("Foto del prodotto selezionata")} className="h-full w-full object-contain" /> : <>{icon}<p className="mt-3 max-w-[240px] px-3 text-center text-sm font-semibold text-primary-foreground/80">{t("Scatta una foto o sceglila dalla galleria")}</p></>}
+      {busy && <div className="absolute inset-0 grid place-items-center bg-foreground/70"><div role="status" className="text-center"><Loader2 className="mx-auto h-9 w-9 animate-spin text-primary-foreground" /><p className="mt-2 text-sm font-bold text-primary-foreground">{t(busyText)}</p></div></div>}
+    </div>
+    <div className="mt-3 grid grid-cols-2 gap-2">
+      <button type="button" disabled={busy} onClick={() => cameraRef.current?.click()} className="flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-primary px-3 py-3 text-sm font-bold text-primary-foreground disabled:opacity-50"><Camera aria-hidden="true" className="h-5 w-5 shrink-0" />{t("Scatta foto")}</button>
+      <button type="button" disabled={busy} onClick={() => galleryRef.current?.click()} className="flex min-h-14 items-center justify-center gap-2 rounded-2xl border-2 border-primary bg-card px-3 py-3 text-sm font-bold text-foreground disabled:opacity-50"><Images aria-hidden="true" className="h-5 w-5 shrink-0" />{t("Scegli dalla galleria")}</button>
+    </div>
+    <input ref={cameraRef} type="file" accept="image/*" capture="environment" aria-label={t("Scatta foto")} className="hidden" disabled={busy} onChange={selectPhoto} />
+    <input ref={galleryRef} type="file" accept="image/*" aria-label={t("Scegli dalla galleria")} className="hidden" disabled={busy} onChange={selectPhoto} />
+  </div>;
 }
 
 function Note({ children }: { children: React.ReactNode }) {
