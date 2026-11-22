@@ -1,19 +1,21 @@
-import {
-  approximateCoordinates,
-  isCoordinates,
-  NEARBY_RADIUS_KM,
-  type Coordinates,
-  type NearbySupermarket,
-} from "../src/lib/nearby-supermarkets.ts";
+import type { Coordinates, NearbySupermarket } from "../src/lib/nearby-supermarkets";
 
 const CACHE_MS = 15 * 60_000;
 const MAX_RESULTS = 50;
+// Include the distance lost when the search is centered on rounded coordinates.
+const LOOKUP_RADIUS_KM = 9;
 const cache = new Map<string, { stores: NearbySupermarket[]; expires: number }>();
 const pending = new Map<string, Promise<NearbySupermarket[]>>();
 
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" ? value as Record<string, unknown> : {};
 const text = (value: unknown, length = 100) => typeof value === "string" ? value.trim().slice(0, length) : "";
+
+function validPosition(latitude: unknown, longitude: unknown): Coordinates | null {
+  if (typeof latitude !== "number" || !(Math.abs(latitude) <= 90) ||
+      typeof longitude !== "number" || !(Math.abs(longitude) <= 180)) return null;
+  return { latitude, longitude };
+}
 
 export function readNearbySupermarkets(payload: unknown) {
   const features = record(payload)["features"];
@@ -33,8 +35,8 @@ export function readNearbySupermarkets(payload: unknown) {
       (type !== "N" && type !== "W" && type !== "R") || typeof osmId !== "number" || !Number.isSafeInteger(osmId)
     ) continue;
 
-    const position = { latitude: coordinates[1], longitude: coordinates[0] };
-    if (!isCoordinates(position)) continue;
+    const position = validPosition(coordinates[1], coordinates[0]);
+    if (!position) continue;
 
     const id = `${type}:${osmId}`;
     const street = [text(properties["street"]), text(properties["housenumber"], 20)].filter(Boolean).join(" ");
@@ -48,7 +50,7 @@ async function lookupNearby({ latitude, longitude }: Coordinates) {
   const url = new URL("https://photon.komoot.io/reverse");
   url.search = new URLSearchParams({
     lat: String(latitude), lon: String(longitude),
-    radius: String(NEARBY_RADIUS_KM + 1), limit: String(MAX_RESULTS),
+    radius: String(LOOKUP_RADIUS_KM), limit: String(MAX_RESULTS),
     include: "osm.shop.supermarket", dedupe: "0",
   }).toString();
   const response = await fetch(url, {
@@ -63,10 +65,14 @@ export async function POST(request: Request) {
   const reply = (body: object, status = 200) =>
     Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
-  const input: unknown = await request.json().catch(() => null);
-  if (!isCoordinates(input)) return reply({ error: "invalid_position" }, 400);
+  const input = record(await request.json().catch(() => null));
+  const coords = validPosition(input["latitude"], input["longitude"]);
+  if (!coords) return reply({ error: "invalid_position" }, 400);
 
-  const position = approximateCoordinates(input);
+  const position = {
+    latitude: Number(coords.latitude.toFixed(2)),
+    longitude: Number(coords.longitude.toFixed(2)),
+  };
   const key = `${position.latitude},${position.longitude}`;
   const existing = cache.get(key);
   if (existing && existing.expires > Date.now()) return reply({ stores: existing.stores });
