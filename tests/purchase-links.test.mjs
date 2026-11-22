@@ -58,3 +58,11 @@ test('ready-made pasta queries keep the product and apply profile restrictions',
  }
  assert.equal(ingredientPurchaseQuery('Ravioli ricotta e spinaci',['glutine','lattosio']), 'Ravioli ricotta e spinaci senza glutine senza lattosio');
 });
+
+test('the assigned supermarket is included alongside the exact product, city and country', () => {
+ const location = { country: 'it', city: 'Cesano Maderno' };
+ const query = '"Pasta di riso" "senza glutine"';
+ const url = new URL(onlinePurchaseUrl(query, location, 'it', true, '  Esselunga  '));
+ assert.equal(url.searchParams.get('q'), `${query} Esselunga Cesano Maderno Italia`);
+ assert.equal(url.searchParams.get('udm'), 'web');
+});

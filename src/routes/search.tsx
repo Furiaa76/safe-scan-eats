@@ -8,22 +8,24 @@ import { translateText } from "@/lib/translations";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Loader2, Package, Search } from "lucide-react";
+import { ArrowLeft, Loader2, MapPin, Package, Search } from "lucide-react";
 import { fetchProduct, searchProductPage } from "@/lib/off";
 import { useProfile, useProfilesState } from "@/lib/store";
 import { analyzeFood, purchaseProductGroups, VERDICT_LABEL } from "@/lib/verdict";
-import { ingredientPurchaseQuery, productPurchaseQuery, usePurchaseLocation } from "@/lib/purchase";
+import { ingredientPurchaseQuery, productPurchaseQuery, shopMapUrl, usePurchaseLocation } from "@/lib/purchase";
 import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
 import { productRetailers } from "@/lib/product-retailers";
 import { ProductRetailers } from "@/components/ProductRetailers";
 import { PurchaseLinks } from "@/components/PurchaseLinks";
+import { matchesShoppingMarket } from "@/lib/shopping-organization";
 
-type ProductSearch = { q: string; buy?: boolean; local?: boolean; code?: string; from?: "recipes" | "shopping" };
+type ProductSearch = { q: string; buy?: boolean; local?: boolean; code?: string; market?: string; from?: "recipes" | "shopping" };
 
 export const Route = createFileRoute("/search")({
   validateSearch: (s: Record<string, unknown>): ProductSearch => ({
     ...(s["local"] === true || s["local"] === "true" ? { local: true } : {}),
     ...(typeof s["code"] === "string" && /^\d{8,14}$/.test(s["code"]) ? { code: s["code"] } : {}),
+    ...(typeof s["market"] === "string" && s["market"].trim() ? { market: s["market"].trim().slice(0, 60) } : {}),
     q: typeof s["q"] === "string" ? s["q"].slice(0, 120) : "",
     ...(s["buy"] === true || s["buy"] === 1 || s["buy"] === "1" || s["buy"] === "true" ? { buy: true } : {}),
     ...(s["from"] === "recipes" || s["from"] === "shopping" ? { from: s["from"] } : {}),
@@ -34,7 +36,10 @@ export const Route = createFileRoute("/search")({
 
 function SearchPage() {
   const { t, language } = useAppLanguage();
-  const { q, buy, from, local: localFlag, code } = Route.useSearch();
+  const { q, buy, from, local: localFlag, code, market: assignedMarket } = Route.useSearch();
+  const [marketInput, setMarketInput] = useState(assignedMarket ?? "");
+  useEffect(() => setMarketInput(assignedMarket ?? ""), [assignedMarket]);
+  const market = marketInput.trim();
   const location = usePurchaseLocation();
   const local = !!(buy && localFlag);
   const getLocalStock = useServerFn(checkLocalStock);
@@ -71,7 +76,7 @@ function SearchPage() {
     enabled: local && !!location.city.trim() && codes.length > 0,
     retry: false, staleTime: 30_000, refetchInterval: local ? 60_000 : false,
   });
-  const offers = local && !stock.isFetching && !stock.isError ? confirmedLocalStock(stock.data?.offers, codes, location.country, location.city) : [];
+  const offers = local && !stock.isFetching && !stock.isError ? confirmedLocalStock(stock.data?.offers, codes, location.country, location.city).filter((offer) => matchesShoppingMarket(offer.retailer, market)) : [];
   const visibleProducts = local ? catalogProducts.filter(product => offers.some(offer => offer.code.padStart(14,"0") === product.code.padStart(14,"0"))) : catalogProducts;
   // The local view lists physical branches once, even when several matching products
   // are confirmed at the same branch. Catalogue products remain internal lookup data.
@@ -82,8 +87,8 @@ function SearchPage() {
     enabled: local && codes.length > 0,
     retry: false, staleTime: 60_000, refetchInterval: local ? 300_000 : false,
   });
-  const catalogueStores = local && !onlineStores.isError ? supermarketsBySeller((onlineStores.data ?? []).filter(offer=>Date.now()-Date.parse(offer.checkedAt)<=600_000 && !localStores.some(store=>store.retailer.toLowerCase()===offer.name.toLowerCase())), groups.compatible.map(product=>product.code)) : [];
-  const brandStores = supermarketBrandOwners(catalogProducts,location.country).filter(offer=>!catalogueStores.some(store=>store.name===offer.name) && !localStores.some(store=>store.retailer.toLowerCase()===offer.name.toLowerCase()));
+  const catalogueStores = local && !onlineStores.isError ? supermarketsBySeller((onlineStores.data ?? []).filter(offer=>matchesShoppingMarket(offer.name, market) && Date.now()-Date.parse(offer.checkedAt)<=600_000 && !localStores.some(store=>store.retailer.toLowerCase()===offer.name.toLowerCase())), groups.compatible.map(product=>product.code)) : [];
+  const brandStores = supermarketBrandOwners(catalogProducts,location.country).filter(offer=>matchesShoppingMarket(offer.name, market) && !catalogueStores.some(store=>store.name===offer.name) && !localStores.some(store=>store.retailer.toLowerCase()===offer.name.toLowerCase()));
   const typedIngredient = buy ? ingredientPurchaseQuery(value.trim(), profile?.allergens ?? []) : value.trim();
   const typedCatalogQuery = buy && location.country !== "it" ? translateText(typedIngredient, "en") : typedIngredient;
   const searchingTypedQuery = isFetching && typedCatalogQuery === catalogQuery;
@@ -97,7 +102,22 @@ function SearchPage() {
       <p className="mt-3 text-sm text-muted-foreground">{local
         ? t("Indichiamo i supermercati dalle schede dei prodotti e dai marchi propri. Controlla la disponibilità nel negozio.")
         : t(filterByProfile ? "I risultati compatibili sono separati da quelli da verificare. I prodotti con allergeni rilevati sono esclusi dalle proposte di acquisto." : "Scegli un prodotto del catalogo oppure cercalo direttamente online.")}</p>
-      <PurchaseCountrySelector withCity />
+      <PurchaseCountrySelector withCity market={{
+        value: marketInput,
+        onChange: setMarketInput,
+        onBlur: () => {
+          if (market !== (assignedMarket ?? "")) {
+            void navigate({ replace: true, search: (previous) => {
+              const { market: _previousMarket, ...rest } = previous;
+              return market ? { ...rest, market } : rest;
+            } });
+          }
+        },
+      }} />
+      {market && <a href={shopMapUrl(market, location)} target="_blank" rel="noopener noreferrer"
+        className="mt-2 inline-flex min-h-10 items-center gap-2 self-start text-sm font-bold text-primary underline">
+        <MapPin aria-hidden="true" className="h-4 w-4 shrink-0" />{t("Cerca sulla mappa")} · {market}
+      </a>}
       {!local && <label className="mt-3 flex items-center gap-2 text-sm text-foreground">
         <input type="checkbox" checked={worldwide} onChange={(event) => setWorldwide(event.target.checked)} />
         {t("Cerca anche nei cataloghi di altri Paesi")}
@@ -112,7 +132,7 @@ function SearchPage() {
       const nextCatalogQuery = buy && location.country !== "it" ? translateText(ingredient, "en") : ingredient;
       if (!buy && /^\d{8,14}$/.test(query)) void navigate({ to: "/product/$code", params: { code: query } });
       else if (nextCatalogQuery === catalogQuery) void refetch();
-      else void navigate({ search: { q: query, ...(buy ? { buy: true } : {}), ...(from ? { from } : {}), ...(local ? { local: true } : {}) } });
+      else void navigate({ search: { q: query, ...(buy ? { buy: true } : {}), ...(from ? { from } : {}), ...(local ? { local: true } : {}), ...(buy && market ? { market } : {}) } });
     }}>
       <input type="search" value={value} onChange={(event) => setValue(event.target.value)} maxLength={120}
         placeholder={t("Nome, marca o codice a barre")} className="min-w-0 flex-1 rounded-2xl border border-border bg-card px-4 py-3.5 text-base text-foreground outline-none focus:border-primary" enterKeyHint="search" />
@@ -122,7 +142,7 @@ function SearchPage() {
 
     {buy && !local && !filterByProfile && q.trim().length >= 2 && <section className="mt-4 rounded-2xl bg-secondary/50 p-4">
       <h2 className="font-extrabold text-foreground">{t("Cerca questo ingrediente")}: {t(ingredientQuery)}</h2>
-      <PurchaseLinks query={`"${catalogQuery.replace(/["\\]/g, " ").trim()}"`} exactProduct {...(from ? { from } : {})} onlineLabel="Cerca ingrediente online" />
+      <PurchaseLinks query={`"${catalogQuery.replace(/["\\]/g, " ").trim()}"`} exactProduct {...(from ? { from } : {})} onlineLabel="Cerca ingrediente online" market={market} />
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{t("Le schede dei venditori si riferiscono al prodotto esatto nel catalogo online. Prezzi, consegna e disponibilità vanno controllati sul sito del venditore.")}</p>
     </section>}
 
@@ -173,7 +193,7 @@ function SearchPage() {
           <article className="rounded-2xl border border-border bg-card p-4">
           <div className="flex items-center gap-3">
             <Link to="/product/$code" params={{ code: product.code }} aria-label={product.name} className="shrink-0">{product.imageUrl ? <img src={product.imageUrl} alt="" loading="lazy" className="h-14 w-14 rounded-xl object-contain" /> : <span className="grid h-14 w-14 place-items-center rounded-xl bg-secondary"><Package className="h-5 w-5 text-primary" /></span>}</Link>
-            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><Link to="/product/$code" params={{ code: product.code }} className="text-sm font-extrabold text-foreground">{product.name}</Link>{!local && <ProductRetailers product={product} query={catalogQuery} />}</div><p className="mt-1 text-xs text-muted-foreground">{product.brand || product.code}</p></div>
+            <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><Link to="/product/$code" params={{ code: product.code }} className="text-sm font-extrabold text-foreground">{product.name}</Link>{!local && <ProductRetailers product={product} query={catalogQuery} market={buy ? market : undefined} />}</div><p className="mt-1 text-xs text-muted-foreground">{product.brand || product.code}</p></div>
           </div>
           {verdict && <p className={`mt-3 text-sm font-extrabold ${verdict === "avoid" ? "text-danger" : verdict === "warning" ? "text-caution-foreground" : "text-safe"}`}>{t(VERDICT_LABEL[verdict])}</p>}
           {analysis?.reasons.filter((reason) => reason.sourceUrl && reason.verifiedAt).map((reason) => <div key={reason.sourceUrl + reason.text} className="mt-2 text-xs text-muted-foreground"><p>{t(reason.text)}</p><a href={reason.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-bold text-primary underline">{t("Consulta la fonte della dichiarazione")}</a></div>)}
@@ -181,7 +201,7 @@ function SearchPage() {
             <Link to="/product/$code" params={{ code: product.code }} className="mt-2 inline-block text-xs font-bold text-primary underline">{t("Controlla ingredienti e allergeni")}</Link>
             {!local && !review && !productRetailers(product, location).length && <p className="mt-3 text-xs text-muted-foreground">{t("Usa la ricerca online per verificare i venditori del prodotto nel Paese e nella città selezionati.")}</p>}
             {review && <p className="mt-2 text-xs text-caution-foreground">{t(analyzeFood(product, profile?.allergens ?? [], profile?.customAllergens, profile?.nickel).reasons.find((reason) => reason.level === "warning")?.text ?? "Controlla ingredienti e allergeni")}</p>}
-            {!local && !review && <PurchaseLinks query={productPurchaseQuery(product, filterByProfile ? profile.allergens : [])} productCode={product.code} {...(from ? { from } : {})} exactProduct />}
+            {!local && !review && <PurchaseLinks query={productPurchaseQuery(product, filterByProfile ? profile.allergens : [])} productCode={product.code} market={market} {...(from ? { from } : {})} exactProduct />}
             {!local && filterByProfile && <p className="mt-3 text-xs text-muted-foreground">{t("La ricerca esterna può mostrare altri prodotti non filtrati. Verifica che nome, marca e codice corrispondano e controlla l’etichetta.")}</p>}
           </>}
         </article></div>;

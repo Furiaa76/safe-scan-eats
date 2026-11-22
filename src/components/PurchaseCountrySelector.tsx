@@ -5,9 +5,11 @@ import { setPurchaseLocation, usePurchaseLocation } from "@/lib/purchase";
 export function PurchaseCountrySelector({
   withCity = false,
   cityRequired = false,
+  market,
 }: {
   withCity?: boolean;
   cityRequired?: boolean;
+  market?: { value: string; onChange: (value: string) => void; onBlur: () => void };
 }) {
   const { t, language } = useAppLanguage();
   const location = usePurchaseLocation();
@@ -48,6 +50,20 @@ export function PurchaseCountrySelector({
             }
             placeholder={t("Es. Como")}
             autoComplete="address-level2"
+            className="w-full rounded-xl border border-border bg-background px-3 py-3 text-base font-normal"
+          />
+        </label>
+      )}
+      {market && (
+        <label className="mt-3 flex flex-col gap-2 text-sm font-extrabold text-foreground">
+          {t("Supermercato per gli acquisti (facoltativo)")}
+          <input
+            value={market.value}
+            maxLength={60}
+            onChange={(event) => market.onChange(event.target.value)}
+            onBlur={market.onBlur}
+            onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
+            placeholder={t("Es. Esselunga")}
             className="w-full rounded-xl border border-border bg-background px-3 py-3 text-base font-normal"
           />
         </label>

@@ -29,6 +29,11 @@ export function marketKey(name?: string) {
   return (name ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("it-IT");
 }
 
+export function matchesShoppingMarket(retailer: string, selectedMarket?: string) {
+  const store = (value?: string) => marketKey(value).replace(/[^\p{L}\p{N}]/gu, "").replace(/^coopshop$/, "coop");
+  return !selectedMarket?.trim() || store(retailer) === store(selectedMarket);
+}
+
 export function groupShoppingByMarket(items: ShoppingItem[], details: Record<string, ShoppingItemDetails>) {
   const groups = new Map<string, { key: string; title: string; items: ShoppingItem[] }>();
   for (const item of items) {

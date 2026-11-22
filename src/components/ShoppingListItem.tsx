@@ -101,7 +101,7 @@ export function ShoppingListItem({ item, details, activeProfileKey, markets }: {
           {item.checked && <Check className="h-4 w-4" />}
         </button>
         <div className="min-w-0 flex-1">
-          <PurchaseItemLink name={item.name} from="shopping" className={`text-sm font-extrabold ${item.checked ? "line-through" : ""}`} />
+          <PurchaseItemLink name={item.name} from="shopping" market={details?.market} className={`text-sm font-extrabold ${item.checked ? "line-through" : ""}`} />
           <p className="text-xs text-muted-foreground">{[t(item.quantity), item.recipe && t(item.recipe), details?.market].filter(Boolean).join(" · ")}</p>
           <div className="mt-1"><ShoppingStatusBadge item={item} details={details} activeProfileKey={activeProfileKey} /></div>
         </div>

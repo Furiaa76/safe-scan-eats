@@ -2,6 +2,7 @@ import { reportClientError } from "@/lib/client-diagnostics";
 import { EXTRA_RECIPES } from "@/lib/recipe-catalog";
 import { useAppLanguage } from "@/lib/language";
 import { getShoppingRecipes } from "@/lib/shopping-recipes";
+import { useShoppingPreferences } from "@/lib/shopping-preferences";
 import { PurchaseItemLink } from "@/components/PurchaseItemLink";
 import { translateText } from "@/lib/translations";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -368,6 +369,7 @@ function RecipesPage() {
 
   const profile = useProfile();
   const shopping = useShoppingList();
+  const { details } = useShoppingPreferences();
   const shoppingRecipes = useMemo(() => getShoppingRecipes(shopping), [shopping]);
   const generateRecipeFn = useServerFn(generateRecipe);
   const [query, setQuery] = useState("");
@@ -555,7 +557,7 @@ function RecipesPage() {
 
     <section className="mt-4 rounded-3xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><ShoppingCart className="h-5 w-5 text-primary" /><h2 className="font-extrabold">{t("Lista della spesa")}</h2></div>{shopping.length > 0 && <button type="button" onClick={clearShoppingList} className="text-xs font-extrabold text-danger">{t("Svuota")}</button>}</div>
-      {shopping.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">{t("La lista è vuota. Aggiungi una ricetta per iniziare.")}</p> : <div className="mt-3 space-y-2">{shopping.map((item) => <div key={item.id} className="flex items-center gap-3 rounded-2xl bg-muted px-3 py-3"><button type="button" onClick={() => toggleShoppingItem(item.id)} className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 ${item.checked ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}>{item.checked && <Check className="h-4 w-4" />}</button><div className="min-w-0 flex-1"><PurchaseItemLink name={item.name} from="recipes" className={`text-sm font-bold ${item.checked ? "line-through opacity-50" : ""}`} /><p className="text-xs text-muted-foreground">{t(item.quantity)}{t(item.recipe ? ` · ${item.recipe}` : "")}</p></div><button type="button" onClick={() => removeShoppingItem(item.id)} aria-label={t("Rimuovi")} className="text-muted-foreground"><Trash2 className="h-4 w-4" /></button></div>)}</div>}
+      {shopping.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">{t("La lista è vuota. Aggiungi una ricetta per iniziare.")}</p> : <div className="mt-3 space-y-2">{shopping.map((item) => <div key={item.id} className="flex items-center gap-3 rounded-2xl bg-muted px-3 py-3"><button type="button" onClick={() => toggleShoppingItem(item.id)} className={`grid h-7 w-7 shrink-0 place-items-center rounded-full border-2 ${item.checked ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"}`}>{item.checked && <Check className="h-4 w-4" />}</button><div className="min-w-0 flex-1"><PurchaseItemLink name={item.name} from="recipes" market={details[item.id]?.market} className={`text-sm font-bold ${item.checked ? "line-through opacity-50" : ""}`} /><p className="text-xs text-muted-foreground">{t(item.quantity)}{t(item.recipe ? ` · ${item.recipe}` : "")}</p></div><button type="button" onClick={() => removeShoppingItem(item.id)} aria-label={t("Rimuovi")} className="text-muted-foreground"><Trash2 className="h-4 w-4" /></button></div>)}</div>}
     </section>
   </div>;
 }

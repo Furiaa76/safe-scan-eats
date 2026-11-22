@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Store } from "lucide-react";
 import { useAppLanguage } from "@/lib/language";
 import type { FoodProduct } from "@/lib/off";
+import { matchesShoppingMarket } from "@/lib/shopping-organization";
 import {
   productRetailers,
   type ProductRetailer,
@@ -15,9 +16,11 @@ import {
 export function ProductRetailers({
   product,
   query,
+  market,
 }: {
   product: FoodProduct;
   query?: string;
+  market?: string | undefined;
 }) {
   const { t, language } = useAppLanguage();
   const location = usePurchaseLocation();
@@ -54,7 +57,8 @@ export function ProductRetailers({
         ...(product.source !== "manual" && location.country === "it"
           ? (catalogue.data ?? [])
           : []),
-      ].map((retailer) => [retailer.name, retailer]),
+      ].filter((retailer) => matchesShoppingMarket(retailer.name, market))
+        .map((retailer) => [retailer.name, retailer]),
     ).values(),
   );
   return (
@@ -92,12 +96,13 @@ export function ProductRetailers({
             location,
             language,
             true,
+            market,
           )}
           target="_blank"
           rel="noopener noreferrer"
           className="text-[11px] font-normal text-muted-foreground underline"
         >
-          {t("Nessun venditore verificato nel Paese scelto")}
+          {market ? `${t("Disponibilità da verificare presso")} ${market}` : t("Nessun venditore verificato nel Paese scelto")}
           {location.city.trim()
             ? ` · ${t("cerca a")} ${location.city.trim()}`
             : ""}

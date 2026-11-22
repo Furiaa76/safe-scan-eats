@@ -8,11 +8,13 @@ export function PurchaseLinks({
   onlineLabel = "Cerca online",
   productCode,
   from,
+  market,
 }: {
   query: string;
   exactProduct?: boolean;
   onlineLabel?: string;
   productCode?: string;
+  market?: string | undefined;
   from?: "recipes" | "shopping";
 }) {
   const { t, language } = useAppLanguage();
@@ -21,7 +23,7 @@ export function PurchaseLinks({
     <div className="mt-3 space-y-3">
       <div className="flex flex-wrap gap-2">
         <a
-          href={onlinePurchaseUrl(query, location, language, exactProduct)}
+          href={onlinePurchaseUrl(query, location, language, exactProduct, market)}
           target="_blank"
           rel="noopener noreferrer"
           className="rounded-xl bg-primary px-4 py-3 text-sm font-extrabold text-primary-foreground"
@@ -36,6 +38,7 @@ export function PurchaseLinks({
             local: true,
             ...(productCode ? { code: productCode } : {}),
             ...(from ? { from } : {}),
+            ...(market ? { market } : {}),
           }}
           className="rounded-xl bg-secondary px-4 py-3 text-sm font-extrabold text-secondary-foreground"
         >

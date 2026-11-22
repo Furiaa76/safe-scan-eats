@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   groupShoppingByMarket,
   makeShoppingProductCheck,
+  matchesShoppingMarket,
   shoppingProductVerdict,
   shoppingProfileKey,
   SHOPPING_DAYS,
@@ -87,4 +88,11 @@ test("same-name products assigned to different supermarkets or barcodes keep the
   } finally {
     delete globalThis.window;
   }
+});
+
+test("chosen retailer matches case and common storefront naming without matching another chain", () => {
+  assert.equal(matchesShoppingMarket("TIGROS", " tigros "), true);
+  assert.equal(matchesShoppingMarket("Coop Shop", "Coop"), true);
+  assert.equal(matchesShoppingMarket("Iperal", "Iper"), false);
+  assert.equal(matchesShoppingMarket("Esselunga", ""), true);
 });
