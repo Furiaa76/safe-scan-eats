@@ -1,6 +1,7 @@
 import { reportClientError } from "@/lib/client-diagnostics";
 import { EXTRA_RECIPES } from "@/lib/recipe-catalog";
 import { useAppLanguage } from "@/lib/language";
+import { getShoppingRecipes } from "@/lib/shopping-recipes";
 import { PurchaseItemLink } from "@/components/PurchaseItemLink";
 import { translateText } from "@/lib/translations";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -367,6 +368,7 @@ function RecipesPage() {
 
   const profile = useProfile();
   const shopping = useShoppingList();
+  const shoppingRecipes = useMemo(() => getShoppingRecipes(shopping), [shopping]);
   const generateRecipeFn = useServerFn(generateRecipe);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState("lasagne");
@@ -481,6 +483,29 @@ function RecipesPage() {
       <Link to="/" aria-label={t("Torna alla home")} className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-secondary-foreground"><ArrowLeft className="h-5 w-5" /></Link>
       <div><h1 className="text-lg font-extrabold text-foreground">{t("Ricette e spesa")}</h1><p className="text-xs text-muted-foreground">{t("Scegli cosa cucinare e prepara la lista")}</p></div>
     </header>
+
+    {shoppingRecipes.length > 0 && (
+      <section className="mt-4 rounded-3xl border border-border bg-card p-4">
+        <div className="flex items-center gap-2">
+          <ShoppingCart className="h-5 w-5 text-primary" />
+          <h2 className="font-extrabold">{t(shoppingRecipes.length === 1 ? "Ricetta della lista" : "Ricette della lista")}</h2>
+        </div>
+        <div className="mt-3 space-y-2">
+          {shoppingRecipes.map(({ key, title, items }) => (
+            <details key={key} className="rounded-2xl bg-muted px-3 py-3">
+              <summary className="cursor-pointer text-sm font-extrabold">{t(title)}</summary>
+              <ul className="mt-2 space-y-2">
+                {items.map((item) => (
+                  <li key={item.id} className={`text-sm ${item.checked ? "line-through" : ""}`}>
+                    {t(item.name)}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ))}
+        </div>
+      </section>
+    )}
 
     <section className="mt-5 rounded-3xl border border-border bg-card p-4">
       <div className="flex items-center gap-2"><ChefHat className="h-5 w-5 text-primary" /><p className="font-extrabold">{t("Cosa vuoi cucinare?")}</p></div>

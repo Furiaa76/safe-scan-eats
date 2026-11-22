@@ -1,15 +1,16 @@
 import { reportClientError } from "@/lib/client-diagnostics";
 import { useAppLanguage } from "@/lib/language";
 import { PurchaseItemLink } from "@/components/PurchaseItemLink";
+import { useShoppingSyncState } from "@/components/ShoppingSync";
+import { getShoppingRecipes } from "@/lib/shopping-recipes";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, Pencil, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 import {
   addShoppingItem,
   clearCheckedShoppingItems,
   clearShoppingList,
   removeShoppingItem,
-  replaceShoppingList,
   toggleShoppingItem,
   updateShoppingItem,
   useShoppingList,
@@ -17,10 +18,6 @@ import {
   SHOPPING_CATEGORIES,
 } from "@/lib/store";
 import {
-  isCloudShoppingConfigured,
-  loadCloudShopping,
-  saveCloudShopping,
-  clearCloudShopping,
   linkAlexaPairingCode,
   saveCloudAllergenPreferences,
   saveCloudProfiles,
@@ -45,60 +42,20 @@ function ShoppingPage() {
   const [alexaCode, setAlexaCode] = useState("");
   const [alexaMessage, setAlexaMessage] = useState("");
   const [alexaLinking, setAlexaLinking] = useState(false);
-  const [cloudReady, setCloudReady] = useState(false);
-  const [cloudState, setCloudState] = useState<"local" | "syncing" | "synced" | "error">(
-    isCloudShoppingConfigured() ? "syncing" : "local",
-  );
-  const hydrating = useRef(false);
+  const cloudState = useShoppingSyncState();
+  const [cloudReady, setCloudReady] = useState(cloudState === "synced");
 
   useEffect(() => {
-    if (!isCloudShoppingConfigured()) {
-      setCloudState("local");
-      return;
-    }
-
-    let cancelled = false;
-    hydrating.current = true;
-    setCloudState("syncing");
-
-    void (async () => {
-      try {
-        const remote = await loadCloudShopping();
-        if (cancelled) return;
-
-        if (remote) {
-          // Il cloud è la fonte autorevole quando Alexa è collegata.
-          // Anche una lista vuota deve sostituire la vecchia cache locale,
-          // altrimenti gli ingredienti cancellati possono ricomparire.
-          replaceShoppingList(remote);
-        }
-
-        if (!cancelled) {
-          setCloudReady(true);
-          setCloudState("synced");
-        }
-      } catch (error) {
-        reportClientError("shopping-load", error);
-        if (!cancelled) setCloudState("error");
-      } finally {
-        hydrating.current = false;
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // Prima sincronizzazione: deve partire una sola volta all'apertura della pagina.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (cloudState === "synced") setCloudReady(true);
+  }, [cloudState]);
 
   useEffect(() => {
-    if (!cloudReady || !isCloudShoppingConfigured()) return;
+    if (!cloudReady) return;
     void saveCloudAllergenPreferences(profile?.allergens ?? []).catch(error => reportClientError("shopping-preferences", error));
   }, [cloudReady, profile?.allergens]);
 
   useEffect(() => {
-    if (!cloudReady || !isCloudShoppingConfigured()) return;
+    if (!cloudReady) return;
     void saveCloudProfiles(
       profilesState.profiles.map((item) => ({
         id: item.id,
@@ -107,17 +64,6 @@ function ShoppingPage() {
       })),
     ).catch(error => reportClientError("shopping-profiles", error));
   }, [cloudReady, profilesState.profiles]);
-
-  useEffect(() => {
-    if (!cloudReady || hydrating.current || !isCloudShoppingConfigured()) return;
-    const timer = window.setTimeout(() => {
-      setCloudState("syncing");
-      void saveCloudShopping(items)
-        .then(() => setCloudState("synced"))
-        .catch(error => { reportClientError("shopping-save", error); setCloudState("error"); });
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [items, cloudReady]);
 
   const pending = useMemo(() => items.filter((item) => !item.checked), [items]);
   const checked = useMemo(() => items.filter((item) => item.checked), [items]);
@@ -129,15 +75,7 @@ function ShoppingPage() {
     return groups;
   }, [items]);
 
-  const recipeTitles = useMemo(() => {
-    const titles = items
-      .flatMap((item) => (item.recipe ?? "").split("·"))
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .map((value) => value.replace(/^(la|il|lo|gli|le|i)\s+/i, ""))
-      .map((value) => value.charAt(0).toUpperCase() + value.slice(1));
-    return Array.from(new Set(titles));
-  }, [pending]);
+  const recipes = useMemo(() => getShoppingRecipes(items), [items]);
 
   const addManual = () => {
     const clean = name.trim();
@@ -198,14 +136,19 @@ function ShoppingPage() {
       </header>
       <p className="mt-3 text-xs text-muted-foreground">{t("Tocca un prodotto per cercare dove acquistarlo.")}</p>
 
-      {recipeTitles.length > 0 && (
+      {recipes.length > 0 && (
         <section className="mt-4 rounded-3xl border border-border bg-card p-4">
-          <p className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
-            {t(recipeTitles.length === 1 ? "Ricetta della lista" : "Ricette della lista")}
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
+              {t(recipes.length === 1 ? "Ricetta della lista" : "Ricette della lista")}
+            </h2>
+            <Link to="/recipes" className="text-xs font-extrabold text-primary">
+              {t("Vai alle ricette")}
+            </Link>
+          </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            {recipeTitles.map((title) => (
-              <span key={title} className="rounded-full bg-primary px-4 py-2 text-base font-black text-primary-foreground">
+            {recipes.map(({ key, title }) => (
+              <span key={key} className="rounded-full bg-primary px-4 py-2 text-base font-black text-primary-foreground">
                 {t("🍽️")}{t(title)}
               </span>
             ))}
@@ -291,12 +234,6 @@ function ShoppingPage() {
                   onClick={() => {
                     if (!window.confirm(t("Vuoi svuotare tutta la lista della spesa?"))) return;
                     clearShoppingList();
-                    if (isCloudShoppingConfigured()) {
-                      setCloudState("syncing");
-                      void clearCloudShopping()
-                        .then(() => setCloudState("synced"))
-                        .catch(error => { reportClientError("shopping-clear", error); setCloudState("error"); });
-                    }
                   }}
                   className="text-xs font-extrabold text-danger"
                 >

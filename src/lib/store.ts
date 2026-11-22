@@ -6,6 +6,7 @@ const LEGACY_PROFILE_KEY = "safefood-profile";
 const PROFILES_KEY = "safefood-profiles-v2";
 const HISTORY_KEY = "safefood-history";
 const SHOPPING_KEY = "safefood-shopping-list";
+const PENDING_SHOPPING_BASE_KEY = "safefood-shopping-pending-base";
 
 export interface Profile {
   id: string;
@@ -349,6 +350,18 @@ export function getShoppingList(): ShoppingItem[] {
   return shoppingCache;
 }
 
+export function getPendingShoppingBase() {
+  return read<ShoppingItem[]>(PENDING_SHOPPING_BASE_KEY);
+}
+
+export function setPendingShoppingBase(items: ShoppingItem[] | null) {
+  if (items) {
+    window.localStorage.setItem(PENDING_SHOPPING_BASE_KEY, JSON.stringify(items));
+  } else {
+    window.localStorage.removeItem(PENDING_SHOPPING_BASE_KEY);
+  }
+}
+
 function saveShoppingList(items: ShoppingItem[]) {
   shoppingCache = items;
   window.localStorage.setItem(SHOPPING_KEY, JSON.stringify(items));
@@ -535,7 +548,7 @@ export function clearShoppingList() {
   emit();
 }
 
-function subscribe(cb: () => void) {
+export function subscribeToStore(cb: () => void) {
   listeners.push(cb);
   return () => {
     listeners = listeners.filter((l) => l !== cb);
@@ -548,17 +561,17 @@ const SERVER_HISTORY: HistoryEntry[] = [];
 const SERVER_SHOPPING: ShoppingItem[] = [];
 
 export function useProfile(): Profile | null {
-  return useSyncExternalStore(subscribe, getProfile, () => null);
+  return useSyncExternalStore(subscribeToStore, getProfile, () => null);
 }
 
 export function useProfilesState(): ProfilesState {
-  return useSyncExternalStore(subscribe, getProfilesState, () => SERVER_PROFILES);
+  return useSyncExternalStore(subscribeToStore, getProfilesState, () => SERVER_PROFILES);
 }
 
 export function useHistory(): HistoryEntry[] {
-  return useSyncExternalStore(subscribe, getHistory, () => SERVER_HISTORY);
+  return useSyncExternalStore(subscribeToStore, getHistory, () => SERVER_HISTORY);
 }
 
 export function useShoppingList(): ShoppingItem[] {
-  return useSyncExternalStore(subscribe, getShoppingList, () => SERVER_SHOPPING);
+  return useSyncExternalStore(subscribeToStore, getShoppingList, () => SERVER_SHOPPING);
 }

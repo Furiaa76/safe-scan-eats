@@ -1,5 +1,6 @@
 import { ClientDiagnostics, AppRouteError } from "@/components/ClientDiagnostics";
 import { AppStatistics } from "@/components/AppStatistics";
+import { ShoppingSync } from "@/components/ShoppingSync";
 import { Capacitor } from "@capacitor/core";
 import { useAppLanguage } from "@/lib/language";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -70,7 +71,7 @@ function RootComponent() {
     if (isStandalone && nav?.type === "navigate" && window.location.pathname !== start) window.location.replace(start);
   }, []);
 
-  return <QueryClientProvider client={queryClient}><ClientDiagnostics /><Outlet /><AppStatistics /></QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}><ClientDiagnostics /><ShoppingSync><Outlet /></ShoppingSync><AppStatistics /></QueryClientProvider>;
 }
 
 function NotFound() {
