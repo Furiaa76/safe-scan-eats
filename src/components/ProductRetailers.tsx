@@ -73,7 +73,9 @@ export function ProductRetailers({
       href={onlinePurchaseUrl(productPurchaseQuery(product), location, language, true, name)}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-[11px] font-normal text-muted-foreground underline"
+      className={name
+        ? "rounded-lg border border-primary/40 bg-primary/5 px-2 py-1 text-xs font-bold text-primary underline"
+        : "text-[11px] font-normal text-muted-foreground underline"}
     >
       {name ? `${t("Disponibilità da verificare presso")} ${name}` : t("Nessun venditore verificato nel Paese scelto")}
       {location.city.trim() ? ` · ${t("cerca a")} ${location.city.trim()}` : ""}
@@ -89,7 +91,10 @@ export function ProductRetailers({
             target="_blank"
             rel="noopener noreferrer"
             key={retailer.name}
-            className="inline-flex items-center gap-1 rounded-lg bg-secondary px-2 py-1 text-[11px] font-bold text-secondary-foreground"
+            className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold ${
+              preferred.some((market) => matchesShoppingMarket(retailer.name, market))
+                ? "border border-primary/40 bg-primary/5 text-primary" : "bg-secondary text-secondary-foreground"
+            }`}
             title={
               retailer.verified
                 ? `${t("Scheda online controllata")}: ${new Date(retailer.checkedAt).toLocaleDateString(language)}. ${t("Disponibilità locale da verificare")}`

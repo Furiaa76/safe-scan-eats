@@ -17,7 +17,7 @@ import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
 import { productRetailers } from "@/lib/product-retailers";
 import { ProductRetailers } from "@/components/ProductRetailers";
 import { PurchaseLinks } from "@/components/PurchaseLinks";
-import { prioritizeShoppingMarkets, selectedShoppingMarkets } from "@/lib/shopping-organization";
+import { matchesShoppingMarket, prioritizeShoppingMarkets, selectedShoppingMarkets } from "@/lib/shopping-organization";
 
 type ProductSearch = { q: string; buy?: boolean; local?: boolean; code?: string; market?: string; from?: "recipes" | "shopping" };
 
@@ -94,20 +94,24 @@ function SearchPage() {
   const typedCatalogQuery = buy && location.country !== "it" ? translateText(typedIngredient, "en") : typedIngredient;
   const searchingTypedQuery = isFetching && typedCatalogQuery === catalogQuery;
 
+  const storeCardClass = (name: string) => `block rounded-2xl border p-4 text-foreground ${
+    preferredMarkets.some((market) => matchesShoppingMarket(name, market))
+      ? "border-primary bg-primary/5" : "border-border bg-card"
+  }`;
   const orderedStoreCards = local && !isFetching ? prioritizeShoppingMarkets([
-    ...localStores.map((offer) => ({ name: offer.retailer, node: <a key={`${offer.country}:${offer.storeId}`} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl border border-border bg-card p-4 text-foreground">
+    ...localStores.map((offer) => ({ name: offer.retailer, node: <a key={`${offer.country}:${offer.storeId}`} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className={storeCardClass(offer.retailer)}>
         <strong className="block text-base">{offer.retailer}</strong>
         <span className="mt-1 block text-sm text-muted-foreground">{offer.address}, {offer.city}</span>
         <span className="mt-2 block text-xs text-safe">{t("Disponibilità confermata")}: {new Date(offer.checkedAt).toLocaleTimeString(language === "it" ? "it-IT" : "en-GB", {hour:"2-digit",minute:"2-digit"})}</span>
         {filterByProfile && offers.some(row => row.storeId === offer.storeId && groups.review.some(product => product.code.padStart(14, "0") === row.code.padStart(14, "0"))) && <span className="mt-2 block text-xs text-caution-foreground">{t("Controlla ingredienti e allergeni")}</span>}
       </a> })),
-    ...brandStores.map((offer) => ({ name: offer.name, node: <a key={offer.name} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl border border-border bg-card p-4 text-foreground">
+    ...brandStores.map((offer) => ({ name: offer.name, node: <a key={offer.name} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className={storeCardClass(offer.name)}>
         <strong className="block text-base">{offer.name}</strong>
         <span className="mt-1 block text-sm">{t("Catena del marchio")}: {offer.brand}</span>
         <span className="mt-2 block text-xs text-muted-foreground">{t("Disponibilità del prodotto nel negozio da verificare. Il link apre la pagina ufficiale del marchio.")}</span>
         {filterByProfile && groups.review.some(product=>product.code===offer.code) && <span className="mt-2 block text-xs text-caution-foreground">{t("Controlla ingredienti e allergeni")}</span>}
       </a> })),
-    ...catalogueStores.map((offer) => ({ name: offer.name, node: <a key={offer.name} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl border border-border bg-card p-4 text-foreground">
+    ...catalogueStores.map((offer) => ({ name: offer.name, node: <a key={offer.name} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className={storeCardClass(offer.name)}>
         <strong className="block text-base">{offer.name}</strong>
         <span className="mt-1 block text-sm text-primary">{t("Vedi il prodotto sul sito")}</span>
         <span className="mt-2 block text-xs text-muted-foreground">{t("Presente nel catalogo online · disponibilità locale da verificare")}</span>
@@ -136,12 +140,12 @@ function SearchPage() {
           }
         },
       }} />
-      {preferredMarkets.length > 0 && <section className="mt-3 rounded-2xl bg-secondary/50 p-3">
-        <h2 className="text-sm font-extrabold">{t("Supermercati scelti")}</h2>
-        <ul className="mt-1 space-y-1">
+      {preferredMarkets.length > 0 && <section className="mt-3 rounded-2xl border border-primary/40 bg-primary/5 p-3">
+        <h2 className="text-sm font-extrabold text-primary">{t("Supermercati scelti")}</h2>
+        <ul className="mt-2 space-y-2">
           {preferredMarkets.map((name) => <li key={name}>
             <a href={shopMapUrl(name, location)} target="_blank" rel="noopener noreferrer"
-              className="flex min-h-10 items-center gap-2 text-sm font-bold text-primary underline">
+              className="flex min-h-11 items-center gap-2 rounded-xl border border-primary/40 bg-card px-3 py-2 text-sm font-extrabold text-primary">
               <MapPin aria-hidden="true" className="h-4 w-4 shrink-0" />{name} · {t("Cerca sulla mappa")}
             </a>
           </li>)}
