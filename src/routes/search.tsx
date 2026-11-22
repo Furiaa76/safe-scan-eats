@@ -17,7 +17,7 @@ import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
 import { productRetailers } from "@/lib/product-retailers";
 import { ProductRetailers } from "@/components/ProductRetailers";
 import { PurchaseLinks } from "@/components/PurchaseLinks";
-import { matchesShoppingMarket } from "@/lib/shopping-organization";
+import { prioritizeShoppingMarkets, selectedShoppingMarkets } from "@/lib/shopping-organization";
 
 type ProductSearch = { q: string; buy?: boolean; local?: boolean; code?: string; market?: string; from?: "recipes" | "shopping" };
 
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/search")({
   validateSearch: (s: Record<string, unknown>): ProductSearch => ({
     ...(s["local"] === true || s["local"] === "true" ? { local: true } : {}),
     ...(typeof s["code"] === "string" && /^\d{8,14}$/.test(s["code"]) ? { code: s["code"] } : {}),
-    ...(typeof s["market"] === "string" && s["market"].trim() ? { market: s["market"].trim().slice(0, 60) } : {}),
+    ...(typeof s["market"] === "string" && s["market"].trim() ? { market: s["market"].trim().slice(0, 180) } : {}),
     q: typeof s["q"] === "string" ? s["q"].slice(0, 120) : "",
     ...(s["buy"] === true || s["buy"] === 1 || s["buy"] === "1" || s["buy"] === "true" ? { buy: true } : {}),
     ...(s["from"] === "recipes" || s["from"] === "shopping" ? { from: s["from"] } : {}),
@@ -40,6 +40,7 @@ function SearchPage() {
   const [marketInput, setMarketInput] = useState(assignedMarket ?? "");
   useEffect(() => setMarketInput(assignedMarket ?? ""), [assignedMarket]);
   const market = marketInput.trim();
+  const preferredMarkets = selectedShoppingMarkets(market);
   const location = usePurchaseLocation();
   const local = !!(buy && localFlag);
   const getLocalStock = useServerFn(checkLocalStock);
@@ -76,7 +77,7 @@ function SearchPage() {
     enabled: local && !!location.city.trim() && codes.length > 0,
     retry: false, staleTime: 30_000, refetchInterval: local ? 60_000 : false,
   });
-  const offers = local && !stock.isFetching && !stock.isError ? confirmedLocalStock(stock.data?.offers, codes, location.country, location.city).filter((offer) => matchesShoppingMarket(offer.retailer, market)) : [];
+  const offers = local && !stock.isFetching && !stock.isError ? confirmedLocalStock(stock.data?.offers, codes, location.country, location.city) : [];
   const visibleProducts = local ? catalogProducts.filter(product => offers.some(offer => offer.code.padStart(14,"0") === product.code.padStart(14,"0"))) : catalogProducts;
   // The local view lists physical branches once, even when several matching products
   // are confirmed at the same branch. Catalogue products remain internal lookup data.
@@ -87,11 +88,32 @@ function SearchPage() {
     enabled: local && codes.length > 0,
     retry: false, staleTime: 60_000, refetchInterval: local ? 300_000 : false,
   });
-  const catalogueStores = local && !onlineStores.isError ? supermarketsBySeller((onlineStores.data ?? []).filter(offer=>matchesShoppingMarket(offer.name, market) && Date.now()-Date.parse(offer.checkedAt)<=600_000 && !localStores.some(store=>store.retailer.toLowerCase()===offer.name.toLowerCase())), groups.compatible.map(product=>product.code)) : [];
-  const brandStores = supermarketBrandOwners(catalogProducts,location.country).filter(offer=>matchesShoppingMarket(offer.name, market) && !catalogueStores.some(store=>store.name===offer.name) && !localStores.some(store=>store.retailer.toLowerCase()===offer.name.toLowerCase()));
+  const catalogueStores = local && !onlineStores.isError ? supermarketsBySeller((onlineStores.data ?? []).filter(offer=>Date.now()-Date.parse(offer.checkedAt)<=600_000 && !localStores.some(store=>store.retailer.toLowerCase()===offer.name.toLowerCase())), groups.compatible.map(product=>product.code)) : [];
+  const brandStores = supermarketBrandOwners(catalogProducts,location.country).filter(offer=>!catalogueStores.some(store=>store.name===offer.name) && !localStores.some(store=>store.retailer.toLowerCase()===offer.name.toLowerCase()));
   const typedIngredient = buy ? ingredientPurchaseQuery(value.trim(), profile?.allergens ?? []) : value.trim();
   const typedCatalogQuery = buy && location.country !== "it" ? translateText(typedIngredient, "en") : typedIngredient;
   const searchingTypedQuery = isFetching && typedCatalogQuery === catalogQuery;
+
+  const orderedStoreCards = local && !isFetching ? prioritizeShoppingMarkets([
+    ...localStores.map((offer) => ({ name: offer.retailer, node: <a key={`${offer.country}:${offer.storeId}`} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl border border-border bg-card p-4 text-foreground">
+        <strong className="block text-base">{offer.retailer}</strong>
+        <span className="mt-1 block text-sm text-muted-foreground">{offer.address}, {offer.city}</span>
+        <span className="mt-2 block text-xs text-safe">{t("Disponibilità confermata")}: {new Date(offer.checkedAt).toLocaleTimeString(language === "it" ? "it-IT" : "en-GB", {hour:"2-digit",minute:"2-digit"})}</span>
+        {filterByProfile && offers.some(row => row.storeId === offer.storeId && groups.review.some(product => product.code.padStart(14, "0") === row.code.padStart(14, "0"))) && <span className="mt-2 block text-xs text-caution-foreground">{t("Controlla ingredienti e allergeni")}</span>}
+      </a> })),
+    ...brandStores.map((offer) => ({ name: offer.name, node: <a key={offer.name} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl border border-border bg-card p-4 text-foreground">
+        <strong className="block text-base">{offer.name}</strong>
+        <span className="mt-1 block text-sm">{t("Catena del marchio")}: {offer.brand}</span>
+        <span className="mt-2 block text-xs text-muted-foreground">{t("Disponibilità del prodotto nel negozio da verificare. Il link apre la pagina ufficiale del marchio.")}</span>
+        {filterByProfile && groups.review.some(product=>product.code===offer.code) && <span className="mt-2 block text-xs text-caution-foreground">{t("Controlla ingredienti e allergeni")}</span>}
+      </a> })),
+    ...catalogueStores.map((offer) => ({ name: offer.name, node: <a key={offer.name} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl border border-border bg-card p-4 text-foreground">
+        <strong className="block text-base">{offer.name}</strong>
+        <span className="mt-1 block text-sm text-primary">{t("Vedi il prodotto sul sito")}</span>
+        <span className="mt-2 block text-xs text-muted-foreground">{t("Presente nel catalogo online · disponibilità locale da verificare")}</span>
+        {filterByProfile && groups.review.some(product=>product.code.padStart(14,"0")===offer.code.padStart(14,"0")) && <span className="mt-2 block text-xs text-caution-foreground">{t("Controlla ingredienti e allergeni")}</span>}
+      </a> })),
+  ], preferredMarkets, (card) => card.name) : [];
 
   return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
     <header className="flex items-center gap-3">
@@ -114,10 +136,17 @@ function SearchPage() {
           }
         },
       }} />
-      {market && <a href={shopMapUrl(market, location)} target="_blank" rel="noopener noreferrer"
-        className="mt-2 inline-flex min-h-10 items-center gap-2 self-start text-sm font-bold text-primary underline">
-        <MapPin aria-hidden="true" className="h-4 w-4 shrink-0" />{t("Cerca sulla mappa")} · {market}
-      </a>}
+      {preferredMarkets.length > 0 && <section className="mt-3 rounded-2xl bg-secondary/50 p-3">
+        <h2 className="text-sm font-extrabold">{t("Supermercati scelti")}</h2>
+        <ul className="mt-1 space-y-1">
+          {preferredMarkets.map((name) => <li key={name}>
+            <a href={shopMapUrl(name, location)} target="_blank" rel="noopener noreferrer"
+              className="flex min-h-10 items-center gap-2 text-sm font-bold text-primary underline">
+              <MapPin aria-hidden="true" className="h-4 w-4 shrink-0" />{name} · {t("Cerca sulla mappa")}
+            </a>
+          </li>)}
+        </ul>
+      </section>}
       {!local && <label className="mt-3 flex items-center gap-2 text-sm text-foreground">
         <input type="checkbox" checked={worldwide} onChange={(event) => setWorldwide(event.target.checked)} />
         {t("Cerca anche nei cataloghi di altri Paesi")}
@@ -162,25 +191,8 @@ function SearchPage() {
         <p className="mt-1 text-xs text-muted-foreground">{t(code ? "Cerchiamo il codice a barre del prodotto selezionato, mantenendo i controlli del profilo attivo." : "Mostriamo le alternative trovate nel catalogo per questo ingrediente. Il numero dipende dai dati disponibili e dal profilo attivo.")}</p>
       </div>}
       {local && location.country !== "it" && localStores.length === 0 && <p className="rounded-xl bg-muted p-4 text-sm">{t("I cataloghi dei supermercati collegati al momento sono quelli italiani.")}</p>}
-      {local && !isFetching && localStores.map(offer => <a key={`${offer.country}:${offer.storeId}`} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl border border-border bg-card p-4 text-foreground">
-        <strong className="block text-base">{offer.retailer}</strong>
-        <span className="mt-1 block text-sm text-muted-foreground">{offer.address}, {offer.city}</span>
-        <span className="mt-2 block text-xs text-safe">{t("Disponibilità confermata")}: {new Date(offer.checkedAt).toLocaleTimeString(language === "it" ? "it-IT" : "en-GB", {hour:"2-digit",minute:"2-digit"})}</span>
-        {filterByProfile && offers.some(row => row.storeId === offer.storeId && groups.review.some(product => product.code.padStart(14, "0") === row.code.padStart(14, "0"))) && <span className="mt-2 block text-xs text-caution-foreground">{t("Controlla ingredienti e allergeni")}</span>}
-      </a>)}
       {local && (isError || onlineStores.isError) && <div className="rounded-xl bg-muted p-4 text-sm"><p>{t("Ricerca dei negozi non riuscita. Riprova.")}</p><button type="button" className="mt-2 font-bold text-primary underline" onClick={()=>{void refetch();void onlineStores.refetch();}}>{t("Riprova")}</button></div>}
-      {local && !isFetching && brandStores.map(offer => <a key={offer.name} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl border border-border bg-card p-4 text-foreground">
-        <strong className="block text-base">{offer.name}</strong>
-        <span className="mt-1 block text-sm">{t("Catena del marchio")}: {offer.brand}</span>
-        <span className="mt-2 block text-xs text-muted-foreground">{t("Disponibilità del prodotto nel negozio da verificare. Il link apre la pagina ufficiale del marchio.")}</span>
-        {filterByProfile && groups.review.some(product=>product.code===offer.code) && <span className="mt-2 block text-xs text-caution-foreground">{t("Controlla ingredienti e allergeni")}</span>}
-      </a>)}
-      {local && !isFetching && catalogueStores.map(offer => <a key={offer.name} href={offer.sourceUrl} target="_blank" rel="noopener noreferrer" className="block rounded-2xl border border-border bg-card p-4 text-foreground">
-        <strong className="block text-base">{offer.name}</strong>
-        <span className="mt-1 block text-sm text-primary">{t("Vedi il prodotto sul sito")}</span>
-        <span className="mt-2 block text-xs text-muted-foreground">{t("Presente nel catalogo online · disponibilità locale da verificare")}</span>
-        {filterByProfile && groups.review.some(product=>product.code.padStart(14,"0")===offer.code.padStart(14,"0")) && <span className="mt-2 block text-xs text-caution-foreground">{t("Controlla ingredienti e allergeni")}</span>}
-      </a>)}
+      {local && !isFetching && orderedStoreCards.map(({ node }) => node)}
       {!local && (!isFetching || isFetchingNextPage) && visibleProducts.map((product, index) => {
         const analysis = buy && profile && !freeMode ? analyzeFood(product, profile.allergens, profile.customAllergens, profile.nickel) : null;
         const verdict = analysis?.verdict ?? null;

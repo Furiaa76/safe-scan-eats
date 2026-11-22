@@ -4,6 +4,8 @@ import {
   groupShoppingByMarket,
   makeShoppingProductCheck,
   matchesShoppingMarket,
+  prioritizeShoppingMarkets,
+  selectedShoppingMarkets,
   shoppingProductVerdict,
   shoppingProfileKey,
   SHOPPING_DAYS,
@@ -95,4 +97,14 @@ test("chosen retailer matches case and common storefront naming without matching
   assert.equal(matchesShoppingMarket("Coop Shop", "Coop"), true);
   assert.equal(matchesShoppingMarket("Iperal", "Iper"), false);
   assert.equal(matchesShoppingMarket("Esselunga", ""), true);
+});
+
+test("chosen supermarkets lead the results in input order and other matches stay visible", () => {
+  const chosen = selectedShoppingMarkets(" Lidl, Esselunga; Lidl, Coop Shop, Coop ");
+  assert.deepEqual(chosen, ["Lidl", "Esselunga", "Coop Shop"]);
+  const entries = ["Tigros", "Coop", "Esselunga", "Conad", "LIDL"];
+  assert.deepEqual(prioritizeShoppingMarkets(entries, chosen, (entry) => entry), [
+    "LIDL", "Esselunga", "Coop", "Tigros", "Conad",
+  ]);
+  assert.deepEqual(prioritizeShoppingMarkets(entries, [], (entry) => entry), entries);
 });

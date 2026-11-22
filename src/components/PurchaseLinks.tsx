@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useAppLanguage } from "@/lib/language";
 import { onlinePurchaseUrl, usePurchaseLocation } from "@/lib/purchase";
+import { selectedShoppingMarkets } from "@/lib/shopping-organization";
 import { AmazonPurchaseLink } from "@/components/AmazonPurchaseLink";
 export function PurchaseLinks({
   query,
@@ -19,16 +20,17 @@ export function PurchaseLinks({
 }) {
   const { t, language } = useAppLanguage();
   const location = usePurchaseLocation();
+  const [firstMarket] = selectedShoppingMarkets(market);
   return (
     <div className="mt-3 space-y-3">
       <div className="flex flex-wrap gap-2">
         <a
-          href={onlinePurchaseUrl(query, location, language, exactProduct, market)}
+          href={onlinePurchaseUrl(query, location, language, exactProduct, firstMarket)}
           target="_blank"
           rel="noopener noreferrer"
           className="rounded-xl bg-primary px-4 py-3 text-sm font-extrabold text-primary-foreground"
         >
-          {t(onlineLabel)}
+          {t(onlineLabel)}{firstMarket ? ` · ${firstMarket}` : ""}
         </a>
         <Link
           to="/search"

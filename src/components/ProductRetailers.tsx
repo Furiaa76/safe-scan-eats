@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Store } from "lucide-react";
 import { useAppLanguage } from "@/lib/language";
 import type { FoodProduct } from "@/lib/off";
-import { matchesShoppingMarket } from "@/lib/shopping-organization";
+import { matchesShoppingMarket, prioritizeShoppingMarkets, selectedShoppingMarkets } from "@/lib/shopping-organization";
 import {
   productRetailers,
   type ProductRetailer,
@@ -57,14 +57,33 @@ export function ProductRetailers({
         ...(product.source !== "manual" && location.country === "it"
           ? (catalogue.data ?? [])
           : []),
-      ].filter((retailer) => matchesShoppingMarket(retailer.name, market))
-        .map((retailer) => [retailer.name, retailer]),
+      ].map((retailer) => [retailer.name, retailer]),
     ).values(),
   );
+  const preferred = selectedShoppingMarkets(market);
+  const entries = prioritizeShoppingMarkets([
+    ...retailers.map((retailer) => ({ name: retailer.name, retailer })),
+    ...preferred.filter((name) => !retailers.some((retailer) => matchesShoppingMarket(retailer.name, name)))
+      .map((name) => ({ name, retailer: null })),
+  ], preferred, (entry) => entry.name);
+
+  const availabilityLink = (name?: string) => (
+    <a
+      key={name ?? "unknown-retailer"}
+      href={onlinePurchaseUrl(productPurchaseQuery(product), location, language, true, name)}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-[11px] font-normal text-muted-foreground underline"
+    >
+      {name ? `${t("Disponibilità da verificare presso")} ${name}` : t("Nessun venditore verificato nel Paese scelto")}
+      {location.city.trim() ? ` · ${t("cerca a")} ${location.city.trim()}` : ""}
+    </a>
+  );
+
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
-      {retailers.length ? (
-        retailers.map((retailer) => (
+      {entries.length ? (
+        entries.map(({ name, retailer }) => retailer ? (
           <a
             href={retailer.sourceUrl}
             target="_blank"
@@ -88,26 +107,8 @@ export function ProductRetailers({
               · {t("Disponibilità locale da verificare")}
             </span>
           </a>
-        ))
-      ) : (
-        <a
-          href={onlinePurchaseUrl(
-            productPurchaseQuery(product),
-            location,
-            language,
-            true,
-            market,
-          )}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[11px] font-normal text-muted-foreground underline"
-        >
-          {market ? `${t("Disponibilità da verificare presso")} ${market}` : t("Nessun venditore verificato nel Paese scelto")}
-          {location.city.trim()
-            ? ` · ${t("cerca a")} ${location.city.trim()}`
-            : ""}
-        </a>
-      )}
+        ) : availabilityLink(name))
+      ) : availabilityLink()}
     </span>
   );
 }

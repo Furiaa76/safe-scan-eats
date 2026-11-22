@@ -56,16 +56,17 @@ export function PurchaseCountrySelector({
       )}
       {market && (
         <label className="mt-3 flex flex-col gap-2 text-sm font-extrabold text-foreground">
-          {t("Supermercato per gli acquisti (facoltativo)")}
+          {t("Supermercati per gli acquisti (facoltativi)")}
           <input
             value={market.value}
-            maxLength={60}
+            maxLength={180}
             onChange={(event) => market.onChange(event.target.value)}
             onBlur={market.onBlur}
             onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }}
-            placeholder={t("Es. Esselunga")}
+            placeholder={t("Es. Esselunga, Lidl, Tigros")}
             className="w-full rounded-xl border border-border bg-background px-3 py-3 text-base font-normal"
           />
+          <span className="text-xs font-normal text-muted-foreground">{t("Separali con una virgola, nell’ordine che preferisci.")}</span>
         </label>
       )}
     </section>

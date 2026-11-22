@@ -29,9 +29,30 @@ export function marketKey(name?: string) {
   return (name ?? "").trim().replace(/\s+/g, " ").toLocaleLowerCase("it-IT");
 }
 
+function retailerKey(value?: string) {
+  return marketKey(value).normalize("NFC").replace(/[^\p{L}\p{N}]/gu, "").replace(/^coopshop$/, "coop");
+}
+
 export function matchesShoppingMarket(retailer: string, selectedMarket?: string) {
-  const store = (value?: string) => marketKey(value).replace(/[^\p{L}\p{N}]/gu, "").replace(/^coopshop$/, "coop");
-  return !selectedMarket?.trim() || store(retailer) === store(selectedMarket);
+  const key = retailerKey(selectedMarket);
+  return !key || retailerKey(retailer) === key;
+}
+
+export function selectedShoppingMarkets(value = "") {
+  const markets = new Map<string, string>();
+  for (const entry of value.split(/[,;]+/)) {
+    const name = entry.trim();
+    const key = retailerKey(name);
+    if (key && !markets.has(key)) markets.set(key, name);
+  }
+  return [...markets.values()];
+}
+
+export function prioritizeShoppingMarkets<T>(rows: T[], markets: string[], nameOf: (row: T) => string) {
+  if (!markets.length) return rows;
+  const priority = new Map(markets.map((name, index) => [retailerKey(name), index]));
+  const rank = (row: T) => priority.get(retailerKey(nameOf(row))) ?? markets.length;
+  return [...rows].sort((a, b) => rank(a) - rank(b));
 }
 
 export function groupShoppingByMarket(items: ShoppingItem[], details: Record<string, ShoppingItemDetails>) {
