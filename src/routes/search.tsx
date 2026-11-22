@@ -8,12 +8,13 @@ import { translateText } from "@/lib/translations";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Loader2, MapPin, Package, Search } from "lucide-react";
+import { ArrowLeft, Loader2, Package, Search } from "lucide-react";
 import { fetchProduct, searchProductPage } from "@/lib/off";
 import { useProfile, useProfilesState } from "@/lib/store";
 import { analyzeFood, purchaseProductGroups, VERDICT_LABEL } from "@/lib/verdict";
-import { ingredientPurchaseQuery, productPurchaseQuery, shopMapUrl, usePurchaseLocation } from "@/lib/purchase";
+import { ingredientPurchaseQuery, productPurchaseQuery, usePurchaseLocation } from "@/lib/purchase";
 import { PurchaseCountrySelector } from "@/components/PurchaseCountrySelector";
+import { NearbySupermarkets } from "@/components/NearbySupermarkets";
 import { productRetailers } from "@/lib/product-retailers";
 import { ProductRetailers } from "@/components/ProductRetailers";
 import { PurchaseLinks } from "@/components/PurchaseLinks";
@@ -140,17 +141,7 @@ function SearchPage() {
           }
         },
       }} />
-      {preferredMarkets.length > 0 && <section className="mt-3 rounded-2xl border border-primary/40 bg-primary/5 p-3">
-        <h2 className="text-sm font-extrabold text-primary">{t("Supermercati scelti")}</h2>
-        <ul className="mt-2 space-y-2">
-          {preferredMarkets.map((name) => <li key={name}>
-            <a href={shopMapUrl(name, location)} target="_blank" rel="noopener noreferrer"
-              className="flex min-h-11 items-center gap-2 rounded-xl border border-primary/40 bg-card px-3 py-2 text-sm font-extrabold text-primary">
-              <MapPin aria-hidden="true" className="h-4 w-4 shrink-0" />{name} · {t("Cerca sulla mappa")}
-            </a>
-          </li>)}
-        </ul>
-      </section>}
+      <NearbySupermarkets preferred={preferredMarkets} location={location} />
       {!local && <label className="mt-3 flex items-center gap-2 text-sm text-foreground">
         <input type="checkbox" checked={worldwide} onChange={(event) => setWorldwide(event.target.checked)} />
         {t("Cerca anche nei cataloghi di altri Paesi")}
