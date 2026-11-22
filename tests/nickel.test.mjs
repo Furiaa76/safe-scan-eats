@@ -44,8 +44,7 @@ test('normalization drops invalid data, preserves opted-out entries, and imposes
 test('profile storage isolates lists, preserves changes on edit and switches startup per profile', async () => {
   const memory=new Map();
   globalThis.window={localStorage:{getItem:key=>memory.get(key)??null,setItem:(key,value)=>memory.set(key,value),removeItem:key=>memory.delete(key)}};
-  const source=readFileSync(new URL('../src/lib/store.ts',import.meta.url),'utf8').replace('from "react";',`from "${import.meta.resolve('react')}";`).replace('from "./nickel";',`from "${nickelUrl}";`);
-  const store=await import(asModule(source));
+  const store = await import("../src/lib/store.ts");
   const a=store.addProfile({name:'A',allergens:[],severe:false});
   const b=store.addProfile({name:'B',allergens:['glutine'],severe:false});
   store.saveNickelEntry(a.id,item('pomodoro'));

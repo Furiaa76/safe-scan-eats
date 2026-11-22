@@ -79,6 +79,17 @@ export async function saveCloudShopping(items: ShoppingItem[]) {
   return true;
 }
 
+export async function loadAlexaLinkStatus() {
+  const client = getClient();
+  const householdKey = getHouseholdKey();
+  if (!client || !householdKey) return false;
+  const { data, error } = await client.rpc("safe_scan_alexa_link_status", {
+    p_household_key: householdKey,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
 export async function linkAlexaPairingCode(code: string) {
   const client = getClient();
   const householdKey = getHouseholdKey();

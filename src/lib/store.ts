@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from "react";
 import type { AllergenId } from "./allergens";
-import { emptyNickelSettings, normalizeNickelSettings, normalizeNickelTerm, validNickelCode, type NickelEntry, type NickelSettings } from "./nickel";
+import { marketKey, type ShoppingItemDetails } from "./shopping-organization.ts";
+import { forgetShoppingItemDetails, getShoppingPreferences, setShoppingItemDetails } from "./shopping-preferences.ts";
+import { emptyNickelSettings, normalizeNickelSettings, normalizeNickelTerm, validNickelCode, type NickelEntry, type NickelSettings } from "./nickel.ts";
 
 const LEGACY_PROFILE_KEY = "safefood-profile";
 const PROFILES_KEY = "safefood-profiles-v2";
@@ -434,10 +436,13 @@ function normalizeExistingShoppingItems(items: ShoppingItem[]) {
     };
   });
 
+  const { details } = getShoppingPreferences();
   const merged: ShoppingItem[] = [];
   for (const item of normalized) {
     const index = merged.findIndex((current) =>
       current.checked === item.checked &&
+      !details[current.id]?.check && !details[item.id]?.check &&
+      marketKey(details[current.id]?.market) === marketKey(details[item.id]?.market) &&
       shoppingNameKey(current.name) === shoppingNameKey(item.name) &&
       (current.recipe ?? "") === (item.recipe ?? "")
     );
@@ -457,18 +462,31 @@ function normalizeExistingShoppingItems(items: ShoppingItem[]) {
   return merged;
 }
 
-export function addShoppingItems(items: Array<{ name: string; quantity: string; recipe?: string | undefined }>) {
+export function addShoppingItems(items: Array<{
+  name: string;
+  quantity: string;
+  recipe?: string | undefined;
+} & ShoppingItemDetails>) {
   const next = [...getShoppingList()];
   for (const raw of items) {
     const name = raw.name.trim();
     const quantity = normalizeShoppingQuantity(raw.quantity);
     if (!name) continue;
 
-    const index = next.findIndex((item) => !item.checked && shoppingNameKey(item.name) === shoppingNameKey(name));
-    if (index >= 0) {
-      const current = next[index];
+    const { details } = getShoppingPreferences();
+    const index = next.findIndex((item) => {
+      const current = details[item.id];
+      if (item.checked || marketKey(current?.market) !== marketKey(raw.market)) return false;
+      if (raw.check || current?.check) {
+        return Boolean(raw.check?.code && raw.check.code === current?.check?.code && item.name === name);
+      }
+      return shoppingNameKey(item.name) === shoppingNameKey(name);
+    });
+    const current = next[index];
+    if (current) {
       const mergedQuantity = mergeShoppingQuantities(current.quantity, quantity);
       if (mergedQuantity) {
+        if (raw.check) setShoppingItemDetails(current.id, { check: raw.check });
         next[index] = {
           ...current,
           quantity: mergedQuantity,
@@ -476,14 +494,12 @@ export function addShoppingItems(items: Array<{ name: string; quantity: string; 
         };
         continue;
       }
-      if (current.quantity.trim().toLowerCase() === quantity.toLowerCase()) {
-        next[index] = { ...current, recipe: mergeRecipeLabels(current.recipe, raw.recipe) };
-        continue;
-      }
     }
 
+    const id = makeItemId();
+    if (raw.market || raw.check) setShoppingItemDetails(id, { market: raw.market, check: raw.check });
     next.push({
-      id: makeItemId(),
+      id,
       name,
       quantity,
       recipe: raw.recipe,
@@ -511,9 +527,9 @@ function splitNameAndQuantity(name: string, quantity: string) {
   return { name: cleanName, quantity: cleanQuantity || "1" };
 }
 
-export function addShoppingItem(name: string, quantity = "1") {
+export function addShoppingItem(name: string, quantity = "1", market?: string) {
   const parsed = splitNameAndQuantity(name, quantity);
-  addShoppingItems([{ name: parsed.name, quantity: normalizeShoppingQuantity(parsed.quantity) }]);
+  addShoppingItems([{ name: parsed.name, quantity: normalizeShoppingQuantity(parsed.quantity), market }]);
 }
 
 export function updateShoppingItem(id: string, patch: Partial<Pick<ShoppingItem, "name" | "quantity" | "recipe" | "checked">>) {
@@ -531,11 +547,14 @@ export function toggleShoppingItem(id: string) {
 }
 
 export function removeShoppingItem(id: string) {
+  forgetShoppingItemDetails([id]);
   saveShoppingList(getShoppingList().filter((item) => item.id !== id));
 }
 
 export function clearCheckedShoppingItems() {
-  saveShoppingList(getShoppingList().filter((item) => !item.checked));
+  const items = getShoppingList();
+  forgetShoppingItemDetails(items.filter((item) => item.checked).map((item) => item.id));
+  saveShoppingList(items.filter((item) => !item.checked));
 }
 
 export function replaceShoppingList(items: ShoppingItem[]) {
@@ -543,6 +562,7 @@ export function replaceShoppingList(items: ShoppingItem[]) {
 }
 
 export function clearShoppingList() {
+  forgetShoppingItemDetails(getShoppingList().map((item) => item.id));
   shoppingCache = [];
   window.localStorage.removeItem(SHOPPING_KEY);
   emit();

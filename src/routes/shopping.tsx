@@ -1,49 +1,60 @@
-import { reportClientError } from "@/lib/client-diagnostics";
-import { useAppLanguage } from "@/lib/language";
-import { PurchaseItemLink } from "@/components/PurchaseItemLink";
-import { useShoppingSyncState } from "@/components/ShoppingSync";
-import { getShoppingRecipes } from "@/lib/shopping-recipes";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, Pencil, Plus, ShoppingCart, Trash2, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Plus, ShoppingCart } from "lucide-react";
+import { ShoppingAlexa, useShoppingAlexaLink } from "@/components/ShoppingAlexa";
+import { ShoppingListItem, ShoppingMarketField } from "@/components/ShoppingListItem";
+import { useShoppingSyncState } from "@/components/ShoppingSync";
+import { ShoppingWeek } from "@/components/ShoppingWeek";
+import { reportClientError } from "@/lib/client-diagnostics";
+import { saveCloudAllergenPreferences, saveCloudProfiles } from "@/lib/cloud-shopping";
+import { useAppLanguage } from "@/lib/language";
+import { getShoppingRecipes } from "@/lib/shopping-recipes";
+import {
+  groupShoppingByMarket,
+  marketKey,
+  SHOPPING_MARKETS,
+  shoppingProductVerdict,
+  shoppingProfileKey,
+} from "@/lib/shopping-organization";
+import { useShoppingPreferences } from "@/lib/shopping-preferences";
 import {
   addShoppingItem,
   clearCheckedShoppingItems,
   clearShoppingList,
-  removeShoppingItem,
-  toggleShoppingItem,
-  updateShoppingItem,
-  useShoppingList,
   getShoppingCategory,
   SHOPPING_CATEGORIES,
+  useProfile,
+  useProfilesState,
+  useShoppingList,
+  type ShoppingItem,
 } from "@/lib/store";
-import {
-  linkAlexaPairingCode,
-  saveCloudAllergenPreferences,
-  saveCloudProfiles,
-} from "@/lib/cloud-shopping";
-import { useProfile, useProfilesState } from "@/lib/store";
+import type { Verdict } from "@/lib/verdict";
 
-export const Route = createFileRoute("/shopping")({
-  component: ShoppingPage,
-});
+const VIEWS = [
+  { id: "categories", label: "Categorie" },
+  { id: "markets", label: "Supermercati" },
+  { id: "week", label: "Menu settimanale" },
+] as const;
+
+interface ShoppingGroup { key: string; title: string; emoji?: string; items: ShoppingItem[] }
+
+export const Route = createFileRoute("/shopping")({ component: ShoppingPage });
 
 function ShoppingPage() {
   const { t } = useAppLanguage();
-
   const items = useShoppingList();
   const profile = useProfile();
   const profilesState = useProfilesState();
-  const [name, setName] = useState("");
-  const [quantity, setQuantity] = useState("1");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editQuantity, setEditQuantity] = useState("");
-  const [alexaCode, setAlexaCode] = useState("");
-  const [alexaMessage, setAlexaMessage] = useState("");
-  const [alexaLinking, setAlexaLinking] = useState(false);
+  const activeProfileKey = shoppingProfileKey(profilesState.freeMode ? null : profile);
+  const { details } = useShoppingPreferences();
+  const { linked, setLinked, statusError } = useShoppingAlexaLink();
   const cloudState = useShoppingSyncState();
   const [cloudReady, setCloudReady] = useState(cloudState === "synced");
+  const [view, setView] = useState<typeof VIEWS[number]["id"]>("categories");
+  const [filter, setFilter] = useState<Verdict | "all">("all");
+  const [name, setName] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [market, setMarket] = useState("");
 
   useEffect(() => {
     if (cloudState === "synced") setCloudReady(true);
@@ -57,292 +68,142 @@ function ShoppingPage() {
   useEffect(() => {
     if (!cloudReady) return;
     void saveCloudProfiles(
-      profilesState.profiles.map((item) => ({
-        id: item.id,
-        name: item.name,
-        allergens: item.allergens,
-      })),
+      profilesState.profiles.map(({ id, name, allergens }) => ({ id, name, allergens })),
     ).catch(error => reportClientError("shopping-profiles", error));
   }, [cloudReady, profilesState.profiles]);
 
-  const pending = useMemo(() => items.filter((item) => !item.checked), [items]);
-  const checked = useMemo(() => items.filter((item) => item.checked), [items]);
-  const groupedPending = useMemo(() => {
-    const groups = SHOPPING_CATEGORIES.map((category) => ({
-      category,
-      items: pending.filter((item) => getShoppingCategory(item.name).id === category.id),
-    })).filter((group) => group.items.length > 0);
-    return groups;
-  }, [items]);
-
-  const recipes = useMemo(() => getShoppingRecipes(items), [items]);
-
-  const addManual = () => {
-    const clean = name.trim();
-    if (!clean) return;
-    addShoppingItem(clean, quantity.trim() || "1");
-    setName("");
-    setQuantity("1");
-  };
-
-  const beginEdit = (id: string, currentName: string, currentQuantity: string) => {
-    setEditingId(id);
-    setEditName(currentName);
-    setEditQuantity(currentQuantity);
-  };
-
-  const saveEdit = () => {
-    if (!editingId) return;
-    updateShoppingItem(editingId, {
-      name: editName,
-      quantity: editQuantity,
-    });
-    setEditingId(null);
-  };
-
-  const linkAlexa = async () => {
-    const code = alexaCode.replace(/\D/g, "").slice(0, 6);
-    if (code.length !== 6) {
-      setAlexaMessage("Inserisci il codice di 6 cifre detto da Alexa.");
-      return;
+  const markets = useMemo(() => {
+    const options = new Map(SHOPPING_MARKETS.map((name) => [marketKey(name), name]));
+    for (const item of items) {
+      const market = details[item.id]?.market;
+      if (market) options.set(marketKey(market), market);
     }
-    setAlexaLinking(true);
-    setAlexaMessage("");
-    try {
-      const ok = await linkAlexaPairingCode(code);
-      setAlexaMessage(ok ? "Alexa collegata alla tua lista della spesa." : "Codice non valido o scaduto. Chiedi ad Alexa un nuovo codice.");
-      if (ok) setAlexaCode("");
-    } catch (error) {
-      reportClientError("alexa-link", error);
-      setAlexaMessage("Non riesco a collegare Alexa in questo momento.");
-    } finally {
-      setAlexaLinking(false);
-    }
-  };
+    return [...options.values()].sort((a, b) => a.localeCompare(b, "it"));
+  }, [items, details]);
+  const pending = items.filter((item) => !item.checked);
+  const checked = items.filter((item) => item.checked);
+  const recipeGroups = useMemo(() => getShoppingRecipes(items), [items]);
+  const matchesFilter = (item: ShoppingItem) => filter === "all" || shoppingProductVerdict(item, details[item.id], activeProfileKey) === filter;
+  const visiblePending = pending.filter(matchesFilter);
+  const visibleChecked = checked.filter(matchesFilter);
 
-  return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
-      <header className="flex items-center gap-3">
-        <Link to="/" aria-label={t("Torna alla home")} className="grid h-10 w-10 place-items-center rounded-full bg-secondary text-secondary-foreground">
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-extrabold text-foreground">{t("Lista della spesa")}</h1>
-          <p className="text-xs text-muted-foreground">
-            {pending.length} {t(" da comprare · ")}{checked.length} {t("acquistati")}{t(cloudState === "synced" ? " · ☁️ sincronizzata" : cloudState === "syncing" ? " · sincronizzo…" : cloudState === "error" ? " · sync non disponibile" : "")}
-          </p>
+  const groupItems = (rows: ShoppingItem[]): ShoppingGroup[] => view === "markets"
+    ? groupShoppingByMarket(rows, details)
+    : SHOPPING_CATEGORIES.map(({ id, label, emoji }) => ({
+      key: id, title: label, emoji, items: rows.filter((item) => getShoppingCategory(item.name).id === id),
+    })).filter(({ items }) => items.length > 0);
+
+  const renderGroups = (groups: ShoppingGroup[]) => <div className="mt-3 space-y-4">
+    {groups.map((group) => <div key={group.key}>
+      <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold">
+        {group.emoji && <span aria-hidden="true">{group.emoji}</span>}
+        {t(group.title)}
+        <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{group.items.length}</span>
+      </h3>
+      <div className="space-y-2">
+        {group.items.map((item) => <ShoppingListItem key={item.id} item={item} details={details[item.id]} activeProfileKey={activeProfileKey} markets={markets} />)}
+      </div>
+    </div>)}
+  </div>;
+
+  const alexaPanel = <ShoppingAlexa linked={linked} statusError={statusError} onLinked={() => setLinked(true)} />;
+
+  return <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-10 pt-6">
+    <header className="flex items-start gap-3">
+      <Link to="/" aria-label={t("Torna alla home")} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-secondary text-secondary-foreground">
+        <ArrowLeft className="h-5 w-5" />
+      </Link>
+      <div className="min-w-0 flex-1">
+        <h1 className="text-lg font-extrabold text-foreground">{t("Lista della spesa")}</h1>
+        <p className="text-xs text-muted-foreground">
+          {pending.length} {t("da comprare")} · {checked.length} {t("acquistati")}{t(cloudState === "synced" ? " · ☁️ sincronizzata" : cloudState === "syncing" ? " · sincronizzo…" : cloudState === "error" ? " · sync non disponibile" : "")}
+        </p>
+        <div aria-live="polite">
+          {linked && <a href="#alexa" className="mt-1 inline-flex items-center gap-1 rounded-full bg-safe-soft px-2 py-1 text-xs font-extrabold text-safe">
+            <CheckCircle2 className="h-3.5 w-3.5" />{t("Alexa collegata")}
+          </a>}
         </div>
-        <ShoppingCart className="h-6 w-6 text-primary" />
-      </header>
-      <p className="mt-3 text-xs text-muted-foreground">{t("Tocca un prodotto per cercare dove acquistarlo.")}</p>
+      </div>
+      <ShoppingCart className="h-6 w-6 shrink-0 text-primary" />
+    </header>
 
-      {recipes.length > 0 && (
-        <section className="mt-4 rounded-3xl border border-border bg-card p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
-              {t(recipes.length === 1 ? "Ricetta della lista" : "Ricette della lista")}
-            </h2>
-            <Link to="/recipes" className="text-xs font-extrabold text-primary">
-              {t("Vai alle ricette")}
-            </Link>
-          </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {recipes.map(({ key, title }) => (
-              <span key={key} className="rounded-full bg-primary px-4 py-2 text-base font-black text-primary-foreground">
-                {t("🍽️")}{t(title)}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="mt-5 rounded-3xl border border-border bg-card p-4">
-        <p className="font-extrabold text-foreground">{t("Collega Alexa")}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{t("Apri la skill “Safe Scan” su Alexa. Se non è ancora collegata, Alexa ti dirà un codice di 6 cifre.")}</p>
-        <div className="mt-3 flex gap-2">
-          <input
-            value={alexaCode}
-            onChange={(e) => setAlexaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            inputMode="numeric"
-            placeholder={t("Codice 6 cifre")}
-            className="min-w-0 flex-1 rounded-2xl border border-border bg-background px-4 py-3 text-center text-lg font-extrabold tracking-[0.25em] outline-none focus:border-primary"
-          />
-          <button
-            type="button"
-            onClick={() => void linkAlexa()}
-            disabled={alexaLinking || alexaCode.length !== 6}
-            className="rounded-2xl bg-secondary px-4 text-sm font-extrabold text-secondary-foreground disabled:opacity-40"
-          >
-            {t(alexaLinking ? "Collego…" : "Collega")}
-          </button>
-        </div>
-        {alexaMessage && <p className="mt-2 text-xs font-semibold text-muted-foreground">{t(alexaMessage)}</p>}
-      </section>
-
-      <section className="mt-4 rounded-3xl border border-border bg-card p-4">
-        <p className="font-extrabold text-foreground">{t("Aggiungi un prodotto")}</p>
-        <div className="mt-3 grid grid-cols-[minmax(0,1fr)_95px] gap-2">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addManual();
-              }
-            }}
-            placeholder={t("Es. Latte")}
-            className="min-w-0 rounded-2xl border border-border bg-background px-4 py-3 text-base outline-none focus:border-primary"
-          />
-          <input
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            placeholder={t("Qtà")}
-            className="rounded-2xl border border-border bg-background px-3 py-3 text-center text-base outline-none focus:border-primary"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={addManual}
-          disabled={!name.trim()}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-extrabold text-primary-foreground disabled:opacity-40"
-        >
-          <Plus className="h-4 w-4" />
-          {t("Aggiungi alla lista")}</button>
-        <p className="mt-2 text-xs text-muted-foreground">{t("Puoi scrivere quantità come 2, 500 g, 1 kg, 750 ml. I doppioni compatibili vengono sommati automaticamente.")}</p>
-      </section>
-
-      {items.length === 0 ? (
-        <section className="mt-4 rounded-3xl border border-border bg-card p-5 text-center">
-          <ShoppingCart className="mx-auto h-8 w-8 text-muted-foreground" />
-          <p className="mt-3 font-extrabold text-foreground">{t("La lista è vuota")}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{t("Aggiungi prodotti a mano oppure da una ricetta.")}</p>
-          <Link to="/recipes" className="mt-4 inline-flex rounded-full bg-secondary px-4 py-2 text-sm font-extrabold text-secondary-foreground">
-            {t("Vai alle ricette")}</Link>
-        </section>
-      ) : (
-        <>
-          <section className="mt-4 rounded-3xl border border-border bg-card p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="font-extrabold text-foreground">{t("Da comprare")}</h2>
-                <p className="text-xs text-muted-foreground">{pending.length} {t(" prodotti")}</p>
-              </div>
-              {items.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!window.confirm(t("Vuoi svuotare tutta la lista della spesa?"))) return;
-                    clearShoppingList();
-                  }}
-                  className="text-xs font-extrabold text-danger"
-                >
-                  {t("Svuota tutto")}</button>
-              )}
-            </div>
-
-            {pending.length === 0 ? (
-              <p className="mt-3 text-sm text-muted-foreground">{t("Hai già spuntato tutto.")}</p>
-            ) : (
-              <>
-                <div className="mt-4 space-y-5">
-                {groupedPending.map(({ category, items: categoryItems }) => (
-                  <div key={category.id}>
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="text-lg">{t(category.emoji)}</span>
-                      <h3 className="text-sm font-extrabold text-foreground">{t(category.label)}</h3>
-                      <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-bold text-secondary-foreground">{categoryItems.length}</span>
-                    </div>
-                    <div className="space-y-2">
-                      {categoryItems.map((item) => (
-                        <div key={item.id} className="rounded-2xl bg-muted px-3 py-3">
-                          {editingId === item.id ? (
-                            <div>
-                              <div className="grid grid-cols-[minmax(0,1fr)_90px] gap-2">
-                                <input
-                                  value={editName}
-                                  onChange={(e) => setEditName(e.target.value)}
-                                  className="min-w-0 rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
-                                />
-                                <input
-                                  value={editQuantity}
-                                  onChange={(e) => setEditQuantity(e.target.value)}
-                                  className="rounded-xl border border-border bg-card px-2 py-2 text-center text-sm outline-none focus:border-primary"
-                                />
-                              </div>
-                              <div className="mt-2 flex justify-end gap-2">
-                                <button type="button" onClick={() => setEditingId(null)} className="grid h-8 w-8 place-items-center rounded-full bg-card text-muted-foreground">
-                                  <X className="h-4 w-4" />
-                                </button>
-                                <button type="button" onClick={saveEdit} className="rounded-full bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground">
-                                  {t("Salva")}</button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-3">
-                              <button
-                                type="button"
-                                onClick={() => toggleShoppingItem(item.id)}
-                                className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-border bg-card"
-                                aria-label={t("Segna come acquistato")}
-                              />
-                              <div className="min-w-0 flex-1">
-                                <PurchaseItemLink name={item.name} from="shopping" className="text-sm font-extrabold" />
-                                <p className="text-xs text-muted-foreground">{t(item.quantity)}{t(item.recipe ? ` · ${item.recipe}` : "")}</p>
-                              </div>
-                              <button type="button" onClick={() => beginEdit(item.id, item.name, item.quantity)} className="text-muted-foreground" aria-label={t("Modifica")}>
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                              <button type="button" onClick={() => removeShoppingItem(item.id)} className="text-muted-foreground" aria-label={t("Elimina")}>
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                </div>
-              </>
-            )}
-          </section>
-
-          {checked.length > 0 && (
-            <section className="mt-4 rounded-3xl border border-border bg-card p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-extrabold text-foreground">{t("Acquistati")}</h2>
-                  <p className="text-xs text-muted-foreground">{checked.length} {t(" prodotti")}</p>
-                </div>
-                <button type="button" onClick={clearCheckedShoppingItems} className="text-xs font-extrabold text-danger">
-                  {t("Elimina acquistati")}</button>
-              </div>
-              <div className="mt-3 space-y-2">
-                {checked.map((item) => (
-                  <div key={item.id} className="flex items-center gap-3 rounded-2xl bg-muted px-3 py-3 opacity-70">
-                    <button
-                      type="button"
-                      onClick={() => toggleShoppingItem(item.id)}
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full border-2 border-primary bg-primary text-primary-foreground"
-                      aria-label={t("Rimetti tra i prodotti da comprare")}
-                    >
-                      <Check className="h-4 w-4" />
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <PurchaseItemLink name={item.name} from="shopping" className="text-sm font-bold line-through" />
-                      <p className="text-xs text-muted-foreground">{t(item.quantity)}</p>
-                    </div>
-                    <button type="button" onClick={() => removeShoppingItem(item.id)} className="text-muted-foreground" aria-label={t("Elimina")}>
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-        </>
-      )}
+    <div className="mt-4 grid grid-cols-3 gap-1 rounded-2xl bg-muted p-1" role="group" aria-label={t("Organizza la lista")}>
+      {VIEWS.map(({ id, label }) => <button key={id} type="button" aria-pressed={view === id} onClick={() => setView(id)} className={`min-h-11 rounded-xl px-1.5 py-1.5 text-xs font-extrabold ${view === id ? "bg-primary text-primary-foreground" : "text-foreground"}`}>
+        {t(label)}
+      </button>)}
     </div>
-  );
+
+    {view === "week" ? <ShoppingWeek recipes={recipeGroups} activeProfileKey={activeProfileKey} /> : <>
+      {recipeGroups.length > 0 && <section className="mt-4 rounded-3xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xs font-extrabold uppercase tracking-wide text-muted-foreground">
+            {t(recipeGroups.length === 1 ? "Ricetta della lista" : "Ricette della lista")}
+          </h2>
+          <Link to="/recipes" className="text-xs font-extrabold text-primary">{t("Vai alle ricette")}</Link>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {recipeGroups.map(({ key, title }) => <span key={key} className="rounded-full bg-secondary px-3 py-1.5 text-sm font-extrabold text-secondary-foreground">{t(title)}</span>)}
+        </div>
+      </section>}
+
+      {!linked && alexaPanel}
+
+      <form className="mt-4 rounded-3xl border border-border bg-card p-4" onSubmit={(event) => {
+        event.preventDefault();
+        if (!name.trim()) return;
+        addShoppingItem(name.trim(), quantity.trim() || "1", market);
+        setName("");
+        setQuantity("1");
+      }}>
+        <h2 className="font-extrabold">{t("Aggiungi un prodotto")}</h2>
+        <div className="my-3 grid grid-cols-[minmax(0,1fr)_95px] gap-2">
+          <input value={name} onChange={(event) => setName(event.target.value)} aria-label={t("Nome del prodotto")} placeholder={t("Es. Latte")} className="min-w-0 rounded-xl border border-border bg-background px-3 py-2.5 text-base" />
+          <input value={quantity} onChange={(event) => setQuantity(event.target.value)} aria-label={t("Qtà")} placeholder={t("Qtà")} className="rounded-xl border border-border bg-background px-2 py-2.5 text-center text-base" />
+        </div>
+        <ShoppingMarketField markets={markets} value={market} onChange={setMarket} />
+        <button type="submit" disabled={!name.trim()} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-2 text-sm font-extrabold text-primary-foreground disabled:opacity-40">
+          <Plus className="h-4 w-4" />{t("Aggiungi alla lista")}
+        </button>
+      </form>
+
+      {items.length === 0 ? <section className="mt-4 rounded-3xl border border-border bg-card p-5 text-center">
+        <p className="font-extrabold">{t("La lista è vuota")}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{t("Aggiungi prodotti a mano oppure da una ricetta.")}</p>
+        <Link to="/recipes" className="mt-4 inline-flex rounded-full bg-secondary px-4 py-2 text-sm font-extrabold text-secondary-foreground">{t("Vai alle ricette")}</Link>
+      </section> : <>
+        <section className="mt-4 rounded-3xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-extrabold">{t("Da comprare")} <span className="text-sm text-muted-foreground">({pending.length})</span></h2>
+            <button type="button" onClick={() => {
+              if (window.confirm(t("Vuoi svuotare tutta la lista della spesa?"))) clearShoppingList();
+            }} className="min-h-9 text-xs font-extrabold text-danger">{t("Svuota tutto")}</button>
+          </div>
+          <label className="mt-2 block text-sm font-bold">
+            {t("Filtra per esito")}
+            <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className="mt-1 min-h-11 w-full rounded-xl border border-border bg-background px-2 text-sm">
+              <option value="all">{t("Tutti i prodotti")}</option>
+              <option value="compatible">{t("Compatibile con il profilo")}</option>
+              <option value="warning">{t("Da verificare")}</option>
+              <option value="avoid">{t("Da evitare")}</option>
+            </select>
+          </label>
+          <p className="mt-2 text-xs text-muted-foreground">{t("I colori si basano sul profilo attivo e sui dati analizzati. Controlla sempre l’etichetta.")}</p>
+          <Link to="/scan" search={{ mode: "barcode" }} className="mt-1 inline-flex min-h-9 items-center text-xs font-extrabold text-primary">
+            {t("Scansiona un prodotto per verificarlo")}
+          </Link>
+          {visiblePending.length ? renderGroups(groupItems(visiblePending)) : <p className="mt-3 text-sm text-muted-foreground">{t(pending.length ? "Nessun prodotto per questo esito." : "Hai già spuntato tutto.")}</p>}
+        </section>
+
+        {checked.length > 0 && <section className="mt-4 rounded-3xl border border-border bg-card p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-extrabold">{t("Acquistati")} <span className="text-sm text-muted-foreground">({checked.length})</span></h2>
+            <button type="button" onClick={clearCheckedShoppingItems} className="min-h-9 text-xs font-extrabold text-danger">{t("Elimina acquistati")}</button>
+          </div>
+          {visibleChecked.length ? renderGroups(groupItems(visibleChecked)) : <p className="mt-3 text-sm text-muted-foreground">{t("Nessun prodotto per questo esito.")}</p>}
+        </section>}
+      </>}
+    </>}
+
+    {(linked || view === "week") && <div id="alexa" className="scroll-mt-4">{alexaPanel}</div>}
+  </div>;
 }

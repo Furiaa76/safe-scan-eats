@@ -4,6 +4,7 @@ import { useAppLanguage } from "@/lib/language";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -12,12 +13,14 @@ import {
   Package,
   RotateCcw,
   ShieldAlert,
+  ShoppingCart,
   TriangleAlert,
 } from "lucide-react";
 import { productsInCategory, type FoodProduct } from "@/lib/off";
 import { analyzeFood, VERDICT_LABEL, type Analysis, type Verdict } from "@/lib/verdict";
 import { ALLERGENS, allergenById, type AllergenId } from "@/lib/allergens";
-import { useProfilesState, type Profile } from "@/lib/store";
+import { addShoppingItems, useProfilesState, type Profile } from "@/lib/store";
+import { makeShoppingProductCheck } from "@/lib/shopping-organization";
 import { assessSsnCeliac } from "@/lib/ssn";
 import { checkSsnRegistry } from "@/lib/ssn.functions";
 
@@ -83,6 +86,9 @@ export function ResultView({
   const { t } = useAppLanguage();
 
   const { freeMode } = useProfilesState();
+  const [addedProduct, setAddedProduct] = useState("");
+  const productKey = JSON.stringify([product.code, product.name]);
+  const productAdded = addedProduct === productKey;
   const style = VERDICT_STYLE[analysis.verdict];
   const nickelOnly = !!profile?.nickel?.enabled && !profile.allergens.length && !profile.customAllergens?.length;
   const personalClear = nickelOnly && analysis.verdict === "compatible";
@@ -136,6 +142,31 @@ export function ResultView({
               <p className="text-[10px] font-bold uppercase text-muted-foreground">{t("Nutri-Score")}</p>
               <p className="text-xl font-black text-foreground">{t(NUTRI_LABEL[product.nutritionGrade])}</p>
             </div>
+          )}
+        </div>
+
+        <div className="mt-3">
+          {productAdded ? (
+            <Link to="/shopping" className="flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-secondary px-4 py-3 text-sm font-extrabold text-secondary-foreground">
+              <CheckCircle2 className="h-5 w-5" />{t("Aggiunto · Apri la lista")}
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                const name = product.name.trim();
+                if (!name) return;
+                addShoppingItems([{
+                  name,
+                  quantity: "1",
+                  check: makeShoppingProductCheck(product.code, name, freeMode ? null : profile, analysis),
+                }]);
+                setAddedProduct(productKey);
+              }}
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-secondary px-4 py-3 text-sm font-extrabold text-secondary-foreground"
+            >
+              <ShoppingCart className="h-5 w-5" />{t("Aggiungi alla lista della spesa")}
+            </button>
           )}
         </div>
 
