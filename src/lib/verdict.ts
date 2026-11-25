@@ -134,6 +134,9 @@ function nutHits(text: string): string[] {
 
 function keywordHit(text: string, a: AllergenId): string | null {
   if (a === "frutta-guscio") return nutHits(text).join(", ") || null;
+  if (a === "glutine" && /\b(?:malto\s+d(?:[’']\s*|i\s+)orzo|barley\s+malt|malt\s+(?:d[’']\s*|of\s+)?orge|gerstenmalz(?:extrakt)?|gerstemout(?:extract)?)\b/iu.test(text)) {
+    return "malto d’orzo";
+  }
   const words = [...allergenById(a).keywords, ...EN_KEYWORDS[a]];
   for (const kw of words) {
     const re = new RegExp(`(^|[^a-zàèéìòù])${kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|es)?([^a-zàèéìòù]|$)`, "i");
@@ -248,19 +251,21 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
     const deglutinizedWheat = a === "glutine" && withoutDeglutinizedWheat(originalMain) !== originalMain;
     const explainedGlutenTag = deglutinizedWheat && !kw;
 
-    if (freeLabel) {
+    if (declaration) {
       if (kw && a !== "glutine") {
         avoid = true;
         reasons.push({ level: "avoid", text: `Contiene ${kw} (${lower(a)}): dati discordanti con la dichiarazione di assenza.` });
       }
-      if (tagHit && !declaration?.manufacturer && !explainedGlutenTag) {
+      if (a === "glutine" && p.source === "off" && !declaration.manufacturer && kw) {
+        warn = true;
+        reasons.push({ level: "warning", text: `Rilevato ${kw} negli ingredienti. Verifica sulla confezione la dicitura “senza glutine”.` });
+      } else if (tagHit && !declaration.manufacturer && !explainedGlutenTag) {
         warn = true;
         reasons.push({ level: "warning", text: `Dati discordanti: dichiarazione senza ${lower(a)} e allergene presente nel catalogo. Verifica l'etichetta.` });
       }
-      if (deglutinizedWheat) {
+      if (explainedGlutenTag) {
         reasons.push({ level: "info", text: "Frumento deglutinato: compatibile con il filtro glutine in presenza della dichiarazione senza glutine. Non equivale a senza frumento." });
       }
-      reasons.push({ level: "info", text: `Etichetta \"senza ${lower(a)}\" dichiarata dal produttore` });
       if (traceHit) {
         warn = true;
         reasons.push({ level: "warning", text: `Può contenere tracce di ${lower(a)}` });
@@ -306,7 +311,10 @@ export function analyzeFood(p: FoodProduct, userAllergens: AllergenId[], customA
     }
   }
 
-  const uncoveredRestrictions = userAllergens.filter((allergen) => !freeFromClaim(p, allergen));
+  const uncoveredRestrictions = userAllergens.filter((allergen) => {
+    const claim = freeFromClaim(p, allergen);
+    return !claim || (allergen === "glutine" && p.source === "off" && !claim.manufacturer);
+  });
   const needsIngredientCheck = (userAllergens.length === 0 && !nickelSettings?.enabled) || uncoveredRestrictions.length > 0 || customAllergens.some((term) => term.trim());
   const unsupportedLanguage = p.source === "off" && p.ingredientsLanguage !== undefined && !["it", "en"].includes(p.ingredientsLanguage);
   if (unsupportedLanguage && needsIngredientCheck) {

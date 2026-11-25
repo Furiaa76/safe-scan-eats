@@ -46,3 +46,30 @@ test('catalog names use the same variants and preserve conflicting allergen tags
   assert.equal(analyzeFood(p, ['glutine']).verdict, 'compatible');
   assert.equal(analyzeFood({ ...p, allergenTags: ['en:gluten'] }, ['glutine']).verdict, 'warning');
 });
+
+test('Lindor 7610400010030 identifies barley malt in the catalog and on the package', () => {
+  const catalog = {
+    ...product("zucchero, lecitina di soia, estratto di malto d'orzo, aromi"),
+    code: '7610400010030', name: 'LINDOR', brand: 'Lindt', source: 'off',
+    ingredientsLanguage: 'it', allergenTags: ['en:gluten', 'en:milk', 'en:soybeans'],
+    labelTags: ['en:green-dot'],
+  };
+  assert.equal(analyzeFood(catalog, ['glutine']).verdict, 'avoid');
+  for (const barleyMalt of ["malto d’orzo", "extract of malt orge", "barley malt extract", "extrait de malt d’orge", "Gerstenmalzextrakt", "gerstemoutextract"]) {
+    const result = analyzeFood(product(`zucchero, ${barleyMalt}, aromi`), ['glutine']);
+    assert.equal(result.verdict, 'avoid', barleyMalt);
+    assert.ok(result.reasons.some(reason => reason.text.includes('malto d’orzo')));
+  }
+  assert.equal(analyzeFood(product("riso, può contenere malto d'orzo"), ['glutine']).verdict, 'warning');
+});
+
+test('a catalog gluten-free tag cannot hide barley malt or replace missing ingredients', () => {
+  const catalog = {
+    ...product("zucchero, estratto di malto d'orzo"),
+    source: 'off', labelTags: ['en:no-gluten'],
+  };
+  assert.equal(analyzeFood(catalog, ['glutine']).verdict, 'warning');
+  assert.equal(analyzeFood({ ...catalog, ingredientsText: '' }, ['glutine']).verdict, 'warning');
+  assert.equal(analyzeFood({ ...catalog, ingredientsText: 'Zucker, Aroma', ingredientsLanguage: 'de' }, ['glutine']).verdict, 'warning');
+  assert.equal(analyzeFood(product("Senza glutine. Zucchero, estratto di malto d'orzo."), ['glutine']).verdict, 'compatible');
+});
